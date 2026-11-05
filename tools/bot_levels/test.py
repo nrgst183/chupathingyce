@@ -24,12 +24,19 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def run(game, data, level, variant, seconds, speed, extra, octet, seed=5):
     work = tempfile.mkdtemp(prefix="botlevel_")
+    # (a copy of the game in each game's own folder: the game keeps its
+    # settings beside itself, and two games at once with the one file
+    # between them did not start, one time in three)
+    exe = os.path.join(work, os.path.basename(game))
+    shutil.copy(os.path.abspath(game), exe)
+    game = exe
     try:
         env = dict(os.environ)
         env.update({
@@ -42,8 +49,16 @@ def run(game, data, level, variant, seconds, speed, extra, octet, seed=5):
         })
         env.update(extra)
         try:
-            result = subprocess.run([os.path.abspath(game)], cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                    timeout=seconds)
+            for attempt in range(20):
+                try:
+                    result = subprocess.run([os.path.abspath(game)], cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                            timeout=seconds)
+                    break
+                except OSError as error:
+                    # (the copy still open in the other thread's starting game: a moment)
+                    if error.errno != 26 or attempt == 19:
+                        raise
+                    time.sleep(0.5)
             out = result.stdout
         except subprocess.TimeoutExpired as expired:
             out = expired.stdout or b""

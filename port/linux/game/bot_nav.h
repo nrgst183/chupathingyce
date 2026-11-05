@@ -135,6 +135,7 @@ real aas_speed(long type); /* world units a second, for travel times */
 
 /* the area a point is in (NONE: none, or not quite: see aas_nearest_area) */
 long aas_point_area(long type, real_point3d const *point);
+long aas_standing_area(long type, real_point3d const *point); /* ... of a body on the ground: the floor at its feet when its middle is past a ledge's edge */
 /* the nearest area to a point within radius (over the floor, not through
    walls), and the nearest spot in it */
 long aas_nearest_area(long type, real_point3d const *point, real radius, real_point3d *spot);

@@ -3234,6 +3234,22 @@ unless `--fights` is given). What was wrong, and what changed:
   leaves an area, a bot whose way goes back there plans from that area, as
   if still in it. The bot's stalls on the way between the flags fell from
   55 to 26 samples. `HALO_BOT_OFF=sticky`.
+- **Off the top of a ladder onto a landing in no area.** Some ladders (on
+  Boarding Action) come up onto a little shelf that is under no area. A bot
+  stood on the landing, was not counted as off the ladder, went back down,
+  and climbed again until it ran out of time. Now standing on the landing
+  of a ladder or a jump up counts, whatever area is under the feet. On
+  Boarding Action that ladder went from 0 climbs made and 6 failed to 8
+  made, and the trips between the flags from 40 (6 given up) to 54 (none).
+  `HALO_BOT_OFF=ladderland`.
+- **The feet on a lip, the middle over the floor below.** A body stands on
+  what its edge is over, and its middle can be past the edge of a ledge. The
+  area under the middle was then the floor below, so the bot "made" the drop
+  to it as it stood, and was sent along the floor below from the lip, for
+  seconds (the way out of the blue base of Battle Creek). For a bot on the
+  ground, its area is now the floor at its feet. On Battle Creek, one bot
+  between the flags went from 1.34 times the time the navigation reckons
+  to 1.11. `HALO_BOT_OFF=onlip`.
 - **The way round to the flag was always the shortest.** In capture the flag,
   the ways round to the enemy's flag were scored by length alone, and the
   bots took the same one every time. Going to the hill (not scored as an

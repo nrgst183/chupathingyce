@@ -3093,12 +3093,70 @@ long aas_reach_count(long type)
 	return aas_worlds[type].reach_count;
 }
 
+static boolean aas_on_lip_off(void)
+{
+	static int asked, off;
+	if (!asked)
+	{
+		asked = TRUE;
+		off = getenv("HALO_BOT_OFF") && strstr(getenv("HALO_BOT_OFF"), "onlip");
+	}
+	return off;
+}
+
 long aas_point_area(long type, real_point3d const *point)
 {
 	long s;
 	if (!aas_is_ready)
 		return NONE;
 	s = navm_span_at(point, 0.3f, 1.2f);
+	return s == NONE ? NONE : aas_worlds[type].span_area[s];
+}
+
+/* The area of a body standing on the ground (not one in the air): as
+   aas_point_area, but where the floor straight under the middle is a good way
+   down, the floor at the feet beside it. A body stands on what its edge is
+   over, and its middle can be past the edge of a ledge. Taken for the floor
+   below, the bot was made to drop to it, "made" the drop as it stood there,
+   and was sent on along the floor below, from the lip, for seconds, on the
+   way out of the blue base of Battle Creek. HALO_BOT_OFF=onlip: as it was */
+long aas_standing_area(long type, real_point3d const *point)
+{
+	long s;
+	if (!aas_is_ready)
+		return NONE;
+	s = navm_span_at(point, 0.3f, 1.2f);
+	if ((s == NONE || navm.spans[s].floor < point->z - 0.35f) && !aas_on_lip_off())
+	{
+		long cx = (long)floor((point->x - navm.x0) / NAVM_CELL);
+		long cy = (long)floor((point->y - navm.y0) / NAVM_CELL);
+		long reach = (long)(0.3f / NAVM_CELL) + 1;
+		real best = 1.0e9f;
+		long x, y, found = NONE;
+		for (y = cy - reach; y <= cy + reach; y++)
+		{
+			for (x = cx - reach; x <= cx + reach; x++)
+			{
+				long u;
+				if (x < 0 || y < 0 || x >= navm.width || y >= navm.height)
+					continue;
+				for (u = navm_first_span_at(x, y); u != NONE; u = navm.spans[u].next)
+				{
+					real off = (real)fabs(navm.spans[u].floor - point->z);
+					real across = (real)((x - cx) * (x - cx) + (y - cy) * (y - cy));
+					if (off > 0.15f || aas_worlds[type].span_area[u] == NONE)
+						continue;
+					if (across + off * 10.f < best)
+					{
+						best = across + off * 10.f;
+						found = u;
+					}
+				}
+			}
+		}
+		if (found != NONE)
+			s = found;
+	}
 	return s == NONE ? NONE : aas_worlds[type].span_area[s];
 }
 

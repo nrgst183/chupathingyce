@@ -1808,7 +1808,16 @@ static boolean bot_move_reach_made_now(struct bot_move_state const *move, struct
 			!(reach->travel == _aas_travel_gap && move->reach_pace > 0.f && move->reach_pace < 1.f && !move->reach_no_jump &&
 				position->z > reach->end.z + 0.3f && fabs(body->velocity.k) > BOT_VELOCITY_STILL)) ||
 		(reach->travel == _aas_travel_ladder && move->reach_started && area != NONE && area != reach->from &&
-			fabs(position->z - reach->left.z) < 0.2f && fabs(body->velocity.k) < BOT_VELOCITY_STILL);
+			fabs(position->z - reach->left.z) < 0.2f && fabs(body->velocity.k) < BOT_VELOCITY_STILL) ||
+		/* (... or, up a ladder or a jump, standing on the landing itself,
+		   when the landing is in no area under the feet: the little shelves
+		   the ladders of Boarding Action come up onto, the rounded edge of
+		   the middle of Wizard. Stood there, and not made, the bot
+		   went back down the ladder, and up again, till the time ran out.
+		   HALO_BOT_OFF=ladderland: as it was) */
+		((reach->travel == _aas_travel_ladder || reach->travel == _aas_travel_jump) && move->reach_started && area == NONE &&
+			!bot_env_off("ladderland") && bot_distance2d(position, &reach->left) < 0.6f && fabs(position->z - reach->left.z) < 0.25f &&
+			fabs(body->velocity.k) < BOT_VELOCITY_STILL && !body->airborne);
 }
 
 /* a reachability made: what it taught, and the walk on from where we stand */
@@ -1952,7 +1961,7 @@ static boolean bot_move_travel_on(struct bot_mover *bot, struct bot_body const *
 		return FALSE;
 	}
 	reach = aas_reach(move->type, move->reach);
-	area = aas_point_area(move->type, position);
+	area = move->type == AAS_FOOT && !body->airborne ? aas_standing_area(move->type, position) : aas_point_area(move->type, position);
 	result->travel = reach->travel;
 	move->reach_ticks++;
 	move->reach_peak = MAX(move->reach_peak, position->z);
@@ -3215,8 +3224,8 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 		return;
 	}
 
-	/* where we are */
-	area = aas_point_area(type, position);
+	/* where we are (on the ground: on the floor at the feet, aas_standing_area) */
+	area = type == AAS_FOOT && !body->airborne ? aas_standing_area(type, position) : aas_point_area(type, position);
 	if (area == NONE)
 	{
 		area = aas_nearest_area(type, position, type == AAS_VEHICLE ? 4.f : 2.f, &spot);
@@ -3274,11 +3283,22 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	   it on again into the sliver, back and forth for six seconds on the
 	   ramp to the flag of Hang 'Em High. HALO_BOT_OFF=sticky: as it was) */
 	if (type == AAS_FOOT && move->corridor_count > 0 && move->area_before != NONE && move->area_before != area &&
-		aas_reach(type, move->corridor[0])->to == move->area_before && aas_reach(type, move->corridor[0])->travel == _aas_travel_walk &&
+		aas_reach(type, move->corridor[0])->to == move->area_before &&
+		(aas_reach(type, move->corridor[0])->travel == _aas_travel_walk ||
+		 /* (or a drop of a step back down to it: two areas a step apart,
+		    the one over the other's edge, the feet in one and then the
+		    other as the body bobs, and the drop between them made and made
+		    again on the spot, for seconds, on the way out of the blue base
+		    of Battle Creek) */
+		 (aas_reach(type, move->corridor[0])->travel == _aas_travel_drop &&
+			aas_reach(type, move->corridor[0])->edge.z - aas_reach(type, move->corridor[0])->end.z < 0.5f)) &&
 		game_time_get() - move->area_left_tick < BOT_SECONDS(1.5f) && game_time_get() >= move->area_left_tick && !bot_env_off("sticky"))
 	{
 		long first_back = move->corridor[0];
 		bot_move_plan(move, move->area_before, &spot, goal_area);
+		if (getenv("HALO_BOT_STICKYLOG"))
+			bot_log("sticky bot%ld t%ld: in %ld, from %ld instead (%ld back), now %ld", bot->index, (long)game_time_get(), area, move->area_before,
+				first_back, move->corridor_count > 0 ? move->corridor[0] : NONE);
 		/* (unless the way from there is back through here: then here's) */
 		if (move->corridor_count == 0 || aas_reach(type, move->corridor[0])->to == area)
 		{

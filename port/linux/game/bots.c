@@ -13918,6 +13918,7 @@ static void bot_test_goto(long player_absolute_index, struct bot_state *bot, str
 	static real_point3d tour[48];
 	static long tour_count = -1;
 	static long tour_leg[BOT_MAXIMUM_PLAYERS], tour_since[BOT_MAXIMUM_PLAYERS], tour_unit[BOT_MAXIMUM_PLAYERS];
+	static float tour_estimate[BOT_MAXIMUM_PLAYERS]; /* (what the navigation reckoned the leg would take, seconds) */
 	there = *position;
 	if (tour_count < 0)
 	{
@@ -13941,17 +13942,19 @@ static void bot_test_goto(long player_absolute_index, struct bot_state *bot, str
 				*leg = player_absolute_index * 5 % tour_count;
 			tour_since[player_absolute_index] = game_time_get();
 			tour_unit[player_absolute_index] = me->unit_index;
+			tour_estimate[player_absolute_index] = aas_ready() ? aas_travel_time(AAS_FOOT, position, &tour[*leg % tour_count]) : -1.f;
 		}
 		there = tour[*leg % tour_count];
 		if ((bot_distance2d(position, &there) < 1.5f && fabs(position->z - there.z) < 1.2f) ||
 			game_time_get() - tour_since[player_absolute_index] > 60 * BOT_TICKS_PER_SECOND)
 		{
 			int there_now = game_time_get() - tour_since[player_absolute_index] <= 60 * BOT_TICKS_PER_SECOND;
-			bot_log("tour bot%ld leg to %.1f %.1f %.1f %s %.1f s", player_absolute_index, there.x, there.y, there.z, there_now ? "in" : "given up after",
-				(real)(game_time_get() - tour_since[player_absolute_index]) / BOT_TICKS_PER_SECOND);
+			bot_log("tour bot%ld leg to %.1f %.1f %.1f %s %.1f s (reckoned %.1f s)", player_absolute_index, there.x, there.y, there.z, there_now ? "in" : "given up after",
+				(real)(game_time_get() - tour_since[player_absolute_index]) / BOT_TICKS_PER_SECOND, tour_estimate[player_absolute_index]);
 			(*leg)++;
 			tour_since[player_absolute_index] = game_time_get();
 			there = tour[*leg % tour_count];
+			tour_estimate[player_absolute_index] = aas_ready() ? aas_travel_time(AAS_FOOT, position, &there) : -1.f;
 		}
 	}
 	else

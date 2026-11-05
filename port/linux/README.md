@@ -3233,7 +3233,14 @@ unless `--fights` is given). What was wrong, and what changed:
   went on into the sliver again. Now, for a second and a half after it
   leaves an area, a bot whose way goes back there plans from that area, as
   if still in it. The bot's stalls on the way between the flags fell from
-  55 to 26 samples. `HALO_BOT_OFF=sticky`.
+  55 to 26 samples. With others close by, though, it is only done in a
+  sliver of an area (about a body across): in a crowd, a bot pushed off its
+  way was pushed back into the bots that pushed it, and the four bots on the
+  ramps stood for half as long again. `HALO_BOT_OFF=sticky`.
+- **Each to a side of its own, round someone in the way.** Two bots meeting
+  in a doorway each drew a side to step to, and half the time stepped the
+  same way and met again. Now a bot steps to the right round anyone on foot,
+  as the other one does too. `HALO_BOT_OFF=keepright`.
 - **Off the top of a ladder onto a landing in no area.** Some ladders (on
   Boarding Action) come up onto a little shelf that is under no area. A bot
   stood on the landing, was not counted as off the ladder, went back down,

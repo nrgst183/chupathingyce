@@ -513,6 +513,13 @@ static long bot_move_corners(struct bot_move_state const *move, real_point3d con
 	return bot_funnel(left, right, count, corners, maximum);
 }
 
+/* an area no more than about a body across, one way or the other */
+static boolean bot_move_area_sliver(long type, long area)
+{
+	struct aas_area const *a = area != NONE ? aas_area(type, area) : NULL;
+	return a && (a->x1 - a->x0 < 1.f || a->y1 - a->y0 < 1.f || (a->x1 - a->x0) * (a->y1 - a->y0) < 1.5f);
+}
+
 /* ---------- on foot: straight at a point, round what's in the way */
 
 /* a step up just ahead that a body won't walk up (a curb, a door sill,
@@ -645,6 +652,13 @@ static real bot_move_dodge(struct bot_mover *bot, struct bot_body const *body, r
 	{
 		long i;
 		real first = bot_mover_random(bot) < 0.5f ? 1.f : -1.f; /* (a fresh pick each time: not always the same side) */
+		/* (someone on foot in the way: to the right, as they do too, and
+		   the two pass; each to a side of its own drawn, they met in the
+		   same doorway half the time, stepped the same way, and met again.
+		   HALO_BOT_OFF=keepright: as it was) */
+		struct object_datum *them = collision.object_index != NONE ? object_try_and_get(collision.object_index) : NULL;
+		if (them && TEST_FLAG(_object_mask_biped, them->object.type) && !bot_env_off("keepright"))
+			first = -1.f;
 		for (i = 0; i < 2; i++)
 		{
 			real sign = i ? -first : first;
@@ -3283,15 +3297,13 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	   it on again into the sliver, back and forth for six seconds on the
 	   ramp to the flag of Hang 'Em High. HALO_BOT_OFF=sticky: as it was) */
 	if (type == AAS_FOOT && move->corridor_count > 0 && move->area_before != NONE && move->area_before != area &&
-		aas_reach(type, move->corridor[0])->to == move->area_before &&
-		(aas_reach(type, move->corridor[0])->travel == _aas_travel_walk ||
-		 /* (or a drop of a step back down to it: two areas a step apart,
-		    the one over the other's edge, the feet in one and then the
-		    other as the body bobs, and the drop between them made and made
-		    again on the spot, for seconds, on the way out of the blue base
-		    of Battle Creek) */
-		 (aas_reach(type, move->corridor[0])->travel == _aas_travel_drop &&
-			aas_reach(type, move->corridor[0])->edge.z - aas_reach(type, move->corridor[0])->end.z < 0.5f)) &&
+		aas_reach(type, move->corridor[0])->to == move->area_before && aas_reach(type, move->corridor[0])->travel == _aas_travel_walk &&
+		/* (a sliver, an area a body or so across, or no one else close by.
+		   With others close, the way from where it is is the way: kept to
+		   the one before, bots pushed out of their way by others in a crowd
+		   pushed back into them, and the crowd on the ramps of Hang 'Em
+		   High stood half as long again) */
+		(bot_move_area_sliver(type, area) || !bot_move_crowded(bot)) &&
 		game_time_get() - move->area_left_tick < BOT_SECONDS(1.5f) && game_time_get() >= move->area_left_tick && !bot_env_off("sticky"))
 	{
 		long first_back = move->corridor[0];

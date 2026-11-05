@@ -3264,10 +3264,14 @@ unless `--fights` is given). What was wrong, and what changed:
   jumped from, came up beside the line of the jump, slowed to stop there,
   and walked back a unit at half pace for its run. Coming to a gap from
   the side, a bot now goes to where the run begins instead, and runs from
-  there (for one gap at a time, and for three seconds at most). On Wizard,
-  whose ways round the middle go over the corner gaps cornerwise, one bot
-  between the flags went from 1.20 times the reckoned time to 1.04; with
-  four bots, the legs made were the same. `HALO_BOT_OFF=lineup`.
+  there (for one gap at a time, for three seconds at most, and not with
+  others close by or near where the run begins). On Wizard, whose ways
+  round the middle go over the corner gaps cornerwise, one bot between the
+  flags went from 1.20 times the reckoned time to 1.04. With four bots on
+  six stock maps the legs made were about the same (551 to 544), and with
+  eight bots on the jump spiral a few fewer (1,789 to 1,696 over three
+  seeds): crowded, the bots in each other's way decide it more than the
+  run-up does. `HALO_BOT_OFF=lineup`.
 - **Two jumping the same gap at each other.** A bot waited at a gap for
   anyone jumping it the same way, not the other way, and two met in the
   air over the middle of the gap across Prisoner's upper floor and both

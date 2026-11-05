@@ -2766,6 +2766,27 @@ static boolean bot_move_gap_lineup(struct bot_mover const *bot, struct bot_body 
 	}
 	if (back <= 0.3f)
 		return FALSE;
+	/* (not with others about it, or over it: the run-up was gone to and
+	   waited at a unit back from where the rest wait, in the way of those
+	   landing, and eight bots going up the jump spiral took a quarter as
+	   long again over each leg) */
+	if (bot_move_crowded(bot) || bot_move_gap_busy(bot, *gap))
+		return FALSE;
+	{
+		/* (... nor anyone about where the run begins, or landing there) */
+		for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+		{
+			struct bot_mover const *other = bot_mover_get(i);
+			struct object_datum *unit;
+			if (!other || other == bot || other->unit_index == NONE || !bot_unit_alive(other->unit_index) ||
+				!(unit = object_try_and_get(other->unit_index)))
+			{
+				continue;
+			}
+			if (bot_distance2d(&unit->object.position, runup) < 2.f && fabs(unit->object.position.z - runup->z) < 2.f)
+				return FALSE;
+		}
+	}
 	/* (on the line already, and far enough back: the run is the one it has) */
 	past = bot_move_line_past(position, &reach->edge, run);
 	across = bot_move_line_across(position, &reach->edge, run);

@@ -3144,8 +3144,16 @@ long aas_standing_area(long type, real_point3d const *point)
 				{
 					real off = (real)fabs(navm.spans[u].floor - point->z);
 					real across = (real)((x - cx) * (x - cx) + (y - cy) * (y - cy));
-					if (off > 0.15f || aas_worlds[type].span_area[u] == NONE)
+					/* (an area with a way out of it: the top of the sniper
+					   rifle's rack on Prisoner's upper floor is an area of
+					   its own, with none, and a bot that got up onto it was
+					   given it, had no way anywhere, and stood there for the
+					   rest of the game) */
+					if (off > 0.15f || aas_worlds[type].span_area[u] == NONE ||
+						aas_worlds[type].areas[aas_worlds[type].span_area[u]].reach_count == 0)
+					{
 						continue;
+					}
 					if (across + off * 10.f < best)
 					{
 						best = across + off * 10.f;

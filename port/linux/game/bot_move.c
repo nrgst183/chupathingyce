@@ -731,6 +731,14 @@ static boolean bot_move_gap_busy(struct bot_mover const *bot, long reach)
 			struct aas_reach const *theirs = aas_reach(AAS_FOOT, other->move.reach);
 			if (theirs->travel == _aas_travel_gap && bot_distance2d(&theirs->left, &r->left) < 1.f && fabs(theirs->left.z - r->left.z) < 1.f)
 				return TRUE;
+			/* (or over it the other way, at us: the two met in the air
+			   over the middle of the gap across Prisoner's upper floor
+			   and both fell to the floor below. HALO_BOT_OFF=gapcross) */
+			if (theirs->travel == _aas_travel_gap && bot_distance2d(&theirs->left, &r->edge) < 1.f && bot_distance2d(&theirs->edge, &r->left) < 1.f &&
+				fabs(theirs->left.z - r->edge.z) < 1.f && !bot_env_off("gapcross"))
+			{
+				return TRUE;
+			}
 		}
 	}
 	return FALSE;
@@ -1787,6 +1795,7 @@ static void bot_move_reach_begin(struct bot_move_state *move, long reach, long t
 	move->reach_settle_ticks = 0;
 	move->reach_rise_ticks = 0;
 	move->reach_rise_z = z;
+	move->lineup_tick = 0; /* (a gap's run-up gone to is done with: the next one is free to be) */
 }
 
 static void bot_move_reach_track(struct bot_move_state *move, struct bot_body const *body)
@@ -2710,6 +2719,65 @@ enum
 	BOT_TAKE_RETURN
 };
 
+/* Coming to a gap that wants a run at it, from the side: to where the run
+   begins, and not to where the gap is taken from. Sent to the start, a bot
+   came up beside the line of the jump, slowed to stop there, and walked
+   back a unit at half pace for the run, and off from there at it: a second
+   and more each time, and on Wizard, whose ways round the middle go over the
+   gaps at the corners cornerwise, a second or two on every way between the
+   flags. TRUE, with where the run begins, while that is the way to go
+   (HALO_BOT_OFF=lineup: up to the start, as it was) */
+static boolean bot_move_gap_lineup(struct bot_mover const *bot, struct bot_body const *body, real_point3d *runup, long *gap)
+{
+	struct bot_move_state const *move = &bot->move;
+	real_point3d const *position = &body->position;
+	struct aas_reach const *reach = NULL;
+	real run, back, past, across;
+	long i;
+	if (move->corridor_count < 1 || move->reach != NONE || move->stuck_count > 0 || bot->fluency <= 0.25f || body->airborne || bot_env_off("lineup"))
+		return FALSE;
+	/* (the gap next, or after a walk or two through the little areas
+	   before it: the start of a gap is often in one no bigger than a step) */
+	for (i = move->corridor_count - 1; i >= 0 && i >= move->corridor_count - 3; i--)
+	{
+		reach = aas_reach(AAS_FOOT, move->corridor[i]);
+		if (reach->travel != _aas_travel_walk)
+			break;
+	}
+	if (i < 0 || i < move->corridor_count - 3)
+		return FALSE;
+	*gap = move->corridor[i];
+	if (reach->travel != _aas_travel_gap || reach->careful == AAS_WALKOVER || reach->careful == AAS_HOP ||
+		fabs(position->z - reach->edge.z) > 0.3f || bot_distance2d(position, &reach->start) > 2.5f)
+	{
+		return FALSE;
+	}
+	run = bot_yaw_to(&reach->edge, &reach->left);
+	for (back = bot_move_runup(); back > 0.3f; back -= 0.3f)
+	{
+		runup->x = reach->edge.x - (real)cos(run) * back;
+		runup->y = reach->edge.y - (real)sin(run) * back;
+		runup->z = reach->edge.z + 0.2f;
+		/* (clear of a wall by more than a body: one by a wall is not got
+		   to near enough, and was gone round and round on the walkways of
+		   Prisoner) */
+		if (navm_line_walkable(&reach->edge, runup, 0.3f, 0.f) && bot_move_rise_between(body, runup, &reach->edge) < BOT_RUNUP_RISE)
+			break;
+	}
+	if (back <= 0.3f)
+		return FALSE;
+	/* (on the line already, and far enough back: the run is the one it has) */
+	past = bot_move_line_past(position, &reach->edge, run);
+	across = bot_move_line_across(position, &reach->edge, run);
+	if (past <= -back + 0.2f && across <= 0.3f)
+		return FALSE;
+	/* (and straight there through the areas, as well as over the floor: a
+	   spot the walkways' floor has and the areas have not, by a rail, was
+	   gone to and never got to) */
+	return navm_line_walkable(position, runup, 0.15f, 0.f) && bot_move_rise_between(body, position, runup) < BOT_RUNUP_RISE &&
+		aas_line_in_areas(AAS_FOOT, position, runup) && aas_line_in_areas(AAS_FOOT, runup, &reach->edge);
+}
+
 /* a reachability that's more than a walk, next: at its start, take it */
 static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body, struct bot_move_result *result, long area, real_point3d const *corners, long corner_count)
 {
@@ -2717,6 +2785,8 @@ static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body
 	real_point3d const *position = &body->position;
 	long r = move->corridor[move->corridor_count - 1];
 	struct aas_reach const *reach = aas_reach(AAS_FOOT, r);
+	real_point3d runup;
+	long gap;
 
 	/* a gap we're running at already, in line with the jump: over it
 	   from here, with the run we have (not up to its edge, back for a
@@ -2726,6 +2796,13 @@ static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body
 		bot_move_reach_begin(move, r, AAS_FOOT, 1, position->z);
 		if (getenv("HALO_BOT_REACHLOG"))
 			bot_log("bot%ld takes reach %ld travel %d at %.1f %.1f %.1f (at a run)", bot->index, r, reach->travel, reach->edge.x, reach->edge.y, reach->edge.z);
+		if (bot_move_travel(bot, body, result))
+			return BOT_TAKE_FINISH;
+	}
+	/* (come to where the run at a gap begins: from there) */
+	else if (bot_move_gap_lineup(bot, body, &runup, &gap) && bot_distance2d(position, &runup) < 0.35f && !bot_move_gap_busy(bot, gap))
+	{
+		bot_move_reach_begin(move, gap, AAS_FOOT, 0, position->z);
 		if (bot_move_travel(bot, body, result))
 			return BOT_TAKE_FINISH;
 	}
@@ -2795,6 +2872,43 @@ static void bot_move_walk(struct bot_mover *bot, struct bot_body const *body, st
 	bot_move_uturn_trace(bot, body, goal, result, area, goal_area);
 	move->corner = corners[0];
 	bot_move_slow_for_turn(move, body, corners, corner_count, result);
+	{
+		real_point3d runup;
+		long gap;
+		long now = game_time_get();
+		/* (one gap at a time: gone off the way to the run-up of one, the
+		   way from there can be over another, whose run-up is back the
+		   other way, and the bot went from the one to the other and back,
+		   on Prisoner's upper floor, for ten seconds on end. The same gap
+		   by where it is: its reachabilities from each of the little
+		   areas at its edge are as many) */
+		if (bot_move_gap_lineup(bot, body, &runup, &gap))
+		{
+			struct aas_reach const *g = aas_reach(AAS_FOOT, gap);
+			boolean same = move->lineup_tick != 0 && bot_distance2d(&g->edge, &move->lineup_edge) < 1.5f && bot_distance2d(&g->left, &move->lineup_left) < 1.5f;
+			boolean recent = move->lineup_tick != 0 && now - move->lineup_tick <= BOT_SECONDS(2.f) && now >= move->lineup_tick;
+			if (recent && !same)
+				gap = NONE;
+			/* (and not for ever: three seconds, and then up to the start) */
+			else if (recent && same && now - move->lineup_since > BOT_SECONDS(3.f))
+				gap = NONE;
+			else if (!recent || !same)
+				move->lineup_since = now;
+		}
+		else
+			gap = NONE;
+		if (gap != NONE)
+		{
+			move->lineup_edge = aas_reach(AAS_FOOT, gap)->edge;
+			move->lineup_left = aas_reach(AAS_FOOT, gap)->left;
+			move->lineup_tick = MAX(now, 1);
+			result->yaw = bot_yaw_to(position, &runup);
+			result->path_yaw = result->yaw;
+			result->speed = bot_distance2d(position, &runup) < 0.4f ? 0.6f : 1.f;
+			move->corner = runup;
+			return;
+		}
+	}
 	/* close to the item: slow, so as not to run past it */
 	if (goal->kind == _bot_move_goal_vehicle && to_goal < 1.5f)
 		result->speed = to_goal > 0.6f ? 0.5f : 0.25f;

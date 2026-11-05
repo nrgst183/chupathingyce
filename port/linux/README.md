@@ -3256,7 +3256,23 @@ unless `--fights` is given). What was wrong, and what changed:
   seconds (the way out of the blue base of Battle Creek). For a bot on the
   ground, its area is now the floor at its feet. On Battle Creek, one bot
   between the flags went from 1.34 times the time the navigation reckons
-  to 1.11. `HALO_BOT_OFF=onlip`.
+  to 1.11. `HALO_BOT_OFF=onlip`. The floor at the feet is only taken when its
+  area has a way out: the top of the sniper rifle's rack on Prisoner's
+  upper floor is an area with none, and a bot that got up onto it stood
+  there for the rest of the game.
+- **Walking back for the run at a gap.** A bot was sent to where a gap is
+  jumped from, came up beside the line of the jump, slowed to stop there,
+  and walked back a unit at half pace for its run. Coming to a gap from
+  the side, a bot now goes to where the run begins instead, and runs from
+  there (for one gap at a time, and for three seconds at most). On Wizard,
+  whose ways round the middle go over the corner gaps cornerwise, one bot
+  between the flags went from 1.20 times the reckoned time to 1.04; with
+  four bots, the legs made were the same. `HALO_BOT_OFF=lineup`.
+- **Two jumping the same gap at each other.** A bot waited at a gap for
+  anyone jumping it the same way, not the other way, and two met in the
+  air over the middle of the gap across Prisoner's upper floor and both
+  fell to the floor below. Now it waits for those too.
+  `HALO_BOT_OFF=gapcross`.
 - **The way round to the flag was always the shortest.** In capture the flag,
   the ways round to the enemy's flag were scored by length alone, and the
   bots took the same one every time. Going to the hill (not scored as an

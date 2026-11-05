@@ -132,6 +132,9 @@ struct bot_move_state
 	real_point3d corner; /* where we last headed (testing) */
 	real lane; /* this trip's way through doorways and open ground: 0 the left side .. 1 the right */
 	int lane_set;
+	real_point3d lineup_edge, lineup_left; /* the gap whose run-up was last gone to (bot_move_gap_lineup), when, and since when */
+	long lineup_tick;
+	long lineup_since;
 };
 
 /* what movement needs of a bot */

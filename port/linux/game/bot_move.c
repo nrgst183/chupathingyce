@@ -433,6 +433,20 @@ static void bot_move_point_between(real_point3d const *from, real_point3d const 
 	point->z = from->z + (to->z - from->z) * fraction;
 }
 
+/* whether past the end of an edge (the end, and the other end) there is more
+   floor of the areas, at about its height: an end that is no corner */
+static boolean bot_move_end_open(long type, real_point3d const *end, real_point3d const *other, real width)
+{
+	real_point3d beyond = *end;
+	long s;
+	beyond.x += (end->x - other->x) / width * 0.35f;
+	beyond.y += (end->y - other->y) / width * 0.35f;
+	if (!aas_ready())
+		return FALSE;
+	s = aas_point_area(type, &beyond);
+	return s != NONE && aas_line_in_areas(type, end, &beyond);
+}
+
 /* where to head across the walks of the corridor (its first corner and
    the one after), ending at final */
 static long bot_move_corners(struct bot_move_state const *move, real_point3d const *from, real_point3d const *final, real_point3d *corners, long maximum)
@@ -481,8 +495,17 @@ static long bot_move_corners(struct bot_move_state const *move, real_point3d con
 			if (width > BOT_CORNER_ROOM)
 			{
 				real f = MIN(BOT_CORNER_ROOM, (width - BOT_CORNER_ROOM) * 0.5f) / width;
-				bot_move_point_between(&l, &r, f, &left[count]);
-				bot_move_point_between(&r, &l, f, &right[count]);
+				/* (only an end that is a corner: past an end that runs on into
+				   more floor of the areas, a doorway's end is no wall to give
+				   room to, and the way was bent out to pass a body's width in
+				   from it, round nothing. Walking along the join of two areas
+				   to a third, the bot turned aside for a moment at every join:
+				   at the head of the ramp by Battle Creek's blue base, half a
+				   second at walking pace, each time. HALO_BOT_OFF=openends) */
+				if (bot_env_off("openends") || !bot_move_end_open(move->type, &l, &r, width))
+					bot_move_point_between(&l, &r, f, &left[count]);
+				if (bot_env_off("openends") || !bot_move_end_open(move->type, &r, &l, width))
+					bot_move_point_between(&r, &l, f, &right[count]);
 			}
 		}
 		/* this trip's lane: through each wide doorway or across each open
@@ -1840,7 +1863,19 @@ static boolean bot_move_reach_made_now(struct bot_move_state const *move, struct
 		   HALO_BOT_OFF=ladderland: as it was) */
 		((reach->travel == _aas_travel_ladder || reach->travel == _aas_travel_jump) && move->reach_started && area == NONE &&
 			!bot_env_off("ladderland") && bot_distance2d(position, &reach->left) < 0.6f && fabs(position->z - reach->left.z) < 0.25f &&
-			fabs(body->velocity.k) < BOT_VELOCITY_STILL && !body->airborne);
+			fabs(body->velocity.k) < BOT_VELOCITY_STILL && !body->airborne) ||
+		/* (... or, down off a ledge, landed and standing on floor about as
+		   high as where it was to come down, in an area of its own beside the
+		   one it was meant for: a drop is gone off where the bot comes to the
+		   edge, not at the one place along it the way was worked out from.
+		   Not made, the bot was walked on below to that place and back the
+		   way it had come: on Wizard, off the ring and to the teleporter, a
+		   few steps on and back every time. (Not a gap: on the jump spiral,
+		   the same for gaps came out no better and maybe worse.)
+		   HALO_BOT_OFF=droplanded: as it was) */
+		(reach->travel == _aas_travel_drop && move->reach_started && area != NONE && area != reach->from && !body->airborne &&
+			fabs(body->velocity.k) < BOT_VELOCITY_STILL && fabs(position->z - reach->end.z) < 0.3f &&
+			bot_distance2d(position, &reach->end) < 2.f && !bot_env_off("droplanded"));
 }
 
 /* a reachability made: what it taught, and the walk on from where we stand */

@@ -3340,6 +3340,74 @@ unless `--fights` is given). What was wrong, and what changed:
   test's minute (the big mazes, the loop on foot) give up most of their legs
   in both builds.
 
+### Measuring how the bots move
+
+`HALO_BOT_TRAJ=1` writes a line for every bot on foot every tick (where it
+is, how fast it goes, where it faces, where its route means it to go, and
+what part of the route it is on). `tools/bot_motion.py` turns a game's log
+into figures, over the ticks a bot means to go somewhere and is not
+fighting:
+
+- **pace**: its speed over a full run (more is better);
+- **held**: the share of that time it all but stands;
+- **swerve**, **swerve95**: how fast the way it goes turns (mean, and the
+  worst twentieth);
+- **zigzag**: times a minute the way it goes swings back on itself (more
+  than 135 degrees inside half a second), not counting turning round at the
+  place it was sent to;
+- **dither**: how fast the way the route means it to go turns;
+- **facing**: how far off the way it goes it faces;
+- **falls**: falls of more than 1.5 units that no drop, jump or gap of the
+  route's began (an hour);
+- **bumps**: times a minute two bots stand within half a unit of each other;
+- **legs**, **leg_s**: tour legs made, and their mean seconds.
+
+`tools/bot_motion_ab.py` plays the same games (the same maps and seeds) with
+two builds, or one build with something switched off by `HALO_BOT_OFF`,
+and gives for each figure the mean difference per game with a 95% interval
+(bootstrap over the games). One seed against another moves most of these
+by more than any one change does (a bot's tour of the jump spiral made 401
+legs with one seed and 480 with the next, in the same build), so a change
+is judged on the same games only, and on the interval. With
+`HALO_BOT_PEACE` (nobody shot at), bots now also lie in wait for nobody:
+on a tour they stood behind corners for a dozen seconds at a time for
+someone they were never going to shoot.
+
+What it found, and what was done:
+
+- **Off a ledge, walked on to where the drop was meant to land.** A drop
+  is gone off wherever the bot comes to the edge, and it landed in an area
+  beside the one the way was worked out for; the drop was not done until it
+  stood in that one, so it walked on to it below and then back the way it
+  had come (on Wizard, off the ring toward the teleporter, every time). A
+  drop now counts as made once the bot stands on floor about as high as it
+  was to land on, in any area but the one it left
+  (`HALO_BOT_OFF=droplanded`). Four bots, eight stock maps, four seeds each
+  (32 games, the same with and without; measured with gaps counted the same
+  way, which is now left out): zigzags 2.23 to 1.89 a minute (-15%, 95%
+  interval -0.73 to -0.02), legs' seconds 19.40 to 19.17 (-1.2%, -0.50 to
+  -0.004), and bodies in each other a little more often (+10%).
+- **Room given at a doorway's end that is no corner.** A way through two
+  areas' shared edge was kept a body's width in from each end, as from a
+  wall's corner; where the edge runs on into more floor, that bent the way
+  out round nothing, and a bot walking along the join of two areas turned
+  aside at every join (half a second at walking pace at the head of the
+  ramp by Battle Creek's blue base). Now only an end with no floor of the
+  areas past it is given room (`HALO_BOT_OFF=openends`). Four bots, five maps,
+  three seeds (14 games): bodies in each other 0.95 to 0.67 a minute (-30%,
+  -0.59 to -0.04); trips +1.8% (not more than the noise).
+- With one bot (eight maps, two seeds, 16 games) neither change moves any
+  figure by more than the noise: they are about crowds. On the jump spiral,
+  with eight bots, the legs made over three seeds were 1,320 against 1,381
+  without them, one seed up and two down, inside the spread one seed and the
+  next give.
+- Where the pace goes: of the time a bot means to go somewhere (four bots,
+  the stock maps), it runs flat out 58% of it, and loses most of what it
+  loses inside a gap, a drop, a jump or a ladder (0.107 of its pace there,
+  against 0.044 running, 0.009 turning and 0.013 held up). Drops take most:
+  0.8 to 0.9 s each more than the navigation reckons, of which the walk to
+  the edge (a drop is begun a unit and a half from it) is about two thirds.
+
 ### How the bots find their way, and what they cost
 
 A bot finds its way with a search that starts at its goal. The search goes

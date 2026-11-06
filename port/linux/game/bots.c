@@ -14611,6 +14611,11 @@ static void bot_ambush_engage(struct bot_think *t, struct bot_ambush_foe *a)
 	real_vector3d const *going = &object_get(a->foe)->object.translational_velocity;
 	real dx = position->x - a->foe_at.x, dy = position->y - a->foe_at.y;
 	real length = (real)sqrt(dx * dx + dy * dy);
+	/* (testing, HALO_BOT_PEACE: nobody lain in wait for either; the bots
+	   on a tour stood behind corners for a dozen seconds at a time for
+	   someone they were not going to shoot) */
+	if (bot_env_set("HALO_BOT_PEACE"))
+		return;
 	/* (coming this way: at a walk or better, and more at us than not) */
 	if (length > 0.5f && (going->i * dx + going->j * dy) / length > 0.025f)
 	{
@@ -15645,6 +15650,30 @@ static void bot_trace_move(struct bot_think *t)
 		}
 		if (move_debug && atol(move_debug) == player_absolute_index && game_time_get() % 15 == 0)
 			bot_move_debug(&bot->mover, body);
+		/* (testing, HALO_BOT_TRAJ: every bot on foot, every tick, compactly,
+		   for tools/bot_motion.py: where, how fast, which way it faces, which
+		   way it means to go, whether it was moving, by what part of the route) */
+		if (bot_env_set("HALO_BOT_TRAJ") && t->vehicle_index == NONE)
+		{
+			/* (and the first way on the route that is not a walk, a few
+			   links on at most: a drop it is about to take is no fall) */
+			struct bot_move_state const *move = &bot->mover.move;
+			long next = -1, k;
+			for (k = move->corridor_count - 1; k >= 0 && k >= move->corridor_count - 4 && move->type == AAS_FOOT; k--)
+			{
+				struct aas_reach const *r = aas_reach(AAS_FOOT, move->corridor[k]);
+				if (r && r->travel != _aas_travel_walk)
+				{
+					next = r->travel;
+					break;
+				}
+			}
+			bot_log("trj %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.3f %.3f %d %.2f %ld %ld %ld %d %d %d %d %ld",
+				player_absolute_index, game_time_get(), position.x, position.y, position.z,
+				unit->object.translational_velocity.i, unit->object.translational_velocity.j, unit->object.translational_velocity.k,
+				bot->yaw, t->move_yaw, t->moving, t->move_speed, bot->mover.move.area, bot->mover.move.reach, result->travel,
+				body->airborne, t->committed, t->target != NONE, t->how, next);
+		}
 		if (trace && (trace_all || atol(trace) == player_absolute_index))
 			bot_log("trace bot%ld t%ld pos %.2f %.2f %.2f yaw %.2f want %.2f move %.2f moving %d goal %ld (%.1f %.1f) obj %d area %ld reach %ld travel %ld target %d threat %d routed %d strafe %.0f speed %.2f known %d look %ld",
 				player_absolute_index, game_time_get(), position.x, position.y, position.z, bot->yaw, t->desired_yaw, t->move_yaw, t->moving,

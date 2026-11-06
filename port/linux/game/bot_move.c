@@ -3375,6 +3375,12 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 
 	/* where we are (on the ground: on the floor at the feet, aas_standing_area) */
 	area = type == AAS_FOOT && !body->airborne ? aas_standing_area(type, position) : aas_point_area(type, position);
+	/* (in an area with no way out of it: as off the areas, to the nearest
+	   one there is a way on from, not planned from where there is none. A
+	   bot on the sniper rifle's rack on Prisoner stood there for the rest of
+	   the game. HALO_BOT_OFF=escape) */
+	if (area != NONE && type == AAS_FOOT && aas_area(type, area)->reach_count == 0 && !bot_env_off("escape"))
+		area = NONE;
 	if (area == NONE)
 	{
 		area = aas_nearest_area(type, position, type == AAS_VEHICLE ? 4.f : 2.f, &spot);

@@ -3287,6 +3287,53 @@ unless `--fights` is given). What was wrong, and what changed:
   to where they stood when it set off, for up to half a minute on a big map.
   Now the goal follows them as they move, and the trip (its way, its lane,
   its way round) is kept. `HALO_BOT_OFF=follow`.
+- **Areas with a way in and none out.** The navigation made a few areas on
+  most maps that a bot could get into and not out of: a ledge one or two
+  cells wide over a drop (four on Danger Canyon, one each on Blood Gulch,
+  Boarding Action, Damnation and Sidewinder), too narrow to start a drop
+  from, and too narrow to stand on. These are now given up when the
+  navigation is built, with the ways into them (`HALO_BOT_OFF=sinks`). Items
+  and places attach only to an area with a way out, and a bot standing in an
+  area with none moves to the nearest that has one, as it does off the areas
+  (`HALO_BOT_OFF=escape`). That was the Prisoner rack again: the sniper
+  rifle was tied to the area on top of its rack. `tools/navaudit.py` reads a
+  navigation dump (`HALO_BOT_NAVDUMP`) and counts these, with the floor
+  nothing reaches, the strips and the odd links. It found none left on 12 of
+  the 14 stock maps; the two left (Blood Gulch, Chill Out) are wider, and
+  nothing is sent into them. Floor it found that nothing reaches (the ends of
+  Carousel's ramps, strips by Longest's ramps, the top of Battle Creek's
+  base) is behind a wall a body cannot jump, or out of a jump's reach.
+- **Strips.** Areas are rectangles, and floor that ends at an angle or in a
+  curve is left as a staircase of strips one cell wide: three areas in four
+  on Wizard, half or more on most maps. Joining them into convex areas is
+  there to test (`HALO_BOT_STRIPS=1`) and is off. Joined everywhere, they cut
+  Wizard from 1,506 areas to 607, and one bot made 4% more trips, but four
+  bots walked off the edge of Prisoner's upper floor by the stairs again and
+  again (a straight walk across a joined area runs along the drop), and trips
+  there fell from 85 to 68. Kept away from drops, few strips are joined (most
+  are along drops), and on the jump test levels the bots still made a tenth
+  fewer trips, with the times reckoned between places several times too
+  long, which is not understood yet. Two areas' shared edge is now one
+  doorway however it runs (`HALO_BOT_OFF=portals`); with rectangles it makes
+  no difference.
+- **What it came to** (the build as it is, strips not joined): one bot over
+  eight stock maps, 204 trips between the flags against 201, with 22% less
+  standing still (130 samples against 167); the jump spiral and the climb
+  with eight bots, 1,199 against 1,198 over two seeds. With four bots, the
+  maps this touches (Danger Canyon, Blood Gulch, Sidewinder and the rest)
+  measured within the noise of one seed against another. The navigation
+  cache's version is 39: each map's navigation is built again once.
+- **Vehicles, tried and left out.** Feelers ahead of a vehicle (rays at a
+  wheel's height across its width, steering to the clearest way near the one
+  wanted, braking with no way round), and looking further along the route
+  (to 22 units by the areas, from 14; at least 24 across country, from 18).
+  The driving benchmark on Danger Canyon and Death Island is noisy (one build
+  made 31 legs with one seed and 69 with the next), and over six runs each
+  neither came out ahead: the further look cut corners through trees and
+  boulders (42 bumps against 29 with both on), and the feelers alone were
+  ahead with two seeds and behind with two more (601 legs and 22 bumps
+  against 673 and 19). Most bumps were into boulders and trees that are
+  scenery; the navigation already leaves where they stand out.
 - **The levels:** the jump gaps level's ramps out of the pit ran the wrong
   way, and the zigzag's jumps up of 0.5 were at the limit of a running jump
   (they are 0.45 at most now). The levels whose legs are longer than the

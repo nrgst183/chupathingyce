@@ -1320,8 +1320,18 @@ static real bot_balance_lead(long slot)
 	return leads[slot];
 }
 
+static struct player_datum *bot_player_at_index(long index);
 static real bot_skill_of(long slot)
 {
+	/* (testing, HALO_BOT_SKILL_T1=<1 to 10>: the second side's bots at a
+	   level of their own, for setting one level against another) */
+	{
+		char const *t1 = getenv("HALO_BOT_SKILL_T1");
+		struct player_datum *player = t1 ? bot_player_at_index(slot) : NULL;
+		if (player && player->team_index == 1)
+			return bot_skill_inner((real)atof(t1));
+	}
+	{
 	real high = (real)PIN(bot_skill, 1, BOT_SKILL_TOP);
 	real low = (real)MAX(1, PIN(bot_skill, 1, BOT_SKILL_TOP) - PIN(bot_skill_spread, 0, BOT_SKILL_TOP - 1));
 	unsigned long seed;
@@ -1334,6 +1344,7 @@ static real bot_skill_of(long slot)
 	if (bot_balance)
 		level = PIN(level - bot_balance_lead(slot) * (high - low), low, high);
 	return bot_skill_inner(level);
+	}
 }
 
 static void bot_make_personality(long slot, struct bot_personality *personality)
@@ -1534,6 +1545,7 @@ struct bot_state
 	long grenade_dodge_until; /* someone seen about to throw one at it: off, this way, until then */
 	real grenade_dodge_yaw;
 	long strafe_held; /* how long it has gone the way it is strafing */
+	int strafe_juke; /* the hold now is a feint: a step one way, and the next goes back */
 	int foe_close; /* whoever it is fighting has a gun for close in (a shotgun), or none: looked at now and then */
 	long foe_tick;
 	long blast_seen; /* something on its way at it that goes off (a rocket): which, since when, and whether it is one to see it */
@@ -1820,6 +1832,22 @@ static real bot_skill_pro(void)
 	return BOT_ON(BOT_F_AGILE) && bot_refined_is(1024) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
 }
 
+/* How well it strafes: from 0 at level 1 to 1 at level 10, evenly, each
+   level better than the one under it (the movement's other numbers stop
+   at level 8: bot_skill_movement, bot_skill_pro). At 1 the way of a very
+   good player: across the line of fire flat out, the side changed at no
+   telling when (half a second to a second, now and then longer, now and
+   then a feint), mostly to the other side, at once when hit, and a jump
+   only at speed, never from the middle of a turn. At 0, a poor one: long
+   runs one way, often none at all (walking at them), a jump whenever.
+   -1, HALO_BOT_OFF=strafeq: as it was */
+static real bot_skill_strafe(void)
+{
+	if (bot_env_off("strafeq"))
+		return -1.f;
+	return PIN((bot_skill_now - 1.f) / 4.f, 0.f, 1.f);
+}
+
 /* how well the skill level (1 to 5: bot_skill_inner) moves in a fight: 0.3 .. 1 */
 static real bot_skill_movement(void)
 {
@@ -1897,6 +1925,7 @@ struct bot_weapon
 	real value;
 	real cycle; /* ticks from one shot to the next, at its quickest (0: not known) */
 	long last_fired; /* the game tick of its last shot (0: none yet) */
+	int turret; /* a gun on the back of a vehicle, manned: held down (bot_vehicle_gun) */
 };
 
 /* how good a weapon (or powerup) is to have: power weapons first; then the
@@ -9747,6 +9776,12 @@ static void bot_fire_control(struct bot_state *bot, struct bot_weapon const *wea
 			bot->burst_pause--;
 			break;
 		}
+		/* (a turret: held down while it is about on them, near or far) */
+		if (weapon->turret)
+		{
+			pull = off_yaw < tolerance * 2.5f && off_pitch < tolerance * 3.f;
+			break;
+		}
 		if (!on_target)
 			break;
 		pull = TRUE;
@@ -10515,6 +10550,38 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 /* infection.c's */
 boolean infection_player_is_zombie(long player_index);
 
+/* (testing, HALO_BOT_HOLDFIRE_T1: the second side's bots fight, move and
+   aim as ever and never shoot, throw or strike: how hard they are to hit,
+   by itself, is how long they last) */
+static long bot_dodge_fire_ticks; /* (... and how much: the first side's ticks with a trigger down) */
+static real bot_dodge_loss; /* (the second side's shields and health lost, as each of its bots finds it hit) */
+static void bot_hold_fire(long player_absolute_index, struct player_action *action)
+{
+	struct player_datum *me;
+	static long last_logged;
+	if (!bot_env_set("HALO_BOT_HOLDFIRE_T1") || !(me = bot_player_at_index(player_absolute_index)))
+		return;
+	if (me->team_index == 0 && (action->control_flags & FLAG(_unit_control_weapon_primary_trigger_bit)))
+		bot_dodge_fire_ticks++;
+	if (game_time_get() - last_logged >= 900 && bot_logging())
+	{
+		last_logged = game_time_get();
+		bot_log("dodgetest t%ld fire %ld loss %.2f", (long)game_time_get(), bot_dodge_fire_ticks, bot_dodge_loss);
+	}
+	if (me->team_index != 1)
+		return;
+	action->control_flags &= ~(FLAG(_unit_control_weapon_primary_trigger_bit) | FLAG(_unit_control_weapon_secondary_trigger_bit) |
+		FLAG(_unit_control_throw_grenade_bit) | FLAG(_unit_control_use_equipment_bit));
+	action->primary_trigger = 0.f;
+}
+
+static void bot_dodge_note_loss(long player_absolute_index, real loss)
+{
+	struct player_datum *who = bot_player_at_index(player_absolute_index);
+	if (who && who->team_index == 1 && loss > 0.f && loss < 4.f)
+		bot_dodge_loss += loss;
+}
+
 /* testing: HALO_BOT_PROFILE, what the bots cost a tick, every 5 s of game */
 void bot_think(long player_absolute_index, struct player_action *action)
 {
@@ -10530,11 +10597,13 @@ void bot_think(long player_absolute_index, struct player_action *action)
 	if (!profile)
 	{
 		bot_think_inner(player_absolute_index, action);
+		bot_hold_fire(player_absolute_index, action);
 		return;
 	}
 	start = bot_time_microseconds();
 	BOT_PROFILE_MARK("setup");
 	bot_think_inner(player_absolute_index, action);
+	bot_hold_fire(player_absolute_index, action);
 	BOT_PROFILE_MARK(NULL);
 	spent = bot_time_microseconds() - start;
 	bot_profile_call_end(player_absolute_index, game_time_get(), spent, 2000);
@@ -12487,6 +12556,7 @@ struct bot_fight
 	int hurt;
 	real skill_move;
 	real pro; /* how much of a good player's footwork it has: the levels over 3 */
+	real strafe; /* how well it strafes, 0 at level 1 to 1 at level 10, evenly (bot_skill_strafe); NONE-ish -1: as it was */
 	int closing; /* in for a blow */
 };
 
@@ -12560,12 +12630,85 @@ static void bot_fight_prefer_distance(struct bot_think *t, struct bot_fight *f)
 	}
 }
 
+/* the side to strafe to and for how long, by how well it strafes (f->strafe) */
+static void bot_fight_pick_strafe_q(struct bot_think *t, struct bot_fight *f)
+{
+	struct bot_state *bot = t->bot;
+	struct bot_body const *body = &t->body;
+	real q = f->strafe;
+	/* (its own agility counts for a fifth of it, at most: a stolid bot of
+	   the top level still strafes as one) */
+	real how = PIN(q * (0.8f + 0.2f * bot->personality.agility) + 0.1f * q * (bot->personality.agility - 0.5f), 0.f, 1.f);
+	if (--bot->strafe_ticks > 0)
+	{
+		bot->strafe_held++;
+		return;
+	}
+	{
+		/* (how long one way: at the bottom, long and much alike, from
+		   a second to two and a half; at the top, from a third of a
+		   second to three quarters, a long one now and then, and no
+		   telling which: a run held long enough is one a shooter
+		   follows, and one as short as the turn itself goes nowhere) */
+		/* (... and a body here takes half a second to turn a run round:
+		   held for less, the side is never at speed, and the shooter has
+		   a man rocking on the spot. So from half a second at the top to
+		   a second, and now and then a feint: a step the other way, a
+		   fifth of a second, and back) */
+		real roll = bot_random(bot);
+		real seconds = roll < 0.12f ? 0.9f + 0.6f * bot_random(bot) :
+			(1.f - 0.5f * how) + (1.5f - 1.f * how) * bot_random(bot);
+		real before = bot->strafe_sign;
+		int juke_back = bot->strafe_juke && before != 0.f;
+		bot->strafe_juke = FALSE;
+		bot->strafe_ticks = MAX(BOT_SECONDS(0.25f), BOT_SECONDS(seconds * (t->threatened ? 0.85f : 1.f)));
+		bot->strafe_sign = bot_random(bot) < 0.5f ? -1.f : 1.f;
+		if (juke_back)
+		{
+			bot->strafe_sign = -before;
+			bot->strafe_held = 0;
+			return;
+		}
+		if (before != 0.f && t->threatened && bot_random(bot) < 0.08f * how * how)
+		{
+			bot->strafe_sign = -before;
+			bot->strafe_ticks = BOT_SECONDS(0.15f + 0.1f * bot_random(bot));
+			bot->strafe_juke = TRUE;
+			bot->strafe_held = 0;
+			return;
+		}
+		/* (the least skilled don't always strafe: they walk at them) */
+		if (bot_random(bot) > 0.3f + 0.7f * how)
+			bot->strafe_sign = 0.f;
+		else
+		{
+			/* (the other way from the last, the better the more often:
+			   a hold is a turn, not the same way gone on with) */
+			if (before != 0.f && bot_random(bot) < 0.5f + 0.4f * how)
+				bot->strafe_sign = -before;
+			/* (not toward a wall or a drop a step along, when the other
+			   way has room) */
+			if (aas_ready() && !bot_move_direction_safe(body, bot_wrap(f->to_target + bot->strafe_sign * 1.4f), 1.1f) &&
+				bot_move_direction_safe(body, bot_wrap(f->to_target - bot->strafe_sign * 1.4f), 1.1f))
+			{
+				bot->strafe_sign = -bot->strafe_sign;
+			}
+		}
+		bot->strafe_held = 0;
+	}
+}
+
 static void bot_fight_pick_strafe(struct bot_think *t, struct bot_fight *f)
 {
 	struct bot_state *bot = t->bot;
 	struct bot_body const *body = &t->body;
 	int threatened = t->threatened;
 
+	if (f->strafe >= 0.f)
+	{
+		bot_fight_pick_strafe_q(t, f);
+		return;
+	}
 	if (--bot->strafe_ticks <= 0)
 	{
 		/* how often it changes direction: the skill level and its own
@@ -12631,7 +12774,8 @@ static void bot_fight_hit_turn(struct bot_think *t, struct bot_fight *f)
 	   him had his line; a moment on and the line is behind him), if he
 	   has gone this way long enough for it to be a turn and not a
 	   stutter */
-	if (f->pro > 0.f && bot->hit_ticks == 45 && bot->strafe_held > 13 && bot->strafe_sign != 0.f && bot_random(bot) < 0.55f * f->pro &&
+	if ((f->strafe >= 0.f ? f->strafe > 0.f : f->pro > 0.f) && bot->hit_ticks == 45 && bot->strafe_held > (f->strafe >= 0.f ? 8 : 13) &&
+		bot->strafe_sign != 0.f && bot_random(bot) < (f->strafe >= 0.f ? 0.75f * f->strafe : 0.55f * f->pro) &&
 		(!aas_ready() || bot_move_direction_safe(body, bot_wrap(f->to_target - bot->strafe_sign * 1.4f), 1.1f)))
 	{
 		bot->strafe_sign = -bot->strafe_sign;
@@ -13005,7 +13149,9 @@ static void bot_fight_strafe_move(struct bot_think *t, struct bot_fight *f)
 
 	/* (going in at them or back from them: on a slant, and a good
 	   player on a wider one: more across than along) */
-	t->move_yaw = bot_wrap(f->to_target + (real)atan2(bot->strafe_sign * (0.8f + 0.7f * f->pro), f->forward));
+	/* (by how well it strafes: at the top, all but straight across,
+	   closing in or backing off by no more than a third) */
+	t->move_yaw = bot_wrap(f->to_target + (real)atan2(bot->strafe_sign * (f->strafe >= 0.f ? 0.8f + 2.2f * f->strafe : 0.8f + 0.7f * f->pro), f->forward));
 	t->moving = TRUE;
 	/* not shot at: a slow sidestep that keeps the aim steady; under
 	   fire, flat out */
@@ -13014,7 +13160,7 @@ static void bot_fight_strafe_move(struct bot_think *t, struct bot_fight *f)
 	if (BOT_HUMAN_PART(8))
 		/* (the stick all the way over, as a person has it in a
 		   fight; a touch less with nobody shooting back) */
-		t->move_speed = f->forward > 0.f || threatened ? 1.f : 0.85f + 0.15f * bot->personality.agility;
+		t->move_speed = f->forward > 0.f || threatened ? 1.f : 0.85f + 0.15f * (f->strafe >= 0.f ? MAX(f->strafe, bot->personality.agility) : bot->personality.agility);
 	else if (BOT_ON(BOT_F_PACE))
 		/* closing in: flat out; sidestepping: quick (a bot's aim
 		   doesn't suffer for it, and a quick target is a hard one) */
@@ -13090,7 +13236,7 @@ static void bot_fight_jump(struct bot_think *t, struct bot_fight *f)
 	/* (a good player's are few: in the air there is no turning, and
 	   for a second he goes where anyone can see he is going. His
 	   feet stay on the ground, where the sidestep is.) */
-	chance *= 1.f - BOT_PRO_FEWER_JUMPS * f->pro;
+	chance *= 1.f - BOT_PRO_FEWER_JUMPS * (f->strafe >= 0.f ? f->strafe : f->pro);
 	/* its habit: in the air half the fight, shot at or not */
 	if (bot->personality.signature == _bot_signature_jump_shot)
 		chance = MAX(chance, 0.035f);
@@ -13102,6 +13248,14 @@ static void bot_fight_jump(struct bot_think *t, struct bot_fight *f)
 			bot->signature_ticks = 32 + (long)(bot_random(bot) * 30.f);
 		if (bot->signature_ticks <= 10)
 			action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
+	}
+	/* (and a good one's few go up at speed, never from the middle of a
+	   turn: up at a walk, it hangs there going nowhere much, and slowly) */
+	if (f->strafe > 0.f && bot->personality.signature != _bot_signature_jump_shot &&
+		(bot->strafe_held < 10 || (real)sqrt(body->velocity.i * body->velocity.i + body->velocity.j * body->velocity.j) * BOT_TICKS_PER_SECOND < 1.6f) &&
+		bot_random(bot) < f->strafe)
+	{
+		chance = 0.f;
 	}
 	if (bot->attack_jump_cooldown <= 0 && bot_random(bot) < chance && (!aas_ready() || bot_move_direction_safe(body, t->move_yaw, 1.5f)))
 	{
@@ -13131,6 +13285,10 @@ static void bot_fight_move(struct bot_think *t)
 	f.hurt = t->unit->object.shield_vitality < 0.2f && t->unit->object.body_vitality < 0.5f;
 	f.skill_move = bot_skill_movement();
 	f.pro = bot_skill_pro();
+	f.strafe = bot_skill_strafe();
+	/* (testing: side 1 strafing as it did before, its shooters as now) */
+	if (getenv("HALO_BOT_STRAFE_OLD_T1") && t->me->team_index == 1)
+		f.strafe = -1.f;
 	f.closing = FALSE;
 
 	bot_fight_prefer_distance(t, &f);
@@ -15534,8 +15692,56 @@ static void bot_note_ride(long player_absolute_index, struct bot_state *bot, lon
 	bot->last_seat_kind = driving ? 1 : gunner ? 2 : 3;
 }
 
-static void bot_vehicle_gun(struct bot_weapon *weapon)
+static void bot_vehicle_gun(struct bot_weapon *weapon, long vehicle_index, int gunner)
 {
+	/* A gun on the back of a vehicle, manned (a Warthog's chaingun, a
+	   Gauss gun): held down, as people do, a turret having no clip to run
+	   out of and no spread worth a burst; its own shots' speed to lead by.
+	   The rocket Warthog's: as a rocket launcher, led, at the feet, and a
+	   moment between shots. HALO_BOT_OFF=turret: in bursts, as the
+	   assault rifle, and not led */
+	if (gunner && vehicle_index != NONE && !bot_env_off("turret"))
+	{
+		struct unit_datum *vehicle = (struct unit_datum *)object_try_and_get_and_verify_type(vehicle_index, _object_mask_vehicle);
+		long gun = vehicle ? vehicle->unit.weapon_object_indices[0] : NONE;
+		if (gun != NONE && weapon_try_and_get(gun))
+		{
+			bot_weapon_describe(gun, weapon);
+			if (weapon->kind == _bot_gun_rocket || bot_name_has(object_get(vehicle_index)->definition_index, "rwarthog") ||
+				bot_name_has(object_get(vehicle_index)->definition_index, "rocket"))
+			{
+				weapon->kind = _bot_gun_rocket;
+				weapon->turret = FALSE;
+			}
+			else
+			{
+				weapon->kind = _bot_gun_assault_rifle;
+				weapon->turret = TRUE;
+			}
+			weapon->automatic = weapon->kind != _bot_gun_rocket;
+			weapon->spent = FALSE;
+			weapon->none = FALSE;
+			weapon->uses_ammunition = FALSE;
+			weapon->held_to_fire = FALSE;
+			weapon->charging = FALSE;
+			weapon->precision = FALSE;
+			weapon->range = MAX(weapon->range, 60.f);
+			{
+				/* (testing: each kind of vehicle's gun, once, and how it is taken) */
+				static long told[16];
+				long k, definition = object_get(vehicle_index)->definition_index;
+				for (k = 0; k < 16 && told[k] && told[k] != definition; k++)
+					;
+				if (k < 16 && !told[k] && bot_logging())
+				{
+					told[k] = definition;
+					bot_log("bots: the gun of the %s, %s: %s (its shots %.2f a tick)", tag_get_name(definition), tag_get_name(object_get(gun)->definition_index),
+						weapon->turret ? "held down" : "as a rocket launcher", weapon->projectile_speed);
+				}
+			}
+			return;
+		}
+	}
 	/* a vehicle's gun: a chaingun or a cannon, fired in bursts (a
 	   passenger fires its own weapon, as it is) */
 	weapon->kind = _bot_gun_assault_rifle;
@@ -16614,6 +16820,7 @@ static void bot_track_unseen(struct bot_think *t)
 	}
 }
 
+static void bot_dodge_note_loss(long player_absolute_index, real loss);
 static int bot_check_threat(struct bot_state *bot, struct bot_skill_parameters const *skill, struct unit_datum *unit, real_point3d *eye, long target)
 {
 	int threatened;
@@ -16625,6 +16832,8 @@ static int bot_check_threat(struct bot_state *bot, struct bot_skill_parameters c
 		bot->aim_error_yaw += (bot_random(bot) - 0.5f) * 2.f * jolt;
 		bot->aim_error_pitch += (bot_random(bot) - 0.5f) * jolt;
 		bot->hit_ticks = 45;
+		if (bot_env_set("HALO_BOT_HOLDFIRE_T1"))
+			bot_dodge_note_loss((long)(bot - bot_states), bot->last_health - health);
 	}
 	else if (bot->hit_ticks > 0)
 		bot->hit_ticks--;
@@ -17158,7 +17367,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	bot_weapon_describe(unit->unit.current_weapon_index >= 0 ?
 		unit->unit.weapon_object_indices[unit->unit.current_weapon_index] : NONE, &t->weapon);
 	if (t->vehicle_index != NONE && (t->driving || t->gunner))
-		bot_vehicle_gun(&t->weapon);
+		bot_vehicle_gun(&t->weapon, t->vehicle_index, t->gunner && !t->driving);
 
 	BOT_PROFILE_MARK("perception");
 	/* ---- perception */

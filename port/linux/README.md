@@ -3428,6 +3428,58 @@ What it found, and what was done:
   0.8 to 0.9 s each more than the navigation reckons, of which the walk to
   the edge (a drop is begun a unit and a half from it) is about two thirds.
 
+### Strafing by level, the guns on vehicles, and bots that go their own way
+
+**Strafing.** How well a bot strafes now rises evenly from level 1 to
+level 10 (before, it stopped getting better at level 8). At level 10: across
+the line of fire at a full run, each side held from half a second to a
+second (now and then longer, now and then a feint the other way for a fifth
+of a second), mostly the other way each time, the other way at once when
+hit, and a jump only at speed, never from the middle of a turn. At level 1:
+long runs one way, often no strafe at all (walking at them), a jump
+whenever. `HALO_BOT_OFF=strafeq` puts back the old strafing.
+
+A body here takes about half a second to turn a run round, so holds much
+shorter than that only make a bot rock on the spot: tried, the sideways
+speed fell and it was no harder to hit.
+
+To test: `HALO_BOT_SKILL_T1=N` gives side 1 its own level,
+`HALO_BOT_HOLDFIRE_T1=1` stops side 1 shooting and logs side 0's firing time
+and side 1's health lost (`dodgetest`), and `HALO_BOT_STRAFE_OLD_T1=1` gives
+only side 1 the old strafing. Two things were measured over side 1's
+fighting time, from `HALO_BOT_TRAJ`. The first is a person's aim: where the
+bot was 0.27 s ago, carried on the way it was going. The second is how often
+the bot was within 0.12 units of that aim, sideways. On Prisoner, side 1 was
+in reach of that aim this share of the time:
+
+| Side 1 | Level 1 | Level 10 |
+|---|---|---|
+| Before | 0.67 | 0.56 |
+| Now | 0.73 | 0.56 |
+
+So the levels are now further apart, and level 10 is as hard to hit as
+before. Against bot shooters the deaths a minute hardly change either way,
+because a bot's aim follows where the target is each tick.
+
+**Guns on vehicles.** A bot on the gun of a vehicle (the warthog's chaingun)
+holds the trigger down while it is on target, instead of firing in bursts.
+The rocket warthog's gun (a vehicle named with `rwarthog` or `rocket`, or a
+gun that fires rockets) is aimed as a rocket launcher is: it leads the
+target and aims at the feet. On Ice Fields and Danger Canyon (4 games each
+way) bots killed 5.0 players from vehicles each 10 minutes instead of 3.75;
+that many games is too few to be sure. `HALO_BOT_OFF=turret` puts it back.
+
+**Each bot its own way.** On open floor a bot on foot sways slowly off the
+straight line to the next corner, and each bot has its own sway: up to
+about 15 degrees, once every 3 to 7 seconds. Each also has its own pace, up
+to 4% under a full run. Both fade out in the last 2 units before a corner,
+and stop where the floor to the side is not open. With eight bots on the
+same tours (Blood Gulch, Prisoner, Wizard, two seeds each), the spread of
+the lines that different bots take through the same spot going the same
+way (`spread`) went from 0.200 to 0.209 units. Pace went 0.4% lower and
+nothing else changed beyond chance. A wider sway (20 degrees) went off
+edges more and was dropped. `HALO_BOT_OFF=meander` turns it off.
+
 ### How the bots find their way, and what they cost
 
 A bot finds its way with a search that starts at its goal. The search goes

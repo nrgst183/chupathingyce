@@ -2907,6 +2907,51 @@ static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body
 	return BOT_TAKE_NONE;
 }
 
+/* Each its own line across open floor. Sent the same way, the bots went the
+   same way, to a hand: down the same line from corner to corner, at the
+   same pace, a file of them on a big map. A person drifts off the line and
+   back, a little, by a way of their own (some more than others, and more
+   slowly or quickly), and the line through a doorway and round a corner is
+   still the route's. So: a slow sway from the way to the corner, each bot
+   its own (how far, how slowly, where in it it starts, from its place in
+   the game), faded out near the corner and where the floor to the side
+   is not open. HALO_BOT_OFF=meander: as it was */
+static void bot_move_meander(struct bot_mover *bot, struct bot_body const *body, real_point3d const *corners, long corner_count,
+	struct bot_move_result *result, real to_goal)
+{
+	struct bot_move_state *move = &bot->move;
+	unsigned long h = (unsigned long)bot->index * 2654435761UL ^ 0x7f4a7c15UL;
+	real amount, period, phase, to_corner, fade, sway, yaw;
+	if (move->type != AAS_FOOT || !move->human || move->reach != NONE || body->airborne || result->exact || result->delicate ||
+		corner_count < 1 || to_goal < 3.f || bot_env_off("meander"))
+	{
+		return;
+	}
+	h ^= h >> 13;
+	h *= 0x5bd1e995UL;
+	h ^= h >> 15;
+	/* (up to about a sixth of a right angle off the way, some bots a good
+	   deal less; once every three to seven seconds, there and back. A
+	   fifth of one, and they went off edges more) */
+	amount = 0.06f + 0.2f * (real)(h & 0xFF) / 255.f;
+	period = 3.f + 4.f * (real)((h >> 8) & 0xFF) / 255.f;
+	phase = 6.2831853f * (real)((h >> 16) & 0xFF) / 255.f;
+	to_corner = bot_distance2d(&body->position, &corners[0]);
+	/* (none in the last two units to a corner: the corner is the route's) */
+	fade = PIN((to_corner - 2.f) / 2.f, 0.f, 1.f);
+	if (fade <= 0.f)
+		return;
+	sway = amount * fade * (real)sin(phase + 6.2831853f * (real)game_time_get() / (period * BOT_TICKS_PER_SECOND));
+	yaw = bot_wrap(result->yaw + sway);
+	if (!bot_move_direction_safe(body, yaw, 1.2f))
+		return;
+	result->yaw = yaw;
+	/* (and a pace of its own, on the open floor: some a touch slower than
+	   a full run, so that eight sent the same way do not go as one) */
+	if (result->speed > 0.99f)
+		result->speed = 1.f - 0.04f * (real)((h >> 24) & 0xFF) / 255.f * fade;
+}
+
 /* the walk toward the first corner of the route, on foot: slowed and looked round for what is coming */
 static void bot_move_walk(struct bot_mover *bot, struct bot_body const *body, struct bot_goal const *goal, struct bot_move_result *result, long area, long goal_area,
 	real_point3d const *corners, long corner_count)
@@ -2965,6 +3010,7 @@ static void bot_move_walk(struct bot_mover *bot, struct bot_body const *body, st
 			return;
 		}
 	}
+	bot_move_meander(bot, body, corners, corner_count, result, to_goal);
 	/* close to the item: slow, so as not to run past it */
 	if (goal->kind == _bot_move_goal_vehicle && to_goal < 1.5f)
 		result->speed = to_goal > 0.6f ? 0.5f : 0.25f;

@@ -3494,10 +3494,15 @@ them fought as one. Now:
   tenth at level 10 (`reread`).
 - **Each its own:** a bot's aim and reactions are up to a fifth better or
   worse than its level's, its sidestep and aggression a little either way,
-  from the luck it draws. That luck was drawn before and never used. The
-  top levels' pull toward a master's composure, discipline, focus, whims
-  and jumps goes half way at level 10 now, not all the way, so a level 8 to
-  10 bot keeps its own character (`spread`).
+  from the luck it draws. That luck was drawn before and never used
+  (`spread`).
+- **Character is the same at every level:** the level sets how well a bot
+  aims, reacts, turns and moves, not who it is. Its aggression is drawn for
+  each bot (0.25 to 0.7, the range levels 1 to 10 used to give every bot
+  alike), and nothing pulls its composure, discipline, focus, whims or
+  jumps toward a master's at the top levels any more. Before, those were
+  pulled from level 8 up and were the same for every bot at 10
+  (`HALO_BOT_OFF=traitlevel` puts that back).
 
 The test: bots at a level shooting at bots of level 5 that do not shoot
 back, Prisoner and Chill Out, 2 seeds each.

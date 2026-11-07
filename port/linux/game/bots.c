@@ -933,7 +933,7 @@ struct bot_personality
 	real learned_teamwork;
 	real learned_aggression; /* (only up from where it started: 0 .. 1) */
 	long learned_time; /* game time the game's length was last counted to */
-	real own_aggression; /* its own lean from its level's aggression, -0.12 .. 0.12 */
+	real own_aggression; /* its own draw for aggression, 0 .. 1 (bot_own_aggression) */
 	real taunt;         /* rubs it in: a teabag on whoever it just killed */
 	/* character: the same all game, what makes one bot not another */
 	real grudge;        /* how hard it goes after whoever keeps killing it */
@@ -1251,10 +1251,14 @@ static void bot_skill_traits(struct bot_personality *personality)
 	}
 }
 
-/* its level's aggression, and its own lean from it */
+/* how aggressive it starts a game: its own, drawn, the same at every level
+   (0.25 .. 0.7, what levels 1 to 10 gave before). HALO_BOT_OFF=traitlevel:
+   its level's, with a lean of its own; and "spread" too: its level's alone */
 static real bot_own_aggression(struct bot_personality const *personality)
 {
-	return bot_skill_aggression() + (bot_env_off("spread") ? 0.f : personality->own_aggression);
+	if (bot_env_off("traitlevel"))
+		return bot_skill_aggression() + (bot_env_off("spread") ? 0.f : 0.24f * (personality->own_aggression - 0.5f));
+	return 0.25f + 0.45f * personality->own_aggression;
 }
 
 /* A bot's own level: bot_skill, or with a spread somewhere from so many
@@ -1369,9 +1373,9 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	unsigned long seed = bot_hash((unsigned long)(slot * 2654435761UL) ^ 0x9e3779b9UL ^ bots_match());
 	bot_skill_now = bot_skill_of(slot);
 #define BOT_TRAIT(low, high) ((low) + ((high) - (low)) * (real)((seed = bot_hash(seed)) & 0xFFFF) / 65535.f)
-	/* (the better the bots, the hungrier: at 5 none of them hangs back) */
+	/* (its aggression: its own, bot_own_aggression) */
 	seed = bot_hash(seed); /* (aggression's draw: the rest stay as they were) */
-	personality->own_aggression = 0.24f * ((real)(seed & 0xFFFF) / 65535.f - 0.5f);
+	personality->own_aggression = (real)(seed & 0xFFFF) / 65535.f;
 	personality->aggression = PIN(bot_own_aggression(personality), 0.f, 1.f);
 	personality->accuracy_luck = BOT_TRAIT(0.f, 1.f);
 	personality->vehicle_love = BOT_TRAIT(0.f, 1.f);
@@ -1437,16 +1441,15 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 		personality->jumpiness = MAX(personality->jumpiness, 0.7f);
 #undef BOT_TRAIT
 	bot_skill_traits(personality);
-	/* The top levels: no slips. A drawn trait that makes for mistakes (an
-	   aimless detour on a whim, a hop at nothing, losing its head when hit,
-	   spraying where a burst would do, wandering off the objective) is
-	   drawn toward a master's from 8 up, and is one at 10; the traits that
-	   make a character (how bold, how patient, what it loves) stay. */
+	/* Its character is its own at every level: what the level sets is how
+	   well it aims, reacts, turns and moves, not who it is. (Before, a drawn
+	   trait that makes for mistakes, a detour on a whim, a hop at nothing,
+	   losing its head when hit, spraying, wandering off the objective, was
+	   drawn toward a master's from level 8 up and was one at 10.
+	   HALO_BOT_OFF=traitlevel: half way, and with "spread" too, all the way,
+	   as it was) */
+	if (bot_env_off("traitlevel"))
 	{
-		/* (... half way, now: a bot of the top level is still someone, its
-		   composure, its discipline, its whims its own, and its luck in
-		   aim, reactions and feet is its own at every level.
-		   HALO_BOT_OFF=spread: all the way, as it was) */
 		real m = bot_skill_mastery() * (bot_env_off("spread") ? 1.f : 0.5f);
 		personality->composure += (1.f - personality->composure) * m;
 		personality->discipline += (1.f - personality->discipline) * m;

@@ -3446,8 +3446,8 @@ speed fell and it was no harder to hit.
 
 To test: `HALO_BOT_SKILL_T1=N` gives side 1 its own level,
 `HALO_BOT_HOLDFIRE_T1=1` stops side 1 shooting and logs side 0's firing time
-and side 1's health lost (`dodgetest`), and `HALO_BOT_STRAFE_OLD_T1=1` gives
-only side 1 the old strafing. Two things were measured over side 1's
+and side 1's health lost (`dodgetest`), and `HALO_BOT_STRAFE_OLD_T1=1` (or
+`_T0`) gives only that side the old strafing. Two things were measured over side 1's
 fighting time, from `HALO_BOT_TRAJ`. The first is a person's aim: where the
 bot was 0.27 s ago, carried on the way it was going. The second is how often
 the bot was within 0.12 units of that aim, sideways. On Prisoner, side 1 was
@@ -3461,6 +3461,19 @@ in reach of that aim this share of the time:
 So the levels are now further apart, and level 10 is as hard to hit as
 before. Against bot shooters the deaths a minute hardly change either way,
 because a bot's aim follows where the target is each tick.
+
+**Aiming while strafing.** With the new strafing, bots did less damage per
+second of firing. In the test, side 0 shot at level 10 and side 1 held its
+fire; over 6 games, side 0 did 0.65 damage per second of firing with the new
+strafing and 0.72 with the old (`HALO_BOT_STRAFE_OLD_T0=1`). The aim was
+falling behind the bot's own sidestep. It aimed from where its eye was, not
+where it would be when the shot left, and its hand eased onto the target
+each tick without keeping up with how fast the line to the target turns.
+That line turns from the bot's own movement as well as the target's. A bot
+now aims from where its eye will be a tick on, and turns with the line, at
+0.6 to 1 of its turn rate by skill level, with the easing on top. In the
+same 6 games side 0 did 0.71 a second and killed 13.3 a minute (12.7
+before). `HALO_BOT_OFF=aimff` turns it off.
 
 **Guns on vehicles.** A bot on the gun of a vehicle (the warthog's chaingun)
 holds the trigger down while it is on target, instead of firing in bursts.

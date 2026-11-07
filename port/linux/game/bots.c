@@ -1710,6 +1710,11 @@ struct bot_state
 	/* a person's hands: how fast the look is turning (radians a tick), and
 	   where the thumb has the movement (the world's x and y, 0..1 long) */
 	real yaw_rate;
+	/* how fast the line to whoever it is shooting at turns, a tick (the
+	   bot's own movement and theirs): kept up with, as a person tracks */
+	long aim_ff_target, aim_ff_tick;
+	real aim_ff_last_yaw, aim_ff_last_pitch, aim_ff_yaw, aim_ff_pitch;
+	int aim_ff_on;
 	real pitch_rate;
 	real thumb_x;
 	real thumb_y;
@@ -13286,8 +13291,8 @@ static void bot_fight_move(struct bot_think *t)
 	f.skill_move = bot_skill_movement();
 	f.pro = bot_skill_pro();
 	f.strafe = bot_skill_strafe();
-	/* (testing: side 1 strafing as it did before, its shooters as now) */
-	if (getenv("HALO_BOT_STRAFE_OLD_T1") && t->me->team_index == 1)
+	/* (testing: one side strafing as it did before, the other as now) */
+	if ((getenv("HALO_BOT_STRAFE_OLD_T1") && t->me->team_index == 1) || (getenv("HALO_BOT_STRAFE_OLD_T0") && t->me->team_index == 0))
 		f.strafe = -1.f;
 	f.closing = FALSE;
 
@@ -15802,7 +15807,12 @@ static void bot_turn_look(struct bot_state *bot, struct bot_skill_parameters con
 			real left = axis ? dp : dy;
 			real *rate = axis ? &bot->pitch_rate : &bot->yaw_rate;
 			real part = keeping + (big - keeping) * MIN(1.f, (real)fabs(left) / 0.6f);
-			real want = PIN(left * part, -max_turn, max_turn);
+			/* (on someone: the line's turn kept up with, and the part of
+			   what is left on top of it; without, a bot strafing as it
+			   shot was always behind its own sidestep) */
+			real ff = bot->aim_ff_on && bot->aim_ff_tick == game_time_get() ?
+				(axis ? bot->aim_ff_pitch : bot->aim_ff_yaw) * (0.6f + 0.4f * bot_skill_fraction()) : 0.f;
+			real want = PIN(ff + (left - ff) * part, -max_turn, max_turn);
 			if (fabs(left) < 0.002f)
 				*rate = left;
 			else if (want * *rate >= 0.f && fabs(want) > fabs(*rate))
@@ -16949,8 +16959,36 @@ static void bot_aim_at_target(struct bot_think *t)
 				aim.z -= 0.3f;
 		}
 	}
-	desired_yaw = bot_yaw_to(eye, &aim);
-	desired_pitch = (real)atan2(aim.z - eye->z, bot_distance2d(&aim, eye));
+	/* (from where the eye will be when the shot goes, a tick on: it
+	   moves with the bot, strafing as it shoots) */
+	if (!bot_env_off("aimff"))
+	{
+		real_point3d from = *eye;
+		real_vector3d const *own = &object_get(object_get_ultimate_parent(t->me->unit_index))->object.translational_velocity;
+		from.x += own->i;
+		from.y += own->j;
+		from.z += own->k;
+		desired_yaw = bot_yaw_to(&from, &aim);
+		desired_pitch = (real)atan2(aim.z - from.z, bot_distance2d(&aim, &from));
+		/* (the line's own turn, the aim's error left out) */
+		if (bot->aim_ff_target == target && bot->aim_ff_tick == game_time_get() - 1)
+		{
+			bot->aim_ff_yaw = bot_angle_difference(desired_yaw, bot->aim_ff_last_yaw);
+			bot->aim_ff_pitch = desired_pitch - bot->aim_ff_last_pitch;
+			bot->aim_ff_on = fabs(bot->aim_ff_yaw) < 0.08f && fabs(bot->aim_ff_pitch) < 0.08f;
+		}
+		else
+			bot->aim_ff_on = FALSE;
+		bot->aim_ff_target = target;
+		bot->aim_ff_tick = game_time_get();
+		bot->aim_ff_last_yaw = desired_yaw;
+		bot->aim_ff_last_pitch = desired_pitch;
+	}
+	else
+	{
+		desired_yaw = bot_yaw_to(eye, &aim);
+		desired_pitch = (real)atan2(aim.z - eye->z, bot_distance2d(&aim, eye));
+	}
 	bot->aim_error_yaw *= skill->aim_settle;
 	bot->aim_error_pitch *= skill->aim_settle;
 	/* a camouflaged target: only a rough idea where they are, the aim

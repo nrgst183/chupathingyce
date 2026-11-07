@@ -4952,6 +4952,8 @@ static void game_engine_update_vehicle_respawn(
 	void)
 {
 	long respawn_ticks = game_variant_options_get()->vehicle_respawn_time * TICKS_PER_SECOND;
+	/* port: a wreck's time, when it is another than an empty one's (below) */
+	long wreck_ticks;
 	long now = game_time_get();
 	short index;
 
@@ -4964,6 +4966,21 @@ static void game_engine_update_vehicle_respawn(
 		if (forced >= 0)
 			respawn_ticks = forced * TICKS_PER_SECOND;
 	}
+	wreck_ticks = respawn_ticks;
+	/* port: a Custom Edition map with the gametype's respawn time at its
+	first choice, none: a vehicle destroyed comes back at its home after 30
+	seconds, and one left empty away from it after 2 minutes, as Halo PC's
+	do (its maps are made for it: on Hugeass, with none, every wreck stayed
+	a wreck and every vehicle stayed wherever it was left, and the bases
+	were bare within minutes). An Xbox map keeps the Xbox game's: none.
+	(HALO_VEHICLE_RESPAWN_XBOX: none on Custom Edition maps too) */
+#ifdef HALO_CUSTOM_EDITION
+	if (respawn_ticks <= 0 && cache_file_tags_are_ce() && !getenv("HALO_VEHICLE_RESPAWN_XBOX"))
+	{
+		respawn_ticks = 120 * TICKS_PER_SECOND;
+		wreck_ticks = 30 * TICKS_PER_SECOND;
+	}
+#endif
 
 	if (network_game_distributed_client())
 		return;
@@ -5004,6 +5021,7 @@ static void game_engine_update_vehicle_respawn(
 		long object_index = game_engine_vehicle_home_current(index);
 		struct unit_datum *vehicle = unit_try_and_get(object_index);
 		boolean waiting = TRUE;
+		long wait_ticks = respawn_ticks;
 
 		if (vehicle && !TEST_FLAG(vehicle->object.damage_flags, _object_dead_bit))
 		{
@@ -5013,11 +5031,13 @@ static void game_engine_update_vehicle_respawn(
 
 			waiting = dx * dx + dy * dy + dz * dz > VEHICLE_HOME_AWAY_SQUARED && game_engine_vehicle_empty(vehicle);
 		}
+		else
+			wait_ticks = wreck_ticks;
 		if (!waiting)
 			game_engine_vehicle_homes[index].idle_since = NONE;
 		else if (game_engine_vehicle_homes[index].idle_since == NONE)
 			game_engine_vehicle_homes[index].idle_since = now;
-		else if (now - game_engine_vehicle_homes[index].idle_since >= respawn_ticks)
+		else if (now - game_engine_vehicle_homes[index].idle_since >= wait_ticks)
 		{
 			struct object_placement_data placement_data;
 			long stale_index = game_engine_vehicle_homes[index].object_index;

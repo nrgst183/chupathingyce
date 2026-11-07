@@ -2877,6 +2877,19 @@ names at the end of the test, 80 seconds later. With no time (the setting `never
 vehicles that the scripts of the maps make again came back (the Longsword,
 and two kinds of walker); the wrecks of the others stayed.
 
+### Vehicles back at their bases on Custom Edition maps
+
+When the gametype's vehicle respawn time is its first choice (none), a
+Custom Edition map now acts as Halo PC's maps are made for. A destroyed
+vehicle comes back where the map put it after 30 seconds, and one left
+empty away from there comes back after 2 minutes. Before, with none, on
+Hugeass every wreck stayed a wreck and every vehicle stayed wherever it was
+left, so the bases were bare within minutes; in a 12-minute test game 20
+vehicles came back now. Another respawn time on the gametype works as it
+did, and Xbox maps keep the Xbox game's way: vehicles stay where they are
+left. `HALO_VEHICLE_RESPAWN_XBOX=1` gives Custom Edition maps the Xbox way
+too.
+
 ### More vehicles
 
 With `game.vehicle_multiplier` set to 2, 3 or 4, the host makes that
@@ -3517,6 +3530,18 @@ The kills a minute change less than the damage does, because in this test
 they are held up mostly by the targets respawning and coming back.
 `HALO_BOT_HOLDFIRE_T1` now also logs the firing and the damage by range
 (`dodgerange`).
+
+**Traits that show more.** A bot's traits are drawn further from the
+middle of their ranges, so fewer bots are middling at everything. The weaker
+effects are about half as strong again: grudges, sporting, herding,
+showing off, vengefulness, teabagging, loyalty to a gun, camping, temper and
+swagger, whims, composure, melee range and trigger discipline. Each life
+also swings a bot's greed, patience, daring, jumping, love of vehicles and
+focus by up to 0.2 either way, not 0.15. In 6 test games (Chill Out
+free-for-all, Prisoner team slayer, Blood Gulch CTF, at level 7) there were
+24 teabags against 12, and a few more ambushes and runs for cover; the
+kills came out the same. `HALO_BOT_OFF=traitshow` puts them back as they
+were.
 
 **Guns on vehicles.** A bot on the gun of a vehicle (the warthog's chaingun)
 holds the trigger down while it is on target, instead of firing in bursts.

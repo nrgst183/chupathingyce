@@ -3185,6 +3185,9 @@ boolean ui_widget_port_multiplayer_player(short controller_index, long profile_i
 boolean ui_widget_port_unjoin_player(struct widget_instance *widget, struct event_record *event,
 	boolean *widget_deleted);
 void network_game_server_port_set_settings(wchar_t const *name, long maximum_players);
+boolean pc_menus_chupathingy(void);
+struct network_game_server;
+void network_game_server_port_set_cooperative(struct network_game_server *server, short difficulty);
 void network_game_server_port_set_cooperative_friendly_fire(short friendly_fire);
 void network_game_server_port_set_cooperative_player_collisions(boolean player_collisions);
 void network_game_server_port_set_cooperative_ally_damage(boolean ally_damage);
@@ -3207,6 +3210,7 @@ boolean game_engine_running(void);
 void game_engine_end_game(void);
 /* the platform layer's */
 int p2p_join_invite(char const *text);
+int p2p_join_listed_invite(char const *text);
 int p2p_invite_link(char *link, int size);
 int p2p_hosting_status(char *text, int size);
 void p2p_check_network(void);
@@ -5293,7 +5297,9 @@ static void lobby_browser_update(struct widget_instance *list)
 lobby_browser_update) */
 static boolean lobby_browser_join(struct p2p_listing const *game, short controller)
 {
-	if (!p2p_join_invite(game->invite))
+	/* (an open listing's invite is a public game's, which a player in it
+	shares on Discord too; a password game's never) */
+	if (!(game->locked ? p2p_join_invite(game->invite) : p2p_join_listed_invite(game->invite)))
 		return FALSE;
 	csmemcpy(lobby_browser.identifier, game->identifier, sizeof(lobby_browser.identifier));
 	csmemcpy(lobby_browser.name, game->name, sizeof(lobby_browser.name));
@@ -7110,6 +7116,7 @@ gametype's choice did) */
 #define HOST_LOBBY_SCREEN "ui\\shell\\main_menu\\multiplayer_type_select\\connected\\pregame\\connected_pregame_screen"
 #define HOST_SPLIT_LOBBY_SCREEN \
 	"ui\\shell\\main_menu\\multiplayer_type_select\\split_screen\\pregame\\splitscreen_pregame_wrapper_normal"
+#define HOST_SETUP_SCREEN "pc\\chupathingy\\host\\setup_screen"
 #define HOST_SETUP_ROWS 8
 #define HOST_EDIT_ROWS 10
 /* a message (a game type not saved) shows this long in place of the help */
@@ -7264,6 +7271,67 @@ static void host_value_set(struct widget_instance *spinner, wchar_t const *text)
 	}
 }
 
+/* co-op's difficulties, in the game's order */
+static wchar_t const *const host_difficulty_names[NUMBER_OF_GAME_DIFFICULTY_LEVELS] =
+{
+	L"EASY", L"NORMAL", L"HEROIC", L"LEGENDARY",
+};
+
+/* co-op's rules as config.toml has them (network.coop_friendly_fire,
+network.coop_player_collisions, network.coop_ally_friendly_fire), which
+Server Setup starts with too; its extra enemies the host reads as the game
+begins (coop_enemies.c) */
+static void host_cooperative_rules(void)
+{
+	static char const *const friendly_fire_names[] = { "off", "on", "shields_only", "explosives_only" };
+	char text[32];
+	short index, friendly_fire = _friendly_fire_on;
+
+	if (config_text("network.coop_friendly_fire", text, sizeof(text)))
+	{
+		for (index = 0; index < NUMBEROF(friendly_fire_names); index++)
+		{
+			if (!strcmp(text, friendly_fire_names[index]))
+				friendly_fire = cooperative_friendly_fire_modes[index];
+		}
+	}
+	network_game_server_port_set_cooperative_friendly_fire(friendly_fire);
+	network_game_server_port_set_cooperative_player_collisions(config_boolean("network.coop_player_collisions") != 0);
+	network_game_server_port_set_cooperative_ally_damage(config_boolean("network.coop_ally_friendly_fire") != 0);
+}
+
+#ifdef HALO_GAME_BROWSER
+/* whether the Xbox's Select Map (the Chupathingy menus') lists the
+campaign's levels after the maps: when this machine hosts over the network
+(System Link, Online Games), which network co-op needs, as the Gearbox
+menus' map list has them (map_list_update) */
+boolean pc_menus_host_cooperative_shown(void)
+{
+	return pc_menus_chupathingy() && global_network_game_server_get() != NULL && !network_game_is_splitscreen_local();
+}
+
+/* a campaign level chosen there: the network co-op game set up at the
+difficulty last played (GAME SETUP changes it), then GAME SETUP in the
+gametypes' place. FALSE stays on Select Map. */
+boolean pc_menus_host_cooperative_choose(struct widget_instance *widget, char const *map_name,
+	boolean *widget_deleted)
+{
+	short difficulty = (short)PIN(main_get_difficulty(), 0, NUMBER_OF_GAME_DIFFICULTY_LEVELS - 1);
+
+	/* (no co-op while a machine that does not play it, the original Xbox,
+	is in the game: Delta's platform policy) */
+	if (!delta_peer_host_coop())
+	{
+		platform_log("Delta Peer: co-op is not offered while a machine that does not play it is in the game");
+		return campaign_fail();
+	}
+	if (!ui_widget_port_cooperative_level_choose(map_name, difficulty))
+		return campaign_fail();
+	ui_play_audio_feedback_sound(SOUND_FORWARD);
+	return ui_widget_port_open(widget, HOST_SETUP_SCREEN, widget_deleted);
+}
+#endif
+
 /* ---- GAME SETUP's rows */
 
 /* the choices of config.toml (each new game: the settings' own) */
@@ -7413,7 +7481,7 @@ static boolean host_setup_value(short row, wchar_t *text)
 	{
 	case _host_row_maximum_players:
 		usnprintf(text, ROW_TEXT_LENGTH - 1, L"%d",
-			maximum_players[PIN(multiplayer.maximum_players_index, 0, NUMBEROF(maximum_players) - 1)]);
+			maximum_players[PIN(*server_settings_maximum_players_index(), 0, NUMBEROF(maximum_players) - 1)]);
 		return TRUE;
 	case _host_row_public:
 		ustrncpy(text, multiplayer.game_private ? L"OFF" : L"ON", ROW_TEXT_LENGTH - 1);
@@ -7432,6 +7500,13 @@ static boolean host_setup_value(short row, wchar_t *text)
 			ustrncpy(text, L"RANDOM", ROW_TEXT_LENGTH - 1);
 		return TRUE;
 	case _host_row_game_type:
+		/* (co-op's: its difficulty) */
+		if (hosting_cooperative())
+		{
+			ustrncpy(text, host_difficulty_names[PIN(main_get_difficulty(), 0, NUMBER_OF_GAME_DIFFICULTY_LEVELS - 1)],
+				ROW_TEXT_LENGTH - 1);
+			return TRUE;
+		}
 		host_game_type_text(text);
 		return TRUE;
 	case _host_row_team_change:
@@ -7531,6 +7606,8 @@ static wchar_t const *host_setup_help(short row)
 		return host_help_with_status(L"The UDP port for hosting. Forward it on your router if friends can't join.",
 			with_status, NUMBEROF(with_status));
 	case _host_row_game_type:
+		if (hosting_cooperative())
+			return L"The campaign's difficulty for everyone.";
 		return L"Choose the game type. %a-button edits it.";
 	case _host_row_team_change:
 		return host_setup.team_change == 1 ? L"Players can change teams within the margin." :
@@ -7588,9 +7665,12 @@ static boolean host_setup_change(short row, short direction)
 	switch (row)
 	{
 	case _host_row_maximum_players:
-		multiplayer.maximum_players_index = (short)PIN(multiplayer.maximum_players_index + direction, 0,
-			maximum_players_choices() - 1);
+	{
+		short *index_chosen = server_settings_maximum_players_index();
+
+		*index_chosen = (short)PIN(*index_chosen + direction, 0, maximum_players_choices() - 1);
 		return TRUE;
+	}
 	case _host_row_public:
 		multiplayer.game_private = !multiplayer.game_private;
 		p2p_set_hosting_public(!multiplayer.game_private);
@@ -7606,7 +7686,19 @@ static boolean host_setup_change(short row, short direction)
 	{
 		long gametypes[MAXIMUM_GAMETYPES];
 		short last;
-		short count = ui_widget_port_gametypes(gametypes, MAXIMUM_GAMETYPES, &last);
+		short count;
+
+		/* (co-op's difficulty, the server's too) */
+		if (hosting_cooperative())
+		{
+			short difficulty = host_step((short)PIN(main_get_difficulty(), 0, NUMBER_OF_GAME_DIFFICULTY_LEVELS - 1),
+				NUMBER_OF_GAME_DIFFICULTY_LEVELS, direction);
+
+			main_set_difficulty(difficulty);
+			network_game_server_port_set_cooperative(global_network_game_server_get(), difficulty);
+			return TRUE;
+		}
+		count = ui_widget_port_gametypes(gametypes, MAXIMUM_GAMETYPES, &last);
 
 		return count > 0 && ui_widget_port_gametype_choose(gametypes[host_step(last, count, direction)]);
 	}
@@ -7714,7 +7806,10 @@ static boolean host_setup_start(struct widget_instance *widget, boolean *widget_
 	if (!global_network_game_server_get())
 		return campaign_fail();
 	network_game_server_port_set_settings(multiplayer.game_name,
-		maximum_players[PIN(multiplayer.maximum_players_index, 0, NUMBEROF(maximum_players) - 1)]);
+		maximum_players[PIN(*server_settings_maximum_players_index(), 0, NUMBEROF(maximum_players) - 1)]);
+	/* (co-op's rules: the settings' own, as Server Setup starts them) */
+	if (hosting_cooperative())
+		host_cooperative_rules();
 	p2p_set_hosting_public(host_listing_shown() && !multiplayer.game_private);
 	p2p_set_hosting_password(host_listing_shown() && !multiplayer.game_private ? multiplayer.game_password : NULL);
 	host_write("network.team_change", host_team_changes[PIN(host_setup.team_change, 0, 2)]);
@@ -8234,6 +8329,7 @@ static boolean host_initialize(struct widget_instance *list)
 		if (server != host_setup.server || !server)
 		{
 			host_setup.server = server;
+			multiplayer.cooperative_maximum_players_set = FALSE;
 			host_setup_read();
 			/* (the network looked at now: the reachability the help shows
 			is known before the game starts) */
@@ -8249,7 +8345,8 @@ static boolean host_initialize(struct widget_instance *list)
 			}
 		}
 		/* (none chosen, as when the screen is opened on its own: the one used
-		last) */
+		last; co-op has none) */
+		if (!hosting_cooperative())
 		{
 			struct game_variant variant;
 
@@ -8297,6 +8394,9 @@ static void host_update(struct widget_instance *list)
 	{
 		host_setup.page = page;
 		host_setup_rows();
+		/* (co-op has no game type to edit: no Y) */
+		visible_set(named(list->parent, "y", 0), !hosting_cooperative());
+		visible_set(named(list->parent, "edit_game_type", 0), !hosting_cooperative());
 	}
 #ifdef HALO_GAME_BROWSER
 	else
@@ -8344,7 +8444,8 @@ static void host_update(struct widget_instance *list)
 		value[0] = 0;
 		if (host_page_setup(page))
 		{
-			text_set(named(row, "label", 0), host_row_labels[shown]);
+			text_set(named(row, "label", 0), shown == _host_row_game_type && hosting_cooperative() ?
+				L"DIFFICULTY:" : host_row_labels[shown]);
 			arrows = host_setup_value(shown, value);
 			if (row == list->focused_child)
 				ustrncpy(text, host_setup_help(shown), NUMBEROF(text) - 1);
@@ -8462,6 +8563,8 @@ static boolean host_row_a(struct widget_instance *row, boolean *widget_deleted)
 		return TRUE;
 	}
 #ifdef HALO_GAME_BROWSER
+	if (setup && shown == _host_row_game_type && hosting_cooperative())
+		return TRUE;
 	if (setup && shown == _host_row_game_type)
 	{
 		host_setup.editing = FALSE;
@@ -8544,6 +8647,9 @@ static boolean host_edit(struct widget_instance *widget, boolean *widget_deleted
 #ifdef HALO_GAME_BROWSER
 	if (text_field_editing(NULL))
 		text_field_end(TRUE);
+	/* (co-op has no game type to edit) */
+	if (hosting_cooperative())
+		return campaign_fail();
 	host_setup.editing = FALSE;
 	return ui_widget_port_open(widget, HOST_EDIT_SCREEN, widget_deleted);
 #else

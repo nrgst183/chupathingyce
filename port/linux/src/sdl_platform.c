@@ -74,6 +74,11 @@ gone, ends: else the keyboard stays held from the game) */
 static Uint64 binding_polled_ms;
 #define BINDING_ABANDONED_MS 500
 static unsigned mouse_buttons_down;
+/* keys (not a modifier alone, not a held key's repeats), mouse buttons and
+touches pressed since platform_movie_skip_pressed last looked: what skips a
+movie (bink_playback.c), the keys not reaching the game outside text and
+the console (xinput_sdl.c), and the mouse not being the Xbox's */
+static volatile int movie_skip_presses;
 /* (an input taken that nothing asks for is let go after this) */
 #define BINDING_UNCLAIMED_MS 2000
 /* the multiplayer scoreboard is open (platform_scoreboard_scroll): the wheel
@@ -401,8 +406,37 @@ BOOL platform_sdl_initialize(void)
 #endif
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD | SDL_INIT_EVENTS))
 	{
-		platform_log("SDL_Init failed: %s", SDL_GetError());
+		char reason[256];
+
+		snprintf(reason, sizeof(reason), "%s", SDL_GetError());
+		platform_log("SDL_Init failed: %s", reason);
+#ifdef HALO_ANDROID
+		/* (a phone always has its screen) */
 		return FALSE;
+#else
+		/* (the window first: without a display there is no game, and the
+		renderer would only crash on the window it never got; without sound
+		or gamepads there still is one) */
+		if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
+		{
+			char message[512];
+
+			snprintf(reason, sizeof(reason), "%s", SDL_GetError());
+			snprintf(message, sizeof(message),
+				"Chupathingy couldn't open a window: %s.\n\n"
+				"It needs a display to run on. Check that one is connected and turned on.", reason);
+			platform_log("video: no window (%s): quitting", reason);
+			fprintf(stderr, "Chupathingy: %s\n", message);
+			if (!config_boolean("debug.hidden_window") && config_real("debug.exit_after") <= 0.0)
+				SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Chupathingy", message, NULL);
+			SDL_Quit();
+			exit(EXIT_FAILURE);
+		}
+		if (!SDL_InitSubSystem(SDL_INIT_AUDIO))
+			platform_log("audio: could not start (%s): playing without sound", SDL_GetError());
+		if (!SDL_InitSubSystem(SDL_INIT_GAMEPAD))
+			platform_log("gamepads: could not start (%s)", SDL_GetError());
+#endif
 	}
 	platform_sdl_started = TRUE;
 #ifdef HALO_CONSOLE_SETUP_SCREENS
@@ -2607,6 +2641,11 @@ void platform_pump_events(void)
 				if (event.key.down)
 					keys_pressed[event.key.scancode] = 1;
 			}
+			if (event.key.down && !event.key.repeat &&
+				(event.key.scancode < SDL_SCANCODE_LCTRL || event.key.scancode > SDL_SCANCODE_RGUI))
+			{
+				movie_skip_presses++;
+			}
 			if (binding_capture == _binding_capture_waiting && event.key.down && !event.key.repeat &&
 				event.key.scancode != SDL_SCANCODE_F11 && event.key.scancode != SDL_SCANCODE_F12)
 			{
@@ -2656,6 +2695,8 @@ void platform_pump_events(void)
 			break;
 		case SDL_EVENT_MOUSE_BUTTON_DOWN:
 		case SDL_EVENT_MOUSE_BUTTON_UP:
+			if (event.button.down)
+				movie_skip_presses++;
 			if (event.button.button < 32)
 			{
 				if (event.button.down)
@@ -2765,6 +2806,8 @@ void platform_pump_events(void)
 		case SDL_EVENT_FINGER_MOTION:
 		case SDL_EVENT_FINGER_UP:
 		case SDL_EVENT_FINGER_CANCELED:
+			if (event.type == SDL_EVENT_FINGER_DOWN)
+				movie_skip_presses++;
 			touch_input_event(event.type, &event.tfinger);
 			break;
 #endif
@@ -3045,4 +3088,12 @@ void platform_input_read(struct platform_input_state *state, BOOL consume_motion
 		input_state.mouse_wheel = 0;
 	}
 	pthread_mutex_unlock(&input_lock);
+}
+
+int platform_movie_skip_pressed(void)
+{
+	int pressed = movie_skip_presses != 0;
+
+	movie_skip_presses = 0;
+	return pressed;
 }

@@ -3475,6 +3475,44 @@ now aims from where its eye will be a tick on, and turns with the line, at
 same 6 games side 0 did 0.71 a second and killed 13.3 a minute (12.7
 before). `HALO_BOT_OFF=aimff` turns it off.
 
+**A level's aim, and each bot its own.** A bot's aim error used to be drawn
+only on first sight (and on being hit), and it shrank every tick. At level
+1 it went from about 6 degrees to a quarter of a degree within a second.
+After that a level 1 bot aimed as a level 10 one did, leading its target
+just as well. That is why easy bots still lasered. Every bot of a level
+also had the same aim, reactions, sidestep and aggression, so a game of
+them fought as one. Now:
+
+- **Wander:** the aim drifts about where it means to be and never settles.
+  It is about 4 degrees at level 1, 2 at level 5, half a degree at level 8
+  and a tenth of one at level 10, changing over half a second or so
+  (`HALO_BOT_OFF=wander`).
+- **Leading:** the poorer the level, the less a bot leads a moving target:
+  55% of the way at level 1, all of it at 10 (`lead`).
+- **A turn about:** when the target turns about, a bot goes on leading the
+  way it was going for a reaction's worth: half a second at level 1, a
+  tenth at level 10 (`reread`).
+- **Each its own:** a bot's aim and reactions are up to a fifth better or
+  worse than its level's, its sidestep and aggression a little either way,
+  from the luck it draws. That luck was drawn before and never used. The
+  top levels' pull toward a master's composure, discipline, focus, whims
+  and jumps goes half way at level 10 now, not all the way, so a level 8 to
+  10 bot keeps its own character (`spread`).
+
+The test: bots at a level shooting at bots of level 5 that do not shoot
+back, Prisoner and Chill Out, 2 seeds each.
+
+| Level | Kills a minute, before | Kills a minute, now | Damage a second of firing under 8 units, before | Now |
+|---|---|---|---|---|
+| 1 | 11.4 | 10.4 | 1.25 | 0.83 |
+| 5 | 12.8 | 11.4 | 1.13 | 1.11 |
+| 10 | 13.5 | 13.2 | 0.91 | 0.79 |
+
+The kills a minute change less than the damage does, because in this test
+they are held up mostly by the targets respawning and coming back.
+`HALO_BOT_HOLDFIRE_T1` now also logs the firing and the damage by range
+(`dodgerange`).
+
 **Guns on vehicles.** A bot on the gun of a vehicle (the warthog's chaingun)
 holds the trigger down while it is on target, instead of firing in bursts.
 The rocket warthog's gun (a vehicle named with `rwarthog` or `rocket`, or a

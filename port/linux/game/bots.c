@@ -933,6 +933,7 @@ struct bot_personality
 	real learned_teamwork;
 	real learned_aggression; /* (only up from where it started: 0 .. 1) */
 	long learned_time; /* game time the game's length was last counted to */
+	real own_aggression; /* its own lean from its level's aggression, -0.12 .. 0.12 */
 	real taunt;         /* rubs it in: a teabag on whoever it just killed */
 	/* character: the same all game, what makes one bot not another */
 	real grudge;        /* how hard it goes after whoever keeps killing it */
@@ -1238,6 +1239,22 @@ static void bot_skill_traits(struct bot_personality *personality)
 	personality->accuracy = 1.3f - 0.8f * t;
 	personality->reaction = 1.4f - 0.7f * t;
 	personality->agility = 0.3f + 0.7f * t;
+	/* each its own, around its level's: a fifth better or worse in its aim
+	   and its reactions, and its feet, by the luck it drew (before, every bot
+	   of a level had the same, and a game of them fought as one).
+	   HALO_BOT_OFF=spread: as it was */
+	if (!bot_env_off("spread"))
+	{
+		personality->accuracy *= 1.2f - 0.4f * personality->accuracy_luck;
+		personality->reaction *= 1.2f - 0.4f * personality->reaction_luck;
+		personality->agility = PIN(personality->agility + 0.3f * (personality->agility_luck - 0.5f), 0.1f, 1.f);
+	}
+}
+
+/* its level's aggression, and its own lean from it */
+static real bot_own_aggression(struct bot_personality const *personality)
+{
+	return bot_skill_aggression() + (bot_env_off("spread") ? 0.f : personality->own_aggression);
 }
 
 /* A bot's own level: bot_skill, or with a spread somewhere from so many
@@ -1353,8 +1370,9 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	bot_skill_now = bot_skill_of(slot);
 #define BOT_TRAIT(low, high) ((low) + ((high) - (low)) * (real)((seed = bot_hash(seed)) & 0xFFFF) / 65535.f)
 	/* (the better the bots, the hungrier: at 5 none of them hangs back) */
-	seed = bot_hash(seed); /* (aggression's draw, when it had one: the rest stay as they were) */
-	personality->aggression = bot_skill_aggression();
+	seed = bot_hash(seed); /* (aggression's draw: the rest stay as they were) */
+	personality->own_aggression = 0.24f * ((real)(seed & 0xFFFF) / 65535.f - 0.5f);
+	personality->aggression = PIN(bot_own_aggression(personality), 0.f, 1.f);
 	personality->accuracy_luck = BOT_TRAIT(0.f, 1.f);
 	personality->vehicle_love = BOT_TRAIT(0.f, 1.f);
 	personality->greed = BOT_TRAIT(0.2f, 1.f);
@@ -1425,15 +1443,22 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	   drawn toward a master's from 8 up, and is one at 10; the traits that
 	   make a character (how bold, how patient, what it loves) stay. */
 	{
-		real m = bot_skill_mastery();
+		/* (... half way, now: a bot of the top level is still someone, its
+		   composure, its discipline, its whims its own, and its luck in
+		   aim, reactions and feet is its own at every level.
+		   HALO_BOT_OFF=spread: all the way, as it was) */
+		real m = bot_skill_mastery() * (bot_env_off("spread") ? 1.f : 0.5f);
 		personality->composure += (1.f - personality->composure) * m;
 		personality->discipline += (1.f - personality->discipline) * m;
 		personality->focus += (1.f - personality->focus) * m;
 		personality->whim += (0.15f - personality->whim) * m;
 		personality->jumpiness += (MIN(personality->jumpiness, 0.55f) - personality->jumpiness) * m;
-		personality->accuracy_luck += (1.f - personality->accuracy_luck) * m;
-		personality->reaction_luck += (1.f - personality->reaction_luck) * m;
-		personality->agility_luck += (1.f - personality->agility_luck) * m;
+		if (bot_env_off("spread"))
+		{
+			personality->accuracy_luck += (1.f - personality->accuracy_luck) * m;
+			personality->reaction_luck += (1.f - personality->reaction_luck) * m;
+			personality->agility_luck += (1.f - personality->agility_luck) * m;
+		}
 	}
 }
 
@@ -1470,6 +1495,13 @@ struct bot_state
 	real yaw;
 	real pitch;
 	real aim_error_yaw;
+	/* the hand's wander: an error that drifts and never settles, by the
+	   level (bot_aim_wander) */
+	real aim_wander_yaw, aim_wander_pitch;
+	/* the lead it aims with, held a moment when they turn about (as a person
+	   goes on leading the way they were going until he sees they have gone) */
+	real_vector3d lead_held, lead_last_seen;
+	long lead_hold_ticks;
 	real aim_error_pitch;
 	/* target */
 	long target_unit;
@@ -7836,7 +7868,7 @@ static void bot_learn(struct bot_personality *personality, real daring, real tea
 	   for), deaths making it reckless or timid, as its temper is */
 	personality->mood = personality->swagger * 0.07f * MIN(personality->kill_streak, 4) +
 		personality->temper * 0.09f * MIN(personality->death_streak, 4);
-	personality->aggression = PIN(bot_skill_aggression() + personality->learned_aggression + personality->mood, 0.f, 1.f);
+	personality->aggression = PIN(bot_own_aggression(personality) + personality->learned_aggression + personality->mood, 0.f, 1.f);
 	before = personality->learned_daring;
 	personality->learned_daring = PIN(before + daring, -BOT_LEARNED_LIMIT, BOT_LEARNED_LIMIT);
 	personality->daring = PIN(personality->daring + (personality->learned_daring - before), 0.f, 1.f);
@@ -7861,7 +7893,7 @@ static void bot_learn_from_score(struct bot_state *bot, struct player_datum cons
 		personality->learned_daring = 0.f;
 		personality->learned_teamwork = 0.f;
 		personality->learned_time = game_time_get();
-		personality->aggression = bot_skill_aggression();
+		personality->aggression = PIN(bot_own_aggression(personality), 0.f, 1.f);
 		personality->kill_streak = 0;
 		personality->death_streak = 0;
 		personality->mood = 0.f;
@@ -10560,6 +10592,11 @@ boolean infection_player_is_zombie(long player_index);
    by itself, is how long they last) */
 static long bot_dodge_fire_ticks; /* (... and how much: the first side's ticks with a trigger down) */
 static real bot_dodge_loss; /* (the second side's shields and health lost, as each of its bots finds it hit) */
+/* (... and both by the range: under 8 units, 8 to 16, over 16; a loss by the
+   nearest of the first side's) */
+static long bot_dodge_fire_at[3];
+static real bot_dodge_loss_at[3];
+static int bot_dodge_range(real d) { return d < 8.f ? 0 : d < 16.f ? 1 : 2; }
 static void bot_hold_fire(long player_absolute_index, struct player_action *action)
 {
 	struct player_datum *me;
@@ -10567,11 +10604,21 @@ static void bot_hold_fire(long player_absolute_index, struct player_action *acti
 	if (!bot_env_set("HALO_BOT_HOLDFIRE_T1") || !(me = bot_player_at_index(player_absolute_index)))
 		return;
 	if (me->team_index == 0 && (action->control_flags & FLAG(_unit_control_weapon_primary_trigger_bit)))
+	{
 		bot_dodge_fire_ticks++;
+		if (me->unit_index != NONE && bot_states[player_absolute_index].target_unit != NONE &&
+			object_try_and_get(bot_states[player_absolute_index].target_unit))
+		{
+			bot_dodge_fire_at[bot_dodge_range(distance3d(&object_get(me->unit_index)->object.position,
+				&object_get(bot_states[player_absolute_index].target_unit)->object.position))]++;
+		}
+	}
 	if (game_time_get() - last_logged >= 900 && bot_logging())
 	{
 		last_logged = game_time_get();
 		bot_log("dodgetest t%ld fire %ld loss %.2f", (long)game_time_get(), bot_dodge_fire_ticks, bot_dodge_loss);
+		bot_log("dodgerange fire %ld %ld %ld loss %.2f %.2f %.2f", bot_dodge_fire_at[0], bot_dodge_fire_at[1], bot_dodge_fire_at[2],
+			bot_dodge_loss_at[0], bot_dodge_loss_at[1], bot_dodge_loss_at[2]);
 	}
 	if (me->team_index != 1)
 		return;
@@ -10584,7 +10631,20 @@ static void bot_dodge_note_loss(long player_absolute_index, real loss)
 {
 	struct player_datum *who = bot_player_at_index(player_absolute_index);
 	if (who && who->team_index == 1 && loss > 0.f && loss < 4.f)
+	{
+		struct data_iterator iterator;
+		struct player_datum *player;
+		real nearest = 1000.f;
 		bot_dodge_loss += loss;
+		if (who->unit_index != NONE)
+		{
+			data_iterator_new(&iterator, player_data);
+			while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+				if (player->team_index == 0 && player->unit_index != NONE)
+					nearest = MIN(nearest, distance3d(&object_get(player->unit_index)->object.position, &object_get(who->unit_index)->object.position));
+			bot_dodge_loss_at[bot_dodge_range(nearest)] += loss;
+		}
+	}
 }
 
 /* testing: HALO_BOT_PROFILE, what the bots cost a tick, every 5 s of game */
@@ -15371,7 +15431,7 @@ static void bot_new_life(long player_absolute_index, struct bot_state *bot, stru
 #define BOT_MOOD(field, low, high) (swing = 0.3f * ((real)((mood = bot_hash(mood)) & 0xFFFF) / 65535.f - 0.5f), \
 personality.field = PIN(personality.field + swing, low, high))
 		mood = bot_hash(mood); /* (aggression's draw, when it had one) */
-		personality.aggression = PIN(bot_skill_aggression() + personality.learned_aggression + personality.mood, 0.f, 1.f); /* (the skill level may have changed) */
+		personality.aggression = PIN(bot_own_aggression(&personality) + personality.learned_aggression + personality.mood, 0.f, 1.f); /* (the skill level may have changed) */
 		BOT_MOOD(greed, 0.2f, 1.f);
 		BOT_MOOD(patience, 0.f, 1.f);
 		BOT_MOOD(daring, 0.f, 1.f);
@@ -16900,6 +16960,37 @@ static void bot_aim_at_target(struct bot_think *t)
 		lead.i = now.i * 0.35f + bot->aim_velocity.i * 0.65f;
 		lead.j = now.j * 0.35f + bot->aim_velocity.j * 0.65f;
 		lead.k = bot->aim_velocity.k * 0.5f; /* (a jump's up and down: mostly the middle of it) */
+		/* (by the level: the poorer, the less it leads, as a poor player
+		   aims at where they are, and behind a runner. HALO_BOT_OFF=lead) */
+		if (!bot_env_off("lead"))
+		{
+			real part = 0.55f + 0.45f * bot_skill_fraction();
+			lead.i *= part;
+			lead.j *= part;
+			lead.k *= part;
+		}
+		/* (they turn about: it goes on leading the way they were going for
+		   as long as it takes to see it, a reaction's worth, the poorer the
+		   longer: half a second at the bottom, a tenth at the top. The
+		   sidestep that turns back beats a lead for that long, a person's or
+		   a bot's. HALO_BOT_OFF=reread) */
+		if (!bot_env_off("reread"))
+		{
+			real was = bot->lead_last_seen.i * now.i + bot->lead_last_seen.j * now.j;
+			real speed_now = (real)sqrt(now.i * now.i + now.j * now.j);
+			real speed_was = (real)sqrt(bot->lead_last_seen.i * bot->lead_last_seen.i + bot->lead_last_seen.j * bot->lead_last_seen.j);
+			if (bot->lead_hold_ticks <= 0 && was < 0.f && speed_now > 0.02f && speed_was > 0.02f)
+			{
+				bot->lead_hold_ticks = (long)((4.f + 9.f * (1.f - bot_skill_fraction())) * bot->personality.reaction + 0.5f);
+				bot->lead_held = lead;
+			}
+			if (bot->lead_hold_ticks > 0)
+			{
+				bot->lead_hold_ticks--;
+				lead = bot->lead_held;
+			}
+			bot->lead_last_seen = now;
+		}
 	}
 	aim.z += height;
 	/* shields down and a gun that rewards it (the pistol, the sniper
@@ -16998,6 +17089,25 @@ static void bot_aim_at_target(struct bot_think *t)
 		real spread = (0.02f + 0.9f / MAX(t->target_distance, 2.f)) * unit_get(target)->unit.active_camouflage * bot->personality.accuracy;
 		bot->aim_error_yaw = (bot_random(bot) - 0.5f) * 2.f * spread;
 		bot->aim_error_pitch = (bot_random(bot) - 0.5f) * spread;
+	}
+	/* The hand's wander: an aim that drifts about where it means to be and
+	   never settles on it, a person's, the poorer the further: about four
+	   degrees at the bottom, two at level 5, half of one at level 8, a tenth
+	   of one at the top (its level's accuracy with its own luck in it),
+	   changing over half a second or so. Before, the
+	   error of first sight was all, and it went in a second: after that a
+	   bot of level 1 aimed as one of level 10. HALO_BOT_OFF=wander */
+	if (!bot_env_off("wander"))
+	{
+		real spread = (0.06f - 0.056f * bot_skill_fraction()) * bot->personality.accuracy;
+		real pull = 1.f / (0.5f * BOT_TICKS_PER_SECOND);
+		real kick = spread * (real)sqrt(2.f * pull);
+		real n1 = (bot_random(bot) + bot_random(bot) + bot_random(bot) - 1.5f) * 2.f;
+		real n2 = (bot_random(bot) + bot_random(bot) + bot_random(bot) - 1.5f) * 2.f;
+		bot->aim_wander_yaw += -bot->aim_wander_yaw * pull + kick * n1;
+		bot->aim_wander_pitch += -bot->aim_wander_pitch * pull + 0.5f * kick * n2;
+		desired_yaw = bot_wrap(desired_yaw + bot->aim_wander_yaw);
+		desired_pitch += bot->aim_wander_pitch;
 	}
 	desired_yaw = bot_wrap(desired_yaw + bot->aim_error_yaw);
 	desired_pitch += bot->aim_error_pitch;

@@ -1815,6 +1815,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\server_browser.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\structure_culling.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\stubbs_functions.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>

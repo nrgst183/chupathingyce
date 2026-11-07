@@ -2890,6 +2890,13 @@ did, and Xbox maps keep the Xbox game's way: vehicles stay where they are
 left. `HALO_VEHICLE_RESPAWN_XBOX=1` gives Custom Edition maps the Xbox way
 too.
 
+Halo's vehicles have no health to lose and are never destroyed, and neither
+are Hugeass's planes, Pelicans and Ghosts (a crash leaves one on its back,
+not a wreck). So an empty vehicle on its side or its roof, wherever it is,
+counts as a wreck and comes back after the wreck's time. In a 15-minute
+Hugeass game, 6 came back that way after 30 seconds and 27 left empty came
+back after 2 minutes.
+
 ### More vehicles
 
 With `game.vehicle_multiplier` set to 2, 3 or 4, the host makes that

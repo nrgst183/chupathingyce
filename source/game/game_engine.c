@@ -5030,6 +5030,21 @@ static void game_engine_update_vehicle_respawn(
 			real dz = vehicle->object.position.z - game_engine_vehicle_homes[index].position.z;
 
 			waiting = dx * dx + dy * dy + dz * dz > VEHICLE_HOME_AWAY_SQUARED && game_engine_vehicle_empty(vehicle);
+			/* port: one on its side or its roof, empty, wherever it is, is as
+			good as a wreck: a wreck's time. (Halo's vehicles have no health
+			to lose and are never destroyed, and neither are Hugeass's planes,
+			Pelicans and Ghosts: a crash leaves one on its back, not a wreck) */
+			if (game_engine_vehicle_empty(vehicle))
+			{
+				real_vector3d forward, up;
+
+				object_get_orientation(object_index, &forward, &up);
+				if (up.k < 0.25f)
+				{
+					waiting = TRUE;
+					wait_ticks = wreck_ticks;
+				}
+			}
 		}
 		else
 			wait_ticks = wreck_ticks;

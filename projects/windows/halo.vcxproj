@@ -4869,6 +4869,14 @@
       <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\discord_register.c">
+      <ObjectFileName>$(IntDir)discord_register_e00d3bb7.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\dsound_sdl.c">
       <ObjectFileName>$(IntDir)dsound_sdl_459c3ff0.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>

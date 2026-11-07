@@ -1965,6 +1965,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\discord_activity.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\discord_register.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\dsound_sdl.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>

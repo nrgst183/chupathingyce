@@ -3550,6 +3550,29 @@ free-for-all, Prisoner team slayer, Blood Gulch CTF, at level 7) there were
 kills came out the same. `HALO_BOT_OFF=traitshow` puts them back as they
 were.
 
+**Quicker on the way, more ways round, and jumps up.**
+
+- **Fewer hops on the way:** with nobody about, a bot hops on the flat a
+  tenth as often as before. A hop on the flat is short of a run, and the
+  bots on their way were in the air a sixth of the time. On tours of Blood
+  Gulch, Prisoner, Wizard and Chill Out (8 bots, 2 seeds each), their pace
+  went up 0.9% and falls they did not mean went down 28%; the tour legs'
+  times stayed the same (`HALO_BOT_OFF=quick`).
+- **More ways round:** an ordinary trip now takes another way more often,
+  the longer the trip and the more people in the game (up to four trips in
+  five, at most a quarter longer). Of the places it could go by, it picks
+  one with fewer people near it and fewer other bots going that way. In
+  free-for-alls of 15 bots on Blood Gulch and Sidewinder (2 seeds each), the
+  5-unit squares of the map the bots were in went from 172 to 199 a game,
+  and the share of the time a bot had another within 10 units from 55% to
+  49% (`HALO_BOT_OFF=fill`).
+- **Crouch jumps up ledges:** these were already in. The route's jumps
+  tuck the legs up for any ledge over 0.55 units, and the navigation counts
+  on a ledge up to 0.76. On the jump test maps every ledge up to 0.8 was
+  made, and none of 0.9 or more, whenever the tuck started (from takeoff, the
+  third tick, or the eighth: `HALO_BOT_TUCKFROM`, counted down from 30, to
+  try).
+
 **Guns on vehicles.** A bot on the gun of a vehicle (the warthog's chaingun)
 holds the trigger down while it is on target, instead of firing in bursts.
 The rocket warthog's gun (a vehicle named with `rwarthog` or `rocket`, or a

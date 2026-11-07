@@ -1101,6 +1101,16 @@ static real bot_move_rise_between(struct bot_body const *body, real_point3d cons
 	return most - first;
 }
 
+/* the tick of a tucked jump the legs come up from, counted down from
+   BOT_TUCK_TICKS (27: from the third tick). HALO_BOT_TUCKFROM: another, to try */
+static long bot_tuck_from(void)
+{
+	static long from = -1;
+	if (from < 0)
+		from = getenv("HALO_BOT_TUCKFROM") ? atol(getenv("HALO_BOT_TUCKFROM")) : 27;
+	return from;
+}
+
 /* the jump asked for (and the legs tucked up for it, when it wants them) */
 static void bot_move_jump_off(struct bot_move_state *move, struct bot_move_result *result, boolean tuck)
 {
@@ -3099,7 +3109,7 @@ static void bot_move_tick_start(struct bot_move_state *move, long type, struct b
 	{
 		move->crouch_ticks--;
 		move->stand_ticks = 0;
-		if (move->crouch_ticks < 27)
+		if (move->crouch_ticks < bot_tuck_from())
 			result->crouch = TRUE;
 	}
 	else if (move->stand_ticks < 1000)

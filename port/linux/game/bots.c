@@ -8132,6 +8132,42 @@ static int bot_on_objective(struct bot_state const *bot)
 		(bot->goal_kind == _bot_goal_item ? bot_goal_is_game_object(bot->goal_object) : bot->goal_score >= 12.f && bot_game_has_objective()));
 }
 
+/* How full a place is: the people within 18 units of it, and half for each
+   other bot whose way round goes within 12 of it (BOT "fill") */
+static real bot_place_crowd(struct bot_state const *bot, real_point3d const *point)
+{
+	struct data_iterator iterator;
+	struct player_datum *player;
+	real crowd = 0.f;
+	long i;
+	data_iterator_new(&iterator, player_data);
+	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		if (player->unit_index == NONE || player->unit_index == bot->unit_index || !object_try_and_get(player->unit_index))
+			continue;
+		if (distance3d(&object_get(object_get_ultimate_parent(player->unit_index))->object.position, point) < 18.f)
+			crowd += 1.f;
+	}
+	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+	{
+		struct bot_state const *other = &bot_states[i];
+		if (other != bot && other->unit_index != NONE && other->via_valid && distance3d(&other->via_point, point) < 12.f)
+			crowd += 0.5f;
+	}
+	return crowd;
+}
+
+/* the people in the game, alive or about to be */
+static long bot_people_in_game(void)
+{
+	struct data_iterator iterator;
+	long people = 0;
+	data_iterator_new(&iterator, player_data);
+	while (data_iterator_next(&iterator))
+		people++;
+	return people;
+}
+
 /* whether to look for one, and what for: the tries follow, one a tick */
 static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, long player_index)
 {
@@ -8170,7 +8206,20 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 		   it (the fight starts on our terms) */
 		chance = (0.35f + 0.25f * bot->personality.teamwork + 0.15f * bot->personality.patience) * (0.6f + 0.4f * bot_skill_fraction()), slack = 1.3f;
 	else if (BOT_ON(BOT_F_VIA))
+	{
 		chance = 0.2f + MIN(0.3f, distance / 150.f), slack = 1.2f;
+		/* Another way there, more often the longer the way and the more
+		   people in the game, and by the emptier ways (bot_plan_via_step):
+		   a game of many on a big map was a few busy lanes and the rest of
+		   the map empty, every bot on the quickest way between the same
+		   few places. Up to four in five trips, a quarter longer at the
+		   most. HALO_BOT_OFF=fill: as it was */
+		if (!bot_env_off("fill"))
+		{
+			chance = MIN(0.8f, 0.25f + MIN(0.35f, distance / 110.f) + 0.025f * PIN((real)(bot_people_in_game() - 6), 0.f, 10.f));
+			slack = 1.25f;
+		}
+	}
 	else
 		chance = 0.35f + MIN(0.4f, distance / 150.f), slack = 1.3f;
 	if (bot->personality.route_died && objective)
@@ -8298,6 +8347,20 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 	second = bot_travel_time(&there, AAS_FOOT, &bot->goal);
 	if (first <= 0.f || second <= 0.f || first + second > direct * bot->via_plan.slack + 2.f)
 		goto tried;
+	if (!objective && !flank && !bot_env_off("fill"))
+	{
+		/* an ordinary trip: of the places that will do, an empty one, by
+		   chance among the emptier, and not much the longer */
+		score = 0.35f * bot_place_crowd(bot, &via) + 0.6f * bot_random(bot) + 0.8f * ((first + second) / direct - 1.f);
+		if (score < bot->via_plan.best_score)
+		{
+			bot->via_plan.best_score = score;
+			bot->via_plan.best_via = via;
+			bot->via_plan.best_first = first;
+			bot->via_plan.best_side = side;
+		}
+		goto tried;
+	}
 	if (!objective && !flank)
 	{
 		/* an ordinary trip: the first that will do */
@@ -13522,6 +13585,12 @@ static void bot_travel_hop(struct bot_think *t)
 		real skill = bot_skill_movement();
 		real chance = (target != NONE ? (t->threatened ? 0.004f + 0.04f * bot->personality.jumpiness : MAX(0.f, bot->personality.jumpiness - 0.6f) * 0.03f) :
 			0.0005f + 0.016f * bot->personality.jumpiness * bot->personality.jumpiness) * skill;
+		/* (on the way with nobody about: a hop now and then, the jumpy, but
+		   a tenth of what it was. A hop on the flat is a third of a second
+		   short of a run, and the bots on their way were in the air a sixth
+		   of the time. HALO_BOT_OFF=quick: as it was) */
+		if (target == NONE && bot->target_unit == NONE && !bot_env_off("quick"))
+			chance *= 0.1f;
 		if (bot_random(bot) < chance && (!aas_ready() || bot_move_direction_safe(body, t->move_yaw, 2.f)))
 		{
 			t->jump = TRUE;

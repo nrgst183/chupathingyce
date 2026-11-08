@@ -2904,6 +2904,13 @@ and two kinds of walker); the wrecks of the others stayed.
   Warthog held at the edge by the bridge crept over it with its driver in
   it (`HALO_BOT_OFF=outsoon`).
 
+- **The objective known wherever it is:** where the flags are, who carries
+  one, the hill and the ball are known to every bot wherever they are, seen
+  or not, as a player knows them from the waypoints; only the people a bot
+  shoots need seeing. On a map navigated in parts, all of these are now
+  weighed by the big map's distances, not only the flags themselves
+  (`HALO_BOT_OFF=ctffar`).
+
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:
 the one who took the flag stayed within 55 units of its base.

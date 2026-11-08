@@ -288,9 +288,12 @@ static long country_floor_under(real_point3d const *point, long rings);
 
 /* ---------- the country */
 
+static long country_maps_loaded; /* (counted at each dispose: per-map caches know theirs) */
+
 void bot_country_dispose(void)
 {
 	long i;
+	country_maps_loaded++;
 	for (i = 0; i < COUNTRY_FIELDS; i++)
 		free(country.fields[i].next);
 	free(country.first);
@@ -3363,12 +3366,20 @@ static struct country_handling_of const *country_handling_of(long definition_ind
 {
 	static struct country_handling_of known[16];
 	static long count;
+	static long map_count = -1;
 	static struct country_handling_of warthog = { NONE, COUNTRY_WARTHOG_TOP, 2.5f, 9.9f, 1.f, 1.f };
 	struct country_handling_of *it;
 	char const *definition;
 	long i;
 	if (definition_index == NONE || !country_handles())
 		return &warthog;
+	/* (by tag index, and those are the map's: another map, another list.
+	   A Ghost of the next map was driven with a Warthog's numbers) */
+	if (map_count != country_maps_loaded)
+	{
+		map_count = country_maps_loaded;
+		count = 0;
+	}
 	for (i = 0; i < count; i++)
 		if (known[i].definition_index == definition_index)
 			return &known[i];
@@ -5131,6 +5142,16 @@ void bot_country_drive(struct bot_traveller *traveller, struct bot_body const *b
 	traveller->next = next;
 	result->next = next;
 	result->into_portal = country_way_into_portal && bot_distance2d(position, &next) < 12.f;
+	/* (the next of the way where it is already: held, as it faces. A tank
+	   sitting off someone close by was given its own place as the way, and
+	   steered at itself went east) */
+	if (bot_distance2d(position, &next) < 1.f)
+	{
+		result->yaw = heading;
+		result->throttle = 0.f;
+		result->moving = TRUE;
+		return;
+	}
 	yaw = bot_yaw_to(position, &next);
 	turn = bot_angle_difference(yaw, heading);
 	if (to_place < 10.f)

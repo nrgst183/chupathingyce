@@ -4602,10 +4602,13 @@ static struct player_datum *bot_holder_player(long object_index)
 }
 
 
-/* How far a flag counts as far: a map navigated in parts (Coldsnap,
+/* How far the game's objective counts as far (a flag, its carrier, the
+   hill, the ball and whoever has it): a map navigated in parts (Coldsnap,
    Hugeass: a mile or two across, crossed in vehicles) is ten times a small
    map's. Weighed by a small map's distances, the enemy flag a mile off was
    worth less than any vehicle near by, and nobody on Coldsnap went for it.
+   (Where the objective is, a bot knows wherever it is, seen or not, as a
+   player does from the waypoint: only the people it shoots need seeing.)
    HALO_BOT_OFF=ctffar: as it was */
 static real bot_ctf_far(void)
 {
@@ -4727,7 +4730,7 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 				at.y += (their_base.y - at.y) * 0.3f;
 				at.z += (their_base.z - at.z) * 0.3f;
 			}
-			bot_consider(best, urgency * focus * (defender ? 60.f : 42.f) / (1.f + distance / 100.f), _bot_goal_enemy, &at, NONE,
+			bot_consider(best, urgency * focus * (defender ? 60.f : 42.f) / (1.f + distance / (100.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 				2 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 		else if (mine && !ours_home)
@@ -4885,7 +4888,7 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 			}
 			else
 				/* (there: kept there, as they go, a moment at a time) */
-				bot_consider(best, (30.f + 20.f * bot->personality.teamwork) * focus / (1.f + distance / 150.f),
+				bot_consider(best, (30.f + 20.f * bot->personality.teamwork) * focus / (1.f + distance / (150.f * bot_ctf_far())),
 					distance3d(&place, position) > 2.5f ? _bot_goal_enemy : _bot_goal_hold, &place, NONE, BOT_SECONDS(1.f), TRUE);
 		}
 		else if (distance > 5.f)
@@ -4898,7 +4901,7 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 				at.x += (my_base.x - at.x) / toward * 4.f;
 				at.y += (my_base.y - at.y) / toward * 4.f;
 			}
-			bot_consider(best, (6.f + 16.f * bot->personality.teamwork) / (1.f + distance / 80.f), _bot_goal_enemy, &at, NONE,
+			bot_consider(best, (6.f + 16.f * bot->personality.teamwork) / (1.f + distance / (80.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 				2 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 		/* (... and on a map that is not walked across, with them on foot a
@@ -5125,7 +5128,7 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 		if (me_index != NONE && race_bot_next_checkpoint(me_index, position, &point))
 		{
 			real distance = distance3d(&point, position);
-			bot_consider(best, focus * 40.f / (1.f + distance / 200.f), _bot_goal_roam, &point, NONE, 20 * BOT_TICKS_PER_SECOND, TRUE);
+			bot_consider(best, focus * 40.f / (1.f + distance / (200.f * bot_ctf_far())), _bot_goal_roam, &point, NONE, 20 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 	}
 	/* reverse tag, accumulation (magic ball), juggernaut, stalker
@@ -5166,7 +5169,7 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 			real_point3d at;
 			real distance;
 			if (bot_nearest_enemy(player, position, &at, &distance))
-				bot_consider(best, focus * 30.f / (1.f + distance / 150.f), _bot_goal_enemy, &at, NONE, 3 * BOT_TICKS_PER_SECOND, TRUE);
+				bot_consider(best, focus * 30.f / (1.f + distance / (150.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE, 3 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 		else if (i_am_it)
 		{
@@ -5183,7 +5186,7 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 		else if (nearest_it < 1.0e8f)
 		{
 			/* whoever's it: kill them to take it */
-			bot_consider(best, armed * focus * (24.f + 8.f * bot->personality.aggression) / (1.f + nearest_it / 150.f), _bot_goal_enemy,
+			bot_consider(best, armed * focus * (24.f + 8.f * bot->personality.aggression) / (1.f + nearest_it / (150.f * bot_ctf_far())), _bot_goal_enemy,
 				&it_at, NONE, 2 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 	}
@@ -5277,7 +5280,7 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 			spot.x += (bot_random(bot) - 0.5f) * 3.f;
 			spot.y += (bot_random(bot) - 0.5f) * 3.f;
 		}
-		bot_consider(best, armed * focus * (18.f + 8.f * bot->personality.aggression) / (1.f + distance / 120.f),
+		bot_consider(best, armed * focus * (18.f + 8.f * bot->personality.aggression) / (1.f + distance / (120.f * bot_ctf_far())),
 			_bot_goal_roam, &spot, NONE, 3 * BOT_TICKS_PER_SECOND, TRUE);
 	}
 	if (game_engine == &oddball_engine)
@@ -5323,7 +5326,7 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 				}
 				/* the ball is how the game is won: before a fight, before a
 				   better gun, whoever's about */
-				bot_consider(best, (60.f + 40.f * focus) / (1.f + distance / 120.f), _bot_goal_item, &object->object.position, ball,
+				bot_consider(best, (60.f + 40.f * focus) / (1.f + distance / (120.f * bot_ctf_far())), _bot_goal_item, &object->object.position, ball,
 					20 * BOT_TICKS_PER_SECOND, TRUE);
 			}
 			else
@@ -5336,10 +5339,10 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 				if (carrier_player && bot_is_enemy((short)player->team_index, carrier_player))
 					at = bot_intercept(carrier, position); /* (cut them off) */
 				if (carrier_player && bot_is_enemy((short)player->team_index, carrier_player))
-					bot_consider(best, (40.f + 30.f * focus) * MAX(armed, 0.5f) / (1.f + distance / 120.f), _bot_goal_enemy, &at, NONE,
+					bot_consider(best, (40.f + 30.f * focus) * MAX(armed, 0.5f) / (1.f + distance / (120.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 						2 * BOT_TICKS_PER_SECOND, TRUE);
 				else if (distance > 6.f)
-					bot_consider(best, (4.f + 12.f * bot->personality.teamwork) / (1.f + distance / 80.f), _bot_goal_enemy, &at, NONE,
+					bot_consider(best, (4.f + 12.f * bot->personality.teamwork) / (1.f + distance / (80.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 						2 * BOT_TICKS_PER_SECOND, TRUE);
 			}
 		}
@@ -11878,7 +11881,9 @@ static void bot_drive_country_give_up(struct bot_think *t, struct bot_country_re
 	bot_note_bail(bot, vehicle_index, _bot_stat_vehicle_bailout);
 	if (!bot_ignoring(bot, vehicle_index))
 	{
-		bot_vehicle_strand(vehicle_index, across->held_up ? BOT_SECONDS(90.f) : BOT_SECONDS(300.f));
+		/* (no way to where it was going is the place's doing, not the
+		   vehicle's: a while, not five minutes of nobody taking it) */
+		bot_vehicle_strand(vehicle_index, BOT_SECONDS(90.f));
 		bot_ignore(bot, vehicle_index, (across->held_up ? 20 : 60) * BOT_TICKS_PER_SECOND);
 		if (bot_logging())
 			bot_log("bot%ld t%ld out of the %s (%s) at %.0f %.0f %.0f bound for %.0f %.0f %.0f", player_absolute_index, game_time_get(),
@@ -12508,7 +12513,14 @@ static void bot_drive_no_way(struct bot_think *t, struct bot_area_drive *d)
 		{
 			action->control_flags |= FLAG(_unit_control_action_bit);
 			if (result->get_out)
+			{
 				bot_note_bail(bot, vehicle_index, _bot_stat_vehicle_bailout);
+				/* (left alone a while, as the way across does: out of it, a
+				   bot picked the same one again, near as it was, and drove it
+				   back into whatever had stuck it) */
+				if (!bot_ignoring(bot, vehicle_index))
+					bot_ignore(bot, vehicle_index, 20 * BOT_TICKS_PER_SECOND);
+			}
 		}
 		if (!d->circling)
 			bot->goal_ticks = 0;

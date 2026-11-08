@@ -2188,8 +2188,15 @@ static void bot_move_drive(struct bot_mover *bot, struct bot_body const *body, r
 	else
 	{
 		move->progress_ticks = 0;
-		if (speed > 2.f)
+		/* (forward, and not just off a reverse: the reverse that gets it
+		   out of being stuck goes faster than 2 units a second too, and
+		   counted as getting somewhere, a wedged vehicle went at it and
+		   backed off for ever) */
+		if (speed > 2.f && move->reverse_ticks <= 0 &&
+			body->velocity.i * (real)cos(heading) + body->velocity.j * (real)sin(heading) > 0.f)
+		{
 			move->stuck_count = 0;
+		}
 	}
 }
 
@@ -3519,7 +3526,9 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 		bot_move_off_areas(body, goal, result, type, area, goal_area, &spot);
 		if (type == AAS_VEHICLE)
 		{
-			bot_move_drive(bot, body, area != NONE ? &spot : &goal->origin, NULL, result);
+			/* (the spot on the areas; when that is where it is, the goal:
+			   steered at itself, a vehicle went east) */
+			bot_move_drive(bot, body, area != NONE && bot_distance2d(position, &spot) >= 0.3f ? &spot : &goal->origin, NULL, result);
 			if (goal_area == NONE && to_goal < 25.f)
 				result->get_out = TRUE; /* somewhere a vehicle doesn't go */
 			return;

@@ -132,6 +132,7 @@ real bot_yaw_to(real_point3d const *from, real_point3d const *to)
 	return bot_wrap((real)atan2(to->y - from->y, to->x - from->x));
 }
 
+static float bot_traffic_at(long area); /* (the traffic: below) */
 static unsigned long bot_hash(unsigned long value)
 {
 	value ^= value >> 16;
@@ -759,6 +760,23 @@ static boolean bot_side_update_costs(long side)
 			if (area != NONE)
 			{
 				knowledge->cost[area] += 0.4f;
+				knowledge->update_any = TRUE;
+			}
+		}
+	}
+	/* the traffic (bot_traffic): a busy way costs everyone a little more, so
+	   that the bots of a big game spread over the ways there are. Tried, and
+	   not kept: in free-for-alls of 15 on Blood Gulch, Sidewinder and Danger
+	   Canyon the bots were in fewer of the map's squares with it (182 a game
+	   against 198), not more. HALO_BOT_TRAFFICCOST=1: on, to try */
+	if (!bot_env_off("routes") && bot_env_set("HALO_BOT_TRAFFICCOST"))
+	{
+		for (a = 0; a < area_count; a++)
+		{
+			float busy = bot_traffic_at(a);
+			if (busy > 0.5f)
+			{
+				knowledge->cost[a] += 0.15f * MIN(busy, 6.f);
 				knowledge->update_any = TRUE;
 			}
 		}
@@ -1497,6 +1515,9 @@ static void bot_learn_from_score(struct bot_state *bot, struct player_datum cons
 #define BOT_BLIPS 8 /* the dots on the tracker kept in mind */
 #define BOT_BLIP_KEPT BOT_SECONDS(4.f) /* ... for so long after the last one */
 
+/* the most areas a route is followed through, when routes are compared */
+#define BOT_ROUTE_MOST 400
+
 struct bot_state
 {
 	long unit_index; /* the unit this state belongs to (reset on respawn) */
@@ -1677,6 +1698,11 @@ struct bot_state
 		real_point3d best_via;
 		float best_first;
 		long best_side;
+		/* (the routes, by their areas: the quickest, and the best way round's) */
+		long direct_areas[BOT_ROUTE_MOST];
+		long direct_count;
+		long best_areas[BOT_ROUTE_MOST];
+		long best_count;
 	} via_plan;
 	real_point3d noroute_point; /* the last place there was no way to, and until when to leave it be */
 	long noroute_until;
@@ -8132,6 +8158,143 @@ static int bot_on_objective(struct bot_state const *bot)
 		(bot->goal_kind == _bot_goal_item ? bot_goal_is_game_object(bot->goal_object) : bot->goal_score >= 12.f && bot_game_has_objective()));
 }
 
+/* ---------- routes that differ, and the traffic on them
+
+A way round was a place off to one side of the straight way, and the
+quickest way to it and on from it. The quickest ways funnel through the same
+doors, corridors and ramps, so most such places made the same route with a
+bend in it: the bots took a few lanes, whatever place they went by. Now a
+way round is judged by its route, the areas it goes through: how much of the
+quickest route it shares, and how busy its areas are (the routes the bots
+have lately taken, every bot's, fading). HALO_BOT_OFF=routes: as it was. */
+
+/* the areas of the quickest route from a point to another, in order: how
+   many, or 0 for no way */
+static long bot_route_areas(real_point3d const *from, real_point3d const *to, long *areas, long most)
+{
+	real_point3d at = *from;
+	long area = aas_nearest_area(AAS_FOOT, from, 2.f, NULL);
+	long goal = aas_nearest_area(AAS_FOOT, to, 2.f, NULL);
+	long n = 0;
+	if (area == NONE || goal == NONE)
+		return 0;
+	areas[n++] = area;
+	while (area != goal && n < most)
+	{
+		float time;
+		long reach = aas_route_reach(AAS_FOOT, area, &at, goal, NULL, NULL, NONE, &time);
+		struct aas_reach const *way;
+		if (reach == NONE)
+			return 0;
+		way = aas_reach(AAS_FOOT, reach);
+		area = way->to;
+		at = way->end;
+		areas[n++] = area;
+	}
+	return area == goal ? n : 0;
+}
+
+/* the traffic: the routes lately taken through each 6-unit square of the
+   map (by its height too, a floor to 3 units), each route once a square,
+   fading to a half in a minute. By squares, not areas: the areas are many
+   to a corridor, and a corridor is busy whichever of them a route takes */
+#define BOT_TRAFFIC_CELLS 8192
+static float bot_traffic[BOT_TRAFFIC_CELLS];
+static long bot_traffic_faded;
+static long bot_traffic_areas;
+
+static long bot_traffic_cell(long area)
+{
+	real_point3d const *c = &aas_area(AAS_FOOT, area)->center;
+	unsigned long h = bot_hash((unsigned long)(long)floor(c->x / 6.f) * 73856093UL ^
+		(unsigned long)(long)floor(c->y / 6.f) * 19349663UL ^ (unsigned long)(long)floor(c->z / 3.f) * 83492791UL);
+	return (long)(h % BOT_TRAFFIC_CELLS);
+}
+
+static void bot_traffic_fade(void)
+{
+	long now = game_time_get(), i;
+	if (bot_traffic_areas != aas_area_count(AAS_FOOT) || now < bot_traffic_faded)
+	{
+		memset(bot_traffic, 0, sizeof(bot_traffic));
+		bot_traffic_areas = aas_area_count(AAS_FOOT);
+		bot_traffic_faded = now;
+		return;
+	}
+	if (now - bot_traffic_faded < 5 * BOT_TICKS_PER_SECOND)
+		return;
+	for (i = 0; i < BOT_TRAFFIC_CELLS; i++)
+		bot_traffic[i] *= 0.944f; /* (5 s of a minute's half) */
+	bot_traffic_faded = now;
+}
+
+static void bot_traffic_add(long const *areas, long count)
+{
+	long i, j, cells[BOT_ROUTE_MOST], n = 0;
+	if (!aas_ready())
+		return;
+	bot_traffic_fade();
+	for (i = 0; i < count; i++)
+	{
+		long cell = bot_traffic_cell(areas[i]);
+		for (j = 0; j < n && cells[j] != cell; j++)
+			;
+		if (j == n)
+		{
+			cells[n++] = cell;
+			bot_traffic[cell] += 1.f;
+		}
+	}
+}
+
+/* the traffic of an area's square */
+static float bot_traffic_at(long area)
+{
+	if (!aas_ready() || bot_traffic_areas != aas_area_count(AAS_FOOT))
+		return 0.f;
+	return bot_traffic[bot_traffic_cell(area)];
+}
+
+/* the traffic along a route, an area's worth on average */
+static float bot_traffic_along(long const *areas, long count)
+{
+	float sum = 0.f;
+	long i;
+	if (!aas_ready() || count <= 0)
+		return 0.f;
+	bot_traffic_fade();
+	for (i = 0; i < count; i++)
+		sum += bot_traffic[bot_traffic_cell(areas[i])];
+	return sum / (float)count;
+}
+
+/* the share of a route's areas that run with another route: the same area,
+   or one whose middle is within 4 units of one of the other's (the areas
+   are small, many to a corridor, and two routes side by side through one
+   are one way, not two) */
+static real bot_route_shared(long const *route, long count, long const *other, long other_count)
+{
+	long i, j, shared = 0;
+	if (count <= 0)
+		return 1.f;
+	for (i = 0; i < count; i++)
+	{
+		real_point3d const *a = &aas_area(AAS_FOOT, route[i])->center;
+		for (j = 0; j < other_count; j++)
+		{
+			real_point3d const *b;
+			if (route[i] == other[j])
+				break;
+			b = &aas_area(AAS_FOOT, other[j])->center;
+			if ((a->x - b->x) * (a->x - b->x) + (a->y - b->y) * (a->y - b->y) < 16.f && fabs(a->z - b->z) < 2.f)
+				break;
+		}
+		if (j < other_count)
+			shared++;
+	}
+	return (real)shared / (real)count;
+}
+
 /* How full a place is: the people within 18 units of it, and half for each
    other bot whose way round goes within 12 of it (BOT "fill") */
 static real bot_place_crowd(struct bot_state const *bot, real_point3d const *point)
@@ -8217,15 +8380,29 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 		if (!bot_env_off("fill"))
 		{
 			chance = MIN(0.8f, 0.25f + MIN(0.35f, distance / 110.f) + 0.025f * PIN((real)(bot_people_in_game() - 6), 0.f, 10.f));
-			slack = 1.25f;
+			/* (a way of its own costs more than a bend in the quickest) */
+			slack = bot_env_off("routes") ? 1.25f : 1.35f;
 		}
 	}
 	else
 		chance = 0.35f + MIN(0.4f, distance / 150.f), slack = 1.3f;
 	if (bot->personality.route_died && objective)
 		chance = MAX(chance, 0.9f); /* (not that way again) */
+	/* (the quickest route, by its areas: what a way round is measured
+	   against; and a busy one is a reason to take another) */
+	bot->via_plan.direct_count = 0;
+	bot->via_plan.best_count = 0;
+	if (!bot_env_off("routes") && !carrying && !flank)
+	{
+		bot->via_plan.direct_count = bot_route_areas(from, &bot->goal, bot->via_plan.direct_areas, BOT_ROUTE_MOST);
+		if (bot->via_plan.direct_count > 0)
+			chance = MIN(0.85f, chance + 0.3f * MIN(1.f, bot_traffic_along(bot->via_plan.direct_areas, bot->via_plan.direct_count) / 3.f));
+	}
 	if (bot_random(bot) > chance)
+	{
+		bot_traffic_add(bot->via_plan.direct_areas, bot->via_plan.direct_count);
 		return;
+	}
 	direct = bot_travel_time(body, AAS_FOOT, &bot->goal);
 	if (direct <= 0.f)
 		return;
@@ -8251,7 +8428,7 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 			}
 		}
 	}
-	bot->via_plan.samples = objective ? 8 : 4;
+	bot->via_plan.samples = objective ? 8 : bot->via_plan.direct_count > 0 ? 8 : 4;
 	bot->via_plan.objective = objective;
 	bot->via_plan.carrying = carrying;
 	bot->via_plan.flank = flank;
@@ -8268,7 +8445,14 @@ static void bot_plan_via_finish(struct bot_state *bot, long player_index)
 {
 	bot->via_plan.samples = 0;
 	if (bot->via_plan.best_score >= 1.0e9f)
+	{
+		bot_traffic_add(bot->via_plan.direct_areas, bot->via_plan.direct_count);
 		return;
+	}
+	if (bot->via_plan.best_count > 0)
+		bot_traffic_add(bot->via_plan.best_areas, bot->via_plan.best_count);
+	else
+		bot_traffic_add(bot->via_plan.direct_areas, bot->via_plan.direct_count);
 	bot->via_point = bot->via_plan.best_via;
 	bot->via_valid = TRUE;
 	bot->via_side = bot->via_plan.best_side;
@@ -8285,9 +8469,11 @@ static void bot_plan_via_finish(struct bot_state *bot, long player_index)
 		bot->on_objective_route = TRUE;
 	}
 	if (bot_logging())
-		bot_log("bot%ld t%ld via %s side %ld (%.1f %.1f) for goal (%.1f %.1f)", player_index, game_time_get(),
+		bot_log("bot%ld t%ld via %s side %ld (%.1f %.1f) for goal (%.1f %.1f) shared %.2f areas %ld of %ld", player_index, game_time_get(),
 			bot->via_plan.carrying ? "carrying" : bot->via_plan.objective ? "objective" : bot->via_plan.flank ? "flank" : "trip",
-			bot->via_plan.best_side, bot->via_point.x, bot->via_point.y, bot->goal.x, bot->goal.y);
+			bot->via_plan.best_side, bot->via_point.x, bot->via_point.y, bot->goal.x, bot->goal.y,
+			bot->via_plan.best_count > 0 ? bot_route_shared(bot->via_plan.best_areas, bot->via_plan.best_count, bot->via_plan.direct_areas, bot->via_plan.direct_count) : -1.f,
+			bot->via_plan.best_count, bot->via_plan.direct_count);
 }
 
 /* one place tried: somewhere off to a side of the straight way, the way
@@ -8301,9 +8487,13 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 	float direct = bot->via_plan.direct;
 	long quarry = bot->via_plan.quarry;
 	real_point3d quarry_eye;
-	real along = 0.3f + 0.4f * bot_random(bot);
+	int routes = bot->via_plan.direct_count > 0;
+	real along = routes ? 0.2f + 0.6f * bot_random(bot) : 0.3f + 0.4f * bot_random(bot);
 	long side = bot_random(bot) < 0.5f ? -1 : 1;
-	real across = (real)side * (0.2f + 0.35f * bot_random(bot)) * distance;
+	real across = (real)side * (routes ? 0.15f + 0.65f * bot_random(bot) : 0.2f + 0.35f * bot_random(bot)) * distance;
+	long route[BOT_ROUTE_MOST];
+	long route_count = 0;
+	real shared = 0.f;
 	real dx = bot->goal.x - from->x;
 	real dy = bot->goal.y - from->y;
 	real length = (real)sqrt(dx * dx + dy * dy);
@@ -8347,17 +8537,37 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 	second = bot_travel_time(&there, AAS_FOOT, &bot->goal);
 	if (first <= 0.f || second <= 0.f || first + second > direct * bot->via_plan.slack + 2.f)
 		goto tried;
+	/* (its route: to the place and on; one that is mostly the quickest is
+	   no way round) */
+	if (routes)
+	{
+		route_count = bot_route_areas(from, &via, route, BOT_ROUTE_MOST);
+		if (route_count > 0)
+			route_count += bot_route_areas(&via, &bot->goal, route + route_count - 1, BOT_ROUTE_MOST - route_count + 1) - 1;
+		if (route_count <= 1)
+			goto tried;
+		shared = bot_route_shared(route, route_count, bot->via_plan.direct_areas, bot->via_plan.direct_count);
+		if (shared > 0.85f)
+			goto tried;
+	}
 	if (!objective && !flank && !bot_env_off("fill"))
 	{
 		/* an ordinary trip: of the places that will do, an empty one, by
 		   chance among the emptier, and not much the longer */
 		score = 0.35f * bot_place_crowd(bot, &via) + 0.6f * bot_random(bot) + 0.8f * ((first + second) / direct - 1.f);
+		/* (by its route: the less of the quickest it shares, and the less
+		   busy, the better) */
+		if (routes)
+			score += 1.2f * shared + 0.25f * bot_traffic_along(route, route_count);
 		if (score < bot->via_plan.best_score)
 		{
 			bot->via_plan.best_score = score;
 			bot->via_plan.best_via = via;
 			bot->via_plan.best_first = first;
 			bot->via_plan.best_side = side;
+			bot->via_plan.best_count = route_count;
+			if (route_count > 0)
+				memcpy(bot->via_plan.best_areas, route, route_count * sizeof(long));
 		}
 		goto tried;
 	}
@@ -8408,6 +8618,8 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 	}
 	if (objective && side == bot->personality.route_side)
 		score += bot->personality.route_died ? 1.5f : 0.25f;
+	if (routes && objective && !bot->via_plan.carrying)
+		score += 0.8f * shared + 0.2f * bot_traffic_along(route, route_count);
 	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
 	{
 		struct bot_state const *mate = &bot_states[i];
@@ -8423,6 +8635,9 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 		bot->via_plan.best_via = via;
 		bot->via_plan.best_first = first;
 		bot->via_plan.best_side = side;
+		bot->via_plan.best_count = route_count;
+		if (route_count > 0)
+			memcpy(bot->via_plan.best_areas, route, route_count * sizeof(long));
 	}
 tried:
 	if (bot->via_plan.samples < 0)

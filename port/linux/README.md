@@ -3566,6 +3566,26 @@ were.
   5-unit squares of the map the bots were in went from 172 to 199 a game,
   and the share of the time a bot had another within 10 units from 55% to
   49% (`HALO_BOT_OFF=fill`).
+- **Ways round that are ways of their own:** a way round was a place off to
+  one side and the quickest way to it and on from it. The quickest ways
+  funnel through the same doors, corridors and ramps, so most places made
+  the quickest route with a bend in it. Now each place tried is judged by
+  its route, the areas it goes through. A route that runs with the quickest
+  for more than 85% of its way is no way round. (Running with means
+  through the same areas or ones within 4 units of them: the areas are
+  many to a corridor.) Of the others, the less of the quickest a route
+  shares, and the less busy its 6-unit squares have been with the routes
+  every bot has lately taken, the likelier. 8 places are tried, and a way
+  round may be up to 35% longer. In free-for-alls of 15 bots on Blood
+  Gulch, Sidewinder and Danger Canyon, a way round now shares 46% of the
+  quickest route on average, and 4 in 10 share under 40%. But the bots were
+  not spread over more of the map for it: the squares they were in stayed
+  the same (182 a game against 190 on Sidewinder and Danger Canyon). In a
+  free-for-all, where a bot goes is decided by what it goes for (someone to
+  fight, a gun) far more than by the way it takes. The busy squares were
+  also tried as a cost on every route, and that put the bots in fewer
+  squares (182 against 198), so it is off (`HALO_BOT_TRAFFICCOST=1` to try)
+  (`HALO_BOT_OFF=routes`: the ways round as they were).
 - **Crouch jumps up ledges:** these were already in. The route's jumps
   tuck the legs up for any ledge over 0.55 units, and the navigation counts
   on a ledge up to 0.76. On the jump test maps every ledge up to 0.8 was

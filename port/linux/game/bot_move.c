@@ -2188,8 +2188,15 @@ static void bot_move_drive(struct bot_mover *bot, struct bot_body const *body, r
 	else
 	{
 		move->progress_ticks = 0;
-		if (speed > 2.f)
+		/* (forward, and not just off a reverse: the reverse that gets it
+		   out of being stuck goes faster than 2 units a second too, and
+		   counted as getting somewhere, a wedged vehicle went at it and
+		   backed off for ever) */
+		if (speed > 2.f && move->reverse_ticks <= 0 &&
+			body->velocity.i * (real)cos(heading) + body->velocity.j * (real)sin(heading) > 0.f)
+		{
 			move->stuck_count = 0;
+		}
 	}
 }
 
@@ -3302,7 +3309,7 @@ static int bot_drive_looks_ahead(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "lookahead"));
+		on = !(off && bot_name_in_list(off, "lookahead"));
 	}
 	return on;
 }
@@ -3475,6 +3482,13 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	if (area == NONE)
 	{
 		area = aas_nearest_area(type, position, type == AAS_VEHICLE ? 4.f : 2.f, &spot);
+		/* (none that near: further, and the longer it is off them the
+		   further. Two bots born on a ledge of Coldsnap's, its nearest floor
+		   3 units under it, stood there the whole game: no area within 2
+		   units, no way from where it was, and none tried.
+		   HALO_BOT_OFF=farspot: 2 units only) */
+		if (area == NONE && type == AAS_FOOT && !bot_env_off("farspot"))
+			area = aas_nearest_area(type, position, move->off_mesh_ticks > BOT_SECONDS(1.f) ? 8.f : 4.f, &spot);
 		move->off_mesh_ticks++;
 	}
 	else
@@ -3512,7 +3526,9 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 		bot_move_off_areas(body, goal, result, type, area, goal_area, &spot);
 		if (type == AAS_VEHICLE)
 		{
-			bot_move_drive(bot, body, area != NONE ? &spot : &goal->origin, NULL, result);
+			/* (the spot on the areas; when that is where it is, the goal:
+			   steered at itself, a vehicle went east) */
+			bot_move_drive(bot, body, area != NONE && bot_distance2d(position, &spot) >= 0.3f ? &spot : &goal->origin, NULL, result);
 			if (goal_area == NONE && to_goal < 25.f)
 				result->get_out = TRUE; /* somewhere a vehicle doesn't go */
 			return;

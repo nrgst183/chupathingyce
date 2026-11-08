@@ -293,7 +293,7 @@ static boolean aas_span_flooded(long s)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "water"));
+		on = !(off && bot_name_in_list(off, "water"));
 	}
 	if (!on || s < 0)
 		return FALSE;
@@ -759,409 +759,10 @@ done:
 	free(bucket);
 }
 
-/* Strips. The areas are rectangles grown from the roomiest floor out, and
-   floor that ends cornerwise or round (a wall at an angle, a curved one, the
-   edge of a ramp) is left as a staircase of strips a cell wide, one for each
-   step: on Wizard, all curves, three areas in four were a cell wide, and half
-   of them less than a twentieth of a square unit. A route through them is
-   a string of links a hand apart, and a bot between two of them is in one
-   and then the other as it goes along the join (bot_move.c's sticky
-   planning is for that). So the strips are joined, to each other and to the
-   area beside them, where what they make together is still convex (a straight
-   walk from anywhere in it to anywhere else stays on it, as in a
-   rectangle): an area is then any convex run of rows (or of columns) of
-   floor, its rectangle the bounds of them. Testing only, HALO_BOT_STRIPS=1:
-   kept off drops, few strips are joined (most are along drops); joined
-   anyway, four bots walked off Prisoner's upper floor; and on the jump test
-   levels, with it on, the times reckoned between places came out several
-   times too long and the bots made a tenth fewer trips, which is not
-   understood yet */
-#define AAS_STRIP_THIN 2 /* a part this many cells thick, or fewer, is joined where it can be */
-#define AAS_STRIP_EDGE 35 /* hundredths: floor nearer the edge of a drop than this is joined into a rectangle only */
-
-struct aas_strips
-{
-	long *lo, *hi; /* per area, per row (or column) from its first: the run of cells */
-	long *first, *count; /* per area: the first row (or column), and how many */
-	long *axis; /* per area: 0 a rectangle still, 1 rows along x stacked in y, 2 columns along y side by side in x */
-	long *head, *next, *tail; /* per area its spans, a list */
-	long side; /* rows kept per area */
-};
-
-/* the run of an area's row (or column) at line, in its own terms, for
-   joining along axis (1: rows, joined in y; 2: columns, joined in x) */
-static boolean aas_strip_run(struct aas_world const *world, struct aas_strips const *st, long a, long axis, long line, long *lo, long *hi)
-{
-	struct aas_area const *area = &world->areas[a];
-	long lx = (long)floor((area->x0 - navm.x0) / NAVM_CELL + 0.5f), hx = (long)floor((area->x1 - navm.x0) / NAVM_CELL + 0.5f) - 1;
-	long ly = (long)floor((area->y0 - navm.y0) / NAVM_CELL + 0.5f), hy = (long)floor((area->y1 - navm.y0) / NAVM_CELL + 0.5f) - 1;
-	if (st->axis[a] == 0)
-	{
-		if (axis == 1 ? (line < ly || line > hy) : (line < lx || line > hx))
-			return FALSE;
-		*lo = axis == 1 ? lx : ly;
-		*hi = axis == 1 ? hx : hy;
-		return TRUE;
-	}
-	if (st->axis[a] != axis || line < st->first[a] || line >= st->first[a] + st->count[a])
-		return FALSE;
-	*lo = st->lo[a * st->side + line - st->first[a]];
-	*hi = st->hi[a * st->side + line - st->first[a]];
-	return TRUE;
-}
-
-/* the lines an area spans along axis */
-static void aas_strip_lines(struct aas_world const *world, struct aas_strips const *st, long a, long axis, long *first, long *last)
-{
-	struct aas_area const *area = &world->areas[a];
-	if (st->axis[a] == axis)
-	{
-		*first = st->first[a];
-		*last = st->first[a] + st->count[a] - 1;
-		return;
-	}
-	if (axis == 1)
-	{
-		*first = (long)floor((area->y0 - navm.y0) / NAVM_CELL + 0.5f);
-		*last = (long)floor((area->y1 - navm.y0) / NAVM_CELL + 0.5f) - 1;
-	}
-	else
-	{
-		*first = (long)floor((area->x0 - navm.x0) / NAVM_CELL + 0.5f);
-		*last = (long)floor((area->x1 - navm.x0) / NAVM_CELL + 0.5f) - 1;
-	}
-}
-
-/* how far a boundary strays inward of its hull: the left one (sign 1) is to
-   be convex, the right one (sign -1) concave; within a cell, as the steps of
-   a line drawn on a grid are */
-static boolean aas_strip_convex(long const *v, long n, long sign)
-{
-	long hull[2 * 96];
-	long h = 0, i, k;
-	if (n < 3)
-		return TRUE;
-	/* (the lower hull of (i, sign * v[i])) */
-	for (i = 0; i < n; i++)
-	{
-		while (h >= 2)
-		{
-			long a = hull[h - 2], b = hull[h - 1];
-			long cross = (b - a) * (sign * v[i] - sign * v[a]) - (sign * v[b] - sign * v[a]) * (i - a);
-			if (cross <= 0)
-				h--;
-			else
-				break;
-		}
-		hull[h++] = i;
-	}
-	for (k = 0; k + 1 < h; k++)
-	{
-		long a = hull[k], b = hull[k + 1];
-		for (i = a + 1; i < b; i++)
-		{
-			real chord = sign * v[a] + (real)(sign * v[b] - sign * v[a]) * (i - a) / (b - a);
-			if (sign * v[i] - chord > 0.99f)
-				return FALSE;
-		}
-	}
-	return TRUE;
-}
-
-/* whether a (thin) and b can be one, joined along axis, and how many cells
-   of the join meet */
-static long aas_strip_fits(long type, struct aas_world const *world, struct aas_strips const *st, long a, long b, long axis)
-{
-	long af, al, bf, bl, first, last, line, n = 0;
-	long lo[2 * 96], hi[2 * 96];
-	long join_a, join_b, alo, ahi, blo, bhi, meet = 0, s;
-	if (st->axis[b] != 0 && st->axis[b] != axis)
-		return 0;
-	if (st->axis[a] != 0 && st->axis[a] != axis)
-		return 0;
-	aas_strip_lines(world, st, a, axis, &af, &al);
-	aas_strip_lines(world, st, b, axis, &bf, &bl);
-	if (bf == al + 1)
-		join_a = al, join_b = bf;
-	else if (af == bl + 1)
-		join_a = af, join_b = bl;
-	else
-		return 0;
-	first = MIN(af, bf);
-	last = MAX(al, bl);
-	if (last - first + 1 > AAS_MAXIMUM_SIDE || last - first + 1 > 2 * 96)
-		return 0;
-	{
-		long minimum = 1 << 30, maximum = -(1 << 30);
-		for (line = first; line <= last; line++)
-		{
-			long l, h;
-			if (!aas_strip_run(world, st, line >= af && line <= al ? a : b, axis, line, &l, &h))
-				return 0;
-			lo[n] = l;
-			hi[n++] = h;
-			minimum = MIN(minimum, l);
-			maximum = MAX(maximum, h);
-		}
-		if (maximum - minimum + 1 > AAS_MAXIMUM_SIDE)
-			return 0;
-	}
-	if (!aas_strip_convex(lo, n, 1) || !aas_strip_convex(hi, n, -1))
-		return 0;
-	/* (and tapering: every line of the thin one within the line of the other
-	   it meets, so that what is joined narrows away from it and never bulges
-	   past it. Bulging, the area beside a pillar's sloping foot on Wizard
-	   took in the floor round the corner from it, and the way across the area
-	   went over the slope: four bots in a row stood on it) */
-	{
-		long jlo, jhi;
-		aas_strip_run(world, st, b, axis, bf == al + 1 ? bf : bl, &jlo, &jhi);
-		for (line = af; line <= al; line++)
-		{
-			long l, h;
-			aas_strip_run(world, st, a, axis, line, &l, &h);
-			if (l < jlo || h > jhi)
-				return 0;
-		}
-	}
-	/* (not by a drop, unless what is made is a rectangle still: a straight
-	   walk across a joined area cuts its corners by up to a cell, which by a
-	   wall is nothing, the floor there being in no area anyway, but by the
-	   edge of a drop is off it. Four bots going up Prisoner's floors walked
-	   off the edge of the upper one by the stairs, again and again) */
-	{
-		boolean rectangle = TRUE;
-		long k2;
-		for (k2 = 1; k2 < n; k2++)
-			if (lo[k2] != lo[0] || hi[k2] != hi[0])
-				rectangle = FALSE;
-		if (!rectangle)
-		{
-			/* (the ends of the lines, where the corners are: the thin one's,
-			   and those of the other's line it meets) */
-			long jlo2, jhi2;
-			aas_strip_run(world, st, b, axis, join_b, &jlo2, &jhi2);
-			for (s = st->head[a]; s != NONE; s = st->next[s])
-			{
-				long along = axis == 1 ? aas_cell_x(s) : aas_cell_y(s);
-				long l, h;
-				aas_strip_run(world, st, a, axis, axis == 1 ? aas_cell_y(s) : aas_cell_x(s), &l, &h);
-				if ((along <= l + 1 || along >= h - 1) && navm.spans[s].edge < AAS_STRIP_EDGE)
-					return 0;
-			}
-			for (s = st->head[b]; s != NONE; s = st->next[s])
-			{
-				long along = axis == 1 ? aas_cell_x(s) : aas_cell_y(s);
-				if ((axis == 1 ? aas_cell_y(s) : aas_cell_x(s)) == join_b && (along <= jlo2 + 1 || along >= jhi2 - 1) && navm.spans[s].edge < AAS_STRIP_EDGE)
-					return 0;
-			}
-		}
-	}
-	/* (and the two lines either side of the join, over the floor: every cell
-	   of the one that faces the other steps onto it) */
-	aas_strip_run(world, st, a, axis, join_a, &alo, &ahi);
-	aas_strip_run(world, st, b, axis, join_b, &blo, &bhi);
-	if (MIN(ahi, bhi) < MAX(alo, blo))
-		return 0;
-	for (s = st->head[a]; s != NONE; s = st->next[s])
-	{
-		long along = axis == 1 ? aas_cell_x(s) : aas_cell_y(s);
-		long across = axis == 1 ? aas_cell_y(s) : aas_cell_x(s);
-		long t;
-		if (across != join_a || along < MAX(alo, blo) || along > MIN(ahi, bhi))
-			continue;
-		t = aas_neighbor(type, s, axis == 1 ? (join_b > join_a ? 2 : 3) : (join_b > join_a ? 0 : 1));
-		if (t == NONE || world->span_area[t] != b)
-			return 0;
-		meet++;
-	}
-	return meet == MIN(ahi, bhi) - MAX(alo, blo) + 1 ? meet : 0;
-}
-
-/* a joined into b along axis: its spans, its runs, the bounds */
-static void aas_strip_join(struct aas_world *world, struct aas_strips *st, long a, long b, long axis)
-{
-	long af, al, bf, bl, first, last, line, s;
-	long lo[2 * 96], hi[2 * 96];
-	struct aas_area *ab = &world->areas[b], *aa = &world->areas[a];
-	aas_strip_lines(world, st, a, axis, &af, &al);
-	aas_strip_lines(world, st, b, axis, &bf, &bl);
-	first = MIN(af, bf);
-	last = MAX(al, bl);
-	for (line = first; line <= last; line++)
-		aas_strip_run(world, st, line >= af && line <= al ? a : b, axis, line, &lo[line - first], &hi[line - first]);
-	for (line = first; line <= last; line++)
-	{
-		st->lo[b * st->side + line - first] = lo[line - first];
-		st->hi[b * st->side + line - first] = hi[line - first];
-	}
-	st->first[b] = first;
-	st->count[b] = last - first + 1;
-	st->axis[b] = axis;
-	for (s = st->head[a]; s != NONE; s = st->next[s])
-		world->span_area[s] = b;
-	if (st->head[a] != NONE)
-	{
-		if (st->head[b] == NONE)
-			st->head[b] = st->head[a];
-		else
-			st->next[st->tail[b]] = st->head[a];
-		st->tail[b] = st->tail[a];
-	}
-	st->head[a] = st->tail[a] = NONE;
-	ab->x0 = MIN(ab->x0, aa->x0);
-	ab->y0 = MIN(ab->y0, aa->y0);
-	ab->x1 = MAX(ab->x1, aa->x1);
-	ab->y1 = MAX(ab->y1, aa->y1);
-	ab->z0 = MIN(ab->z0, aa->z0);
-	ab->z1 = MAX(ab->z1, aa->z1);
-	ab->clearance = MAX(ab->clearance, aa->clearance);
-	aa->x1 = aa->x0;
-	aa->y1 = aa->y0;
-}
-
-static void aas_join_strips(long type)
-{
-	struct aas_world *world = &aas_worlds[type];
-	struct aas_strips st;
-	long n = world->area_count;
-	long *renumber = NULL;
-	long a, s, axis, pass, joined = 0, kept = 0;
-	memset(&st, 0, sizeof(st));
-	st.side = MIN(AAS_MAXIMUM_SIDE, 2 * 96);
-	st.lo = (long *)malloc(MAX(1, n) * st.side * sizeof(long));
-	st.hi = (long *)malloc(MAX(1, n) * st.side * sizeof(long));
-	st.first = (long *)calloc(MAX(1, n), sizeof(long));
-	st.count = (long *)calloc(MAX(1, n), sizeof(long));
-	st.axis = (long *)calloc(MAX(1, n), sizeof(long));
-	st.head = (long *)malloc(MAX(1, n) * sizeof(long));
-	st.tail = (long *)malloc(MAX(1, n) * sizeof(long));
-	st.next = (long *)malloc(MAX(1, navm.span_count) * sizeof(long));
-	renumber = (long *)malloc(MAX(1, n) * sizeof(long));
-	if (!st.lo || !st.hi || !st.first || !st.count || !st.axis || !st.head || !st.tail || !st.next || !renumber)
-	{
-		aas_no_memory("the strips");
-		goto done;
-	}
-	for (a = 0; a < n; a++)
-		st.head[a] = st.tail[a] = NONE;
-	for (s = 0; s < navm.span_count; s++)
-	{
-		a = world->span_area[s];
-		st.next[s] = NONE;
-		if (a == NONE)
-			continue;
-		if (st.head[a] == NONE)
-			st.head[a] = s;
-		else
-			st.next[st.tail[a]] = s;
-		st.tail[a] = s;
-	}
-	/* (rows first, joined up and down; then columns, side to side) */
-	for (axis = 1; axis <= 2; axis++)
-	{
-		for (pass = 0; pass < 64; pass++)
-		{
-			boolean changed = FALSE;
-			for (a = 0; a < n; a++)
-			{
-				long first, last, best = NONE, best_meet = 0, side;
-				if (st.head[a] == NONE || (st.axis[a] != 0 && st.axis[a] != axis))
-					continue;
-				aas_strip_lines(world, &st, a, axis, &first, &last);
-				if (last - first + 1 > AAS_STRIP_THIN)
-					continue;
-				/* (the areas the other side of its first and last lines) */
-				for (side = 0; side < 2; side++)
-				{
-					long line = side ? last : first;
-					long direction = axis == 1 ? (side ? 2 : 3) : (side ? 0 : 1);
-					long tried[8];
-					long tried_count = 0, k;
-					for (s = st.head[a]; s != NONE; s = st.next[s])
-					{
-						long t, b, meet;
-						if ((axis == 1 ? aas_cell_y(s) : aas_cell_x(s)) != line)
-							continue;
-						t = aas_neighbor(type, s, direction);
-						if (t == NONE || (b = world->span_area[t]) == NONE || b == a)
-							continue;
-						for (k = 0; k < tried_count && tried[k] != b; k++)
-							;
-						if (k < tried_count)
-							continue;
-						if (tried_count < 8)
-							tried[tried_count++] = b;
-						meet = aas_strip_fits(type, world, &st, a, b, axis);
-						if (meet > best_meet)
-						{
-							best_meet = meet;
-							best = b;
-						}
-					}
-				}
-				if (best != NONE)
-				{
-					aas_strip_join(world, &st, a, best, axis);
-					joined++;
-					changed = TRUE;
-				}
-			}
-			if (!changed)
-				break;
-		}
-	}
-	/* (the areas left, numbered afresh, each with its middle: the floor
-	   nearest the middle of its bounds) */
-	for (a = 0; a < n; a++)
-	{
-		renumber[a] = st.head[a] != NONE ? kept++ : NONE;
-		if (renumber[a] != NONE && renumber[a] != a)
-			world->areas[renumber[a]] = world->areas[a];
-	}
-	for (s = 0; s < navm.span_count; s++)
-		if (world->span_area[s] != NONE)
-			world->span_area[s] = renumber[world->span_area[s]];
-	world->area_count = kept;
-	{
-		real *best = (real *)malloc(MAX(1, kept) * sizeof(real));
-		if (best)
-		{
-			for (a = 0; a < kept; a++)
-				best[a] = 1.0e9f;
-			for (s = 0; s < navm.span_count; s++)
-			{
-				real_point3d p;
-				struct aas_area *area;
-				real d;
-				if (world->span_area[s] == NONE)
-					continue;
-				area = &world->areas[world->span_area[s]];
-				navm_span_point(s, &p);
-				d = (p.x - (area->x0 + area->x1) * 0.5f) * (p.x - (area->x0 + area->x1) * 0.5f) +
-					(p.y - (area->y0 + area->y1) * 0.5f) * (p.y - (area->y0 + area->y1) * 0.5f);
-				if (d < best[world->span_area[s]])
-				{
-					best[world->span_area[s]] = d;
-					area->center = p;
-				}
-			}
-			free(best);
-		}
-	}
-	if (bot_logging())
-		bot_log("aas: type %ld: %ld strips joined, %ld areas", type, joined, kept);
-done:
-	free(st.lo);
-	free(st.hi);
-	free(st.first);
-	free(st.count);
-	free(st.axis);
-	free(st.head);
-	free(st.tail);
-	free(st.next);
-	free(renumber);
-}
+/* (Strips a cell wide joined into convex areas, HALO_BOT_STRIPS=1, were
+   tried and not kept: kept off drops few were joined, joined anyway bots
+   walked off Prisoner's upper floor, and routes were reckoned several times
+   too long. The code is in the history.) */
 
 /* ---------- reachabilities */
 
@@ -1354,7 +955,7 @@ static void aas_walk_reaches(long type, struct aas_reaches *reaches)
 	bot_sort_stable(list.items, list.count, sizeof(struct aas_candidate), aas_candidate_compare);
 	/* (the edge two areas share, as one doorway: a straight run of cells
 	   between two rectangles, and between two areas whose edge goes
-	   cornerwise (strips joined, aas_join_strips) a staircase of them,
+	   cornerwise a staircase of them,
 	   which taken a step at a time made a doorway of every step, a cell
 	   wide, and sent everyone going that way through the same one. Cells
 	   of the edge two or fewer apart are the same doorway; its ends, the two
@@ -1686,7 +1287,7 @@ static boolean aas_gap_up_off(void)
 	if (!asked)
 	{
 		asked = TRUE;
-		off = getenv("HALO_BOT_OFF") && strstr(getenv("HALO_BOT_OFF"), "gapup");
+		off = bot_env_off("gapup");
 	}
 	return off;
 }
@@ -2195,7 +1796,7 @@ static void aas_ledge_away_from_ends(struct aas_candidate *items, long count)
 	static struct aas_candidate copy[256];
 	real longest = 0.f;
 	long e1 = 0, e2 = 0, k, m;
-	if (count < 3 || count > 256 || (getenv("HALO_BOT_OFF") && strstr(getenv("HALO_BOT_OFF"), "ledgeends")))
+	if (count < 3 || count > 256 || (bot_env_off("ledgeends")))
 		return;
 	for (k = 0; k < count; k++)
 		navm_span_point(items[k].edge_span, &points[k]);
@@ -3140,6 +2741,11 @@ void aas_dispose(void)
 	long type;
 	aas_nearest_forget();
 	aas_failures_save();
+	/* (the deep-water answers are for this map's spans: another map with
+	   as many spans had them, wrong) */
+	free(aas_flooded);
+	aas_flooded = NULL;
+	aas_flooded_count = 0;
 	for (type = 0; type < NUMBER_OF_AAS_TYPES; type++)
 		aas_world_free(&aas_worlds[type]);
 	free(aas_stamp);
@@ -3610,8 +3216,6 @@ static void aas_build_world(long type)
 	memset(&reaches, 0, sizeof(reaches));
 	t0 = bot_time_microseconds();
 	aas_build_areas(type);
-	if (!aas_build_failed && getenv("HALO_BOT_STRIPS"))
-		aas_join_strips(type);
 	t1 = bot_time_microseconds();
 	/* (each stage reads what the one before made: none of them
 	   after one that could not finish) */
@@ -3744,7 +3348,7 @@ static boolean aas_on_lip_off(void)
 	if (!asked)
 	{
 		asked = TRUE;
-		off = getenv("HALO_BOT_OFF") && strstr(getenv("HALO_BOT_OFF"), "onlip");
+		off = bot_env_off("onlip");
 	}
 	return off;
 }

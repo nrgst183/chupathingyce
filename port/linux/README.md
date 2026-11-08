@@ -2877,6 +2877,44 @@ names at the end of the test, 80 seconds later. With no time (the setting `never
 vehicles that the scripts of the maps make again came back (the Longsword,
 and two kinds of walker); the wrecks of the others stayed.
 
+### Coldsnap's CTF
+
+- **Scenery as floor on Custom Edition maps:** the bots' navigation was
+  worked out from the map's own collision only, and a Halo PC map builds
+  with scenery what the Xbox's build into the map. Coldsnap's blue flag
+  stands on a bridge that is scenery, so there was no floor there and no
+  way to it. Every piece of scenery 6 units or more across now goes into
+  the navigation as the map does: its tops are floors, its sides walls. On
+  Coldsnap that is 9 pieces; the flag now has a way to it, 19 seconds from
+  the land beside the bridge. Navigation already worked out without them is
+  worked out again (`HALO_BOT_OFF=scenefloor`).
+- **Born off the floor:** two bots born on a ledge of Coldsnap's, the floor
+  under them 3 units down, stood there the whole game: there was no area
+  within 2 units and no way from where they stood. Off the areas, a bot now
+  looks for one within 4 units, and after a second within 8
+  (`HALO_BOT_OFF=farspot`).
+- **Far flags:** on a map navigated in parts (Coldsnap, Hugeass), the flags
+  are weighed by distances ten times a small map's. A flag more than 250
+  units off is gone for in a vehicle first: on foot it counts a third, a
+  vehicle three times as much, from three times as far. Weighed by a small
+  map's distances, the enemy flag a mile off was worth less than any vehicle
+  near by (`HALO_BOT_OFF=ctffar`).
+- **Out at the end of the road:** a driver stopped by the flag gets out
+  once it is nearly still after a second, not only when quite still. A
+  Warthog held at the edge by the bridge crept over it with its driver in
+  it (`HALO_BOT_OFF=outsoon`).
+
+- **The objective known wherever it is:** where the flags are, who carries
+  one, the hill and the ball are known to every bot wherever they are, seen
+  or not, as a player knows them from the waypoints; only the people a bot
+  shoots need seeing. On a map navigated in parts, all of these are now
+  weighed by the big map's distances, not only the flags themselves
+  (`HALO_BOT_OFF=ctffar`).
+
+In 13-minute test games, bots now drive to the other base and go for its
+flag; before, nobody went for either flag. No game has had a capture yet:
+the one who took the flag stayed within 55 units of its base.
+
 ### Vehicles back at their bases on Custom Edition maps
 
 When the gametype's vehicle respawn time is its first choice (none), a
@@ -3566,6 +3604,26 @@ were.
   5-unit squares of the map the bots were in went from 172 to 199 a game,
   and the share of the time a bot had another within 10 units from 55% to
   49% (`HALO_BOT_OFF=fill`).
+- **Ways round that are ways of their own:** a way round was a place off to
+  one side and the quickest way to it and on from it. The quickest ways
+  funnel through the same doors, corridors and ramps, so most places made
+  the quickest route with a bend in it. Now each place tried is judged by
+  its route, the areas it goes through. A route that runs with the quickest
+  for more than 85% of its way is no way round. (Running with means
+  through the same areas or ones within 4 units of them: the areas are
+  many to a corridor.) Of the others, the less of the quickest a route
+  shares, and the less busy its 6-unit squares have been with the routes
+  every bot has lately taken, the likelier. 8 places are tried, and a way
+  round may be up to 35% longer. In free-for-alls of 15 bots on Blood
+  Gulch, Sidewinder and Danger Canyon, a way round now shares 46% of the
+  quickest route on average, and 4 in 10 share under 40%. But the bots were
+  not spread over more of the map for it: the squares they were in stayed
+  the same (182 a game against 190 on Sidewinder and Danger Canyon). In a
+  free-for-all, where a bot goes is decided by what it goes for (someone to
+  fight, a gun) far more than by the way it takes. The busy squares were
+  also tried as a cost on every route, and that put the bots in fewer
+  squares (182 against 198), so that was not kept
+  (`HALO_BOT_OFF=routes`: the ways round as they were).
 - **Crouch jumps up ledges:** these were already in. The route's jumps
   tuck the legs up for any ledge over 0.55 units, and the navigation counts
   on a ledge up to 0.76. On the jump test maps every ledge up to 0.8 was

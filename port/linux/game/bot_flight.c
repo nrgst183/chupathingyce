@@ -783,7 +783,7 @@ static int air_flies_better(char const *part)
 		asked = TRUE;
 		off = getenv("HALO_BOT_OFF");
 	}
-	return !(off && strstr(off, part));
+	return !(off && bot_name_in_list(off, part));
 }
 
 /* Ways found lately, for any pilot to have: one going from about where
@@ -1393,6 +1393,7 @@ static void air_pilot_take(struct bot_pilot *pilot, struct bot_body const *body,
 	pilot->gate = NONE;
 	pilot->way_in_trail = NONE;
 	pilot->taken_tick = now;
+	pilot->land_tick = now; /* (0, and the landing's time-outs were up at once) */
 	if (bot_logging())
 		bot_log("pilot %ld t%ld is %s (radius %.1f, top speed %.0f)", body->unit_index & 0xffff, now, tag_get_name(craft->definition_index),
 			craft->object.bounding_sphere_radius, top_speed);
@@ -2275,8 +2276,8 @@ static void air_bomb_pass(struct air_flight *f)
 		air_leave_bomb(f);
 		f->why = " (bomb gone)";
 	}
-	else if (pilot->phase != _pilot_run && pilot->heavy_press > 0 && order->heavy_bomb)
-		pilot->heavy_press = 0;
+	else if (pilot->phase != _pilot_run && pilot->heavy_press > 0)
+		pilot->heavy_press = 0; /* (a fuel rod's too: left pressed, it went off at nothing on the next run) */
 }
 
 /* The last word: what is in the way. Rays the way it is going, as far as it
@@ -2463,8 +2464,10 @@ static void air_hover_landing(struct air_flight const *f, real level, struct air
 		   second before it starts down, rather than coming down still
 		   sliding on, and setting down on a slant across the place, or
 		   past it. HALO_BOT_OFF=airhold: as the small ones do) */
-		boolean hold = f->large > 0.f && air_flies_better("airhold");
-		if (hold && pilot->way_in != 3)
+		/* (not under a roof: there the hold's count never ran, and the
+		   craft hung a unit over the floor for the forty seconds) */
+		boolean hold = f->large > 0.f && air_flies_better("airhold") && pilot->way_in != 3;
+		if (hold)
 		{
 			h->limit = MIN(h->limit, 1.5f + 0.3f * left);
 			pilot->hold_ticks = left < 4.f && level < 1.5f && f->speed < 1.5f ? pilot->hold_ticks + 1 : 0;
@@ -2803,7 +2806,9 @@ static void air_evade(struct air_flight *f)
 	struct bot_body const *body = f->body;
 	struct bot_flight_order const *order = f->order;
 	long now = f->now;
-	if (!air_flies_better("evade") || pilot->indoors || pilot->hovering || pilot->phase == _pilot_land || f->result->landed)
+	/* (hovering is a plane's: a Banshee is taken "hovering" and nothing
+	   of its own clears it, which kept every Banshee from dodging) */
+	if (!air_flies_better("evade") || pilot->indoors || (f->plane && pilot->hovering) || pilot->phase == _pilot_land || f->result->landed)
 		return;
 	if (order->dodge)
 	{
@@ -2862,7 +2867,8 @@ static void air_steer_by_phase(struct air_flight *f)
 		f->pitch = f->to_place > 10.f ? MIN(f->pitch, -0.1f) : -0.35f;
 		if (order->stay)
 			result->landed = low && position->z - ground_z < 2.2f && f->speed < 2.f;
-		else if ((low && position->z - ground_z < 2.2f && f->speed < 6.f) || now - pilot->land_tick > BOT_SECONDS(7.f))
+		else if ((low && position->z - ground_z < 2.2f && f->speed < 6.f) ||
+			(now - pilot->land_tick > BOT_SECONDS(7.f) && position->z - ground_z < 3.f)) /* (not out in the air) */
 			result->get_out = TRUE;
 		break;
 	}

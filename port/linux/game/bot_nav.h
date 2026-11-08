@@ -170,5 +170,6 @@ long aas_random_area(long type, unsigned long seed); /* a playable area, bigger 
 int bot_logging(void); /* HALO_BOT_LOG */
 int bot_env_set(char const *name);
 int bot_env_off(char const *part);
+int bot_name_in_list(char const *list, char const *name); /* (a whole name of a list, commas or spaces between) */
 
 #endif

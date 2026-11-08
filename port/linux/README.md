@@ -2919,13 +2919,19 @@ and two kinds of walker); the wrecks of the others stayed.
   go, not held. Stopped by the flag to go the rest on foot, a vehicle that
   never quite stops (a Ghost hovers) counts as stopped after a moment
   (`outsoon`).
-- **The long way on foot:** on Chill Out, every one of 81 trips from a
-  base to the other flag went by a teleporter. For the flag, the hill or
-  the ball, when the quickest way is by a teleporter, a bot now sometimes
-  (35% to 65% of the time, the more whimsical the more often) takes a way
-  round with no teleporter in it, up to four times as long: across the
-  bridge, round by the ramp, through the rooms. In two games 5 of 34 trips
-  went on foot (`HALO_BOT_OFF=onfoot`).
+- **Lanes to the flag:** in a game of flags, each side now works out its
+  lanes to the other flag at the start of a game: the quickest way, and up
+  to three more that share little of it in their middles (their two ends,
+  out of the base and up to the flag, are every lane's), or that go on foot
+  where it goes by a teleporter, up to four times as long. Each bot draws
+  one at the start of the game, the quicker likelier, and keeps it through
+  its lives. It draws another when it dies on it, and when one of its side
+  dies on it, each of the others on it does too, one time in three; the
+  side remembers its deaths on each lane, fading by half in a minute and a
+  half, and the deadlier a lane, the less often it is drawn. Before, on
+  Chill Out, every one of 81 trips from a base to the other flag was by a
+  teleporter; in two games now, 15 of 51 went on foot, by the bridge, the
+  ramp or the rooms (`HALO_BOT_OFF=lanes`).
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

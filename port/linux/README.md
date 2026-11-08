@@ -2958,9 +2958,10 @@ and two kinds of walker); the wrecks of the others stayed.
   what the side knows, more likely at higher levels and when they are
   shooting or in a vehicle. The position is rougher at lower levels. Bots
   of level 3.5 and up in team games route around what their side knows, on
-  foot and driving. Lanes are drawn away from known enemies, and a bot
+  foot and driving, except on the way to a place to hold (a guard's post,
+  a place to meet them). Lanes are drawn away from known enemies, and a bot
   setting out on a lane with enemies along it may switch to another
-  (`aware`).
+  (`mapaware`).
 - **Driving around them:** the vehicle mesh now has its side's danger
   costs, so drivers route around known enemies within 40 units, unless
   they are driving at them. On a long drive across country (Hugeass), a
@@ -3021,9 +3022,12 @@ and two kinds of walker); the wrecks of the others stayed.
   walkable, and nobody on its own side (itself included) may be in the
   blast. It stands while the grenade goes off. How far each kind of
   grenade rolls past where it was thrown to is learned from the bots' own
-  throws (about a unit to a unit and a half). In test games a rocket
-  launcher came down 1.9 units from where it was predicted to land. Other
-  throws missed: a frag that rolls on past the item doesn't reach it.
+  throws (about a unit to a unit and a half). The bot stands until the
+  grenade has gone off, then goes to where the item came down. If a blast
+  right by an item leaves it where it was, that item is not tried again
+  on that map. In test games a rocket launcher came down 1.9 units from
+  where it was predicted to land, and a shotgun went on about 7 units
+  past (items slide after they land, which the prediction leaves out).
   Bots seldom have a grenade at the moment they go for a power item, so
   this is occasional (`nadeitem`; `HALO_BOT_NADEGIVE` gives grenades, for
   testing).

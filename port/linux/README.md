@@ -2932,6 +2932,49 @@ and two kinds of walker); the wrecks of the others stayed.
   Chill Out, every one of 81 trips from a base to the other flag was by a
   teleporter; in two games now, 15 of 51 went on foot, by the bridge, the
   ramp or the rooms (`HALO_BOT_OFF=lanes`).
+- **Lanes on every map, every game:** lanes are no longer only for the
+  flag. Any long trip (the hill, the ball, a walk across the map in slayer,
+  team slayer or a free-for-all) uses a set of lanes from about where the bot
+  is to about where it is going. Sixteen sets are kept, and the least
+  recently used one is replaced. Whether two ways count as different scales
+  with the map: they must be a twelfth of the distance apart (4 to 20
+  units). On Blood Gulch or Sidewinder, two ways a few units apart across
+  open ground are one lane. A lane that got a bot the flag or the ball is
+  drawn more often after that, by that bot and its side; a lane it died on
+  is drawn less often (`lanesall`: lanes for the flag only).
+- **Wander (a trait):** each bot has its own taste for going its own way.
+  It is fixed for the game and varies a little each life. A bot that wanders
+  more takes another way more often, up to two trips in five more, and
+  picks the longer lanes nearly as often as the quickest. A bot that
+  wanders little keeps to the quickest way (`wander`: everyone in the
+  middle).
+- **Sticks (a trait), team slayer:** whether a bot follows its team's squad
+  depends on how much it sticks with the team (its own, for the whole
+  game) and on its side's mood. The mood changes every minute and a half:
+  for part of a game the side moves as one, for part it spreads out. The
+  leader leads either way (`sticks`: everyone follows, as before).
+- **Map awareness by level:** from level 3 up, a side has a sense of where
+  enemies it hasn't seen are. Once a second, each of them may be added to
+  what the side knows, more likely at higher levels and when they are
+  shooting or in a vehicle. The position is rougher at lower levels. Bots
+  of level 3.5 and up in team games route around what their side knows, on
+  foot and driving. Lanes are drawn away from known enemies, and a bot
+  setting out on a lane with enemies along it may switch to another
+  (`aware`).
+- **Driving around them:** the vehicle mesh now has its side's danger
+  costs, so drivers route around known enemies within 40 units, unless
+  they are driving at them. On a long drive across country (Hugeass), a
+  driver picks a point 70 units to the side of a known enemy near its way
+  and drives by it. It drops the detour if the way is blocked
+  (`drivearound`).
+- **Meeting them:** each side keeps track of the ways the other side takes:
+  where its own bots saw them and where they killed its people from, fading
+  over a minute or so. Bots go to the busiest of these and hold a spot a
+  few units short of it, on their own side, to meet the enemy there. The
+  patient and the higher levels do this more. A bot that dies doing it
+  comes at that spot from another side next time (`meet`). In test games,
+  there were more fights in the middle of the map: on Chill Out (CTF) 123
+  deaths against 32, on Wizard 75 against 45.
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

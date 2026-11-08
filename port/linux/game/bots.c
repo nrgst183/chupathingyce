@@ -543,6 +543,7 @@ static long bots_vehicle_count;
    of a team game (cost slots 0 and 1), everyone for themselves (slot 2) */
 
 #define BOT_KNOWN 24
+#define BOT_LANE_SETS 16 /* (bot_lanes) */
 #define BOT_KNOWN_SECONDS 6.f
 
 struct bot_known
@@ -570,6 +571,9 @@ struct bot_side
 	long known_count;
 	float *cost; /* per foot area: being worked out */
 	long cost_count;
+	float *vcost; /* per vehicle area (drivers round them too, BOT "drivearound") */
+	long vcost_count;
+	long aware_tick; /* when the side last had its sense of where they are (bot_sides_aware) */
 	/* the update going on: the next of the known and of the areas to look
 	   at, the lines of sight so far, and whether there is anything */
 	boolean updating;
@@ -595,12 +599,87 @@ static void nav_danger_reset(void)
 	for (side = 0; side < AAS_COST_SLOTS; side++)
 	{
 		free(bot_sides[side].cost);
+		free(bot_sides[side].vcost);
 		memset(&bot_sides[side], 0, sizeof(bot_sides[side]));
 	}
 }
 
+/* The ways the other side takes: the places its people have been seen at
+   (by the side's own eyes, not the rough sense of bot_sides_aware) and
+   killed ours from, the more often the hotter, fading to a half in a
+   minute or so. What the side's bots go to meet them at (bot_meet_
+   candidates). HALO_BOT_OFF=meet: none */
+#define BOT_WAYS 32
+struct bot_way
+{
+	real_point3d at;
+	float weight;
+	long last; /* game time */
+};
+static struct bot_way bot_ways[AAS_COST_SLOTS][BOT_WAYS];
+static long bot_ways_faded[AAS_COST_SLOTS];
+static int bot_side_saw_rough; /* (bot_sides_aware's: not a way seen) */
+
+static void bot_ways_fade(long side)
+{
+	long now = game_time_get(), i;
+	if (now < bot_ways_faded[side])
+	{
+		memset(bot_ways[side], 0, sizeof(bot_ways[side])); /* (a new game) */
+		bot_ways_faded[side] = now;
+		return;
+	}
+	if (now - bot_ways_faded[side] < 5 * BOT_TICKS_PER_SECOND)
+		return;
+	for (i = 0; i < BOT_WAYS; i++)
+		bot_ways[side][i].weight *= 0.95f;
+	bot_ways_faded[side] = now;
+}
+
+static void bot_ways_note(long side, real_point3d const *at, float weight)
+{
+	long i, nearest = NONE, weakest = 0;
+	real nearest_distance = 8.f;
+	if (side < 0 || side >= AAS_COST_SLOTS || bot_env_off("meet"))
+		return;
+	bot_ways_fade(side);
+	for (i = 0; i < BOT_WAYS; i++)
+	{
+		struct bot_way *way = &bot_ways[side][i];
+		real d;
+		if (way->weight < bot_ways[side][weakest].weight)
+			weakest = i;
+		if (way->weight <= 0.01f)
+			continue;
+		d = distance3d(&way->at, at);
+		if (d < nearest_distance)
+		{
+			nearest_distance = d;
+			nearest = i;
+		}
+	}
+	if (nearest != NONE)
+	{
+		/* (the middle of where they are seen there, moving with them) */
+		struct bot_way *way = &bot_ways[side][nearest];
+		real share = weight / (way->weight + weight);
+		way->at.x += (at->x - way->at.x) * share;
+		way->at.y += (at->y - way->at.y) * share;
+		way->at.z += (at->z - way->at.z) * share;
+		way->weight = MIN(way->weight + weight, 30.f);
+		way->last = game_time_get();
+		return;
+	}
+	bot_ways[side][weakest].at = *at;
+	bot_ways[side][weakest].weight = weight;
+	bot_ways[side][weakest].last = game_time_get();
+}
+
 static void bot_side_saw(long side, long unit, real_point3d const *at)
 {
+	if (unit != NONE && !bot_side_saw_rough)
+		bot_ways_note(side, at, 0.2f);
+	{
 	struct bot_side *knowledge;
 	long now = game_time_get();
 	long i;
@@ -624,6 +703,7 @@ static void bot_side_saw(long side, long unit, real_point3d const *at)
 	knowledge->known[oldest].unit = unit;
 	knowledge->known[oldest].at = *at;
 	knowledge->known[oldest].seen = now;
+	}
 }
 
 /* the nearest enemy the side knows of lately (FALSE: none) */
@@ -654,6 +734,59 @@ static int bot_side_nearest_known(long side, real_point3d const *from, real seco
 
 /* a part of the side's update (begun, if none is going on): TRUE once it
    is done and its costs are the routes' */
+/* The same for drivers, on the vehicle mesh: the ground within 40 units of
+   an enemy the side knows of lately, dearer the nearer (no lines of sight:
+   from a vehicle, out in the open, they see it coming and it is the one
+   shot at). Only those the driving is round: a driver going for them
+   routes straight there (bot_think's cost_slot). HALO_BOT_OFF=drivearound:
+   none, drivers as before */
+static void bot_side_vehicle_costs(long side, long now)
+{
+	struct bot_side *knowledge = &bot_sides[side];
+	long count = aas_area_count(AAS_VEHICLE);
+	long a, k;
+	boolean any = FALSE;
+	if (count <= 0 || bot_env_off("drivearound"))
+	{
+		if (count > 0)
+			aas_set_area_costs(AAS_VEHICLE, side, NULL);
+		return;
+	}
+	if (knowledge->vcost_count != count)
+	{
+		free(knowledge->vcost);
+		knowledge->vcost = (float *)malloc(count * sizeof(float));
+		knowledge->vcost_count = knowledge->vcost ? count : 0;
+		if (!knowledge->vcost)
+			return;
+	}
+	memset(knowledge->vcost, 0, count * sizeof(float));
+	for (k = 0; k < knowledge->known_count; k++)
+	{
+		struct bot_known const *known = &knowledge->known[k];
+		real age = (now - known->seen) / (real)BOT_TICKS_PER_SECOND;
+		real fresh;
+		if (known->unit == NONE || age > BOT_KNOWN_SECONDS || !bot_unit_alive(known->unit))
+			continue;
+		fresh = 1.f - age / BOT_KNOWN_SECONDS;
+		for (a = 0; a < count; a++)
+		{
+			struct aas_area const *area = aas_area(AAS_VEHICLE, a);
+			real dx = PIN(known->at.x, area->x0, area->x1) - known->at.x;
+			real dy = PIN(known->at.y, area->y0, area->y1) - known->at.y;
+			real d2 = dx * dx + dy * dy;
+			if (d2 < 1600.f && fabs(area->center.z - known->at.z) < 15.f)
+			{
+				knowledge->vcost[a] += 2.f * fresh * (1.f - (real)sqrt(d2) / 40.f);
+				any = TRUE;
+			}
+		}
+	}
+	for (a = 0; a < count; a++)
+		knowledge->vcost[a] = MIN(knowledge->vcost[a], 4.f);
+	aas_set_area_costs(AAS_VEHICLE, side, any ? knowledge->vcost : NULL);
+}
+
 static boolean bot_side_update_costs(long side)
 {
 	struct bot_side *knowledge = &bot_sides[side];
@@ -775,6 +908,7 @@ static boolean bot_side_update_costs(long side)
 		knowledge->cost[a] = MIN(knowledge->cost[a], 3.f);
 	}
 	aas_set_area_costs(AAS_FOOT, side, knowledge->update_any ? knowledge->cost : NULL);
+	bot_side_vehicle_costs(side, now);
 	knowledge->updating = FALSE;
 	return TRUE;
 }
@@ -939,6 +1073,8 @@ struct bot_personality
 	real grudge;        /* how hard it goes after whoever keeps killing it */
 	real temper;        /* a run of deaths: -1 goes timid .. 1 goes reckless */
 	real swagger;       /* a run of kills: how far it goes to its head */
+	real wander;        /* how often it goes its own way, and how far out of the way: 0 the quickest way .. 1 any way (bot_lane_draw, bot_plan_via) */
+	real sticks;        /* team slayer: keeps with the team's squad, with its side's mood (bot_squad_member) .. goes off alone */
 	long style;         /* how it fights (_bot_style_*) */
 	long signature;     /* a habit of its own in a fight (_bot_signature_*) */
 	real discipline;    /* the trigger: 0 holds it down .. 1 waits for the shot */
@@ -1439,6 +1575,10 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	}
 	personality->grudge = BOT_TRAIT(0.f, 1.f);
 	personality->temper = BOT_TRAIT(-1.f, 1.f);
+	/* (drawn last: the traits above are as they were. HALO_BOT_OFF=wander:
+	   every bot as the middling one was) */
+	personality->wander = bot_env_off("wander") ? 0.5f : BOT_TRAIT(0.f, 1.f);
+	personality->sticks = BOT_TRAIT(0.f, 1.f);
 	personality->swagger = BOT_TRAIT(0.f, 1.f);
 	personality->discipline = BOT_TRAIT(0.f, 1.f);
 	personality->melee = BOT_TRAIT(0.f, 1.f);
@@ -1524,6 +1664,11 @@ struct bot_state
 		long haunt_count;
 		long haunt_visited[BOT_HAUNTS]; /* game time */
 		long haunts_weighed; /* when its places were last weighed against how the map has gone (BOT_G_SPOTS) */
+		/* its lane of each of the lane sets (bot_lanes), and which set it was
+		   drawn for (a set worked out again: drawn again) */
+		long lane_of[BOT_LANE_SETS];
+		long lane_serial_of[BOT_LANE_SETS];
+		long meet_turn; /* how often it has died going to meet them: each time, from another side (bot_goal_meet) */
 	} memory;
 	/* aim */
 	real yaw;
@@ -1701,9 +1846,14 @@ struct bot_state
 	long flank_side; /* the last flank's side, and when (keep to it, not this way then that) */
 	long flank_time;
 	int on_objective_route; /* going for the objective by a way of its own (dying on it: another way next time) */
-	long lane; /* its side's lane to the enemy flag (bot_lanes): NONE none drawn yet */
-	long lane_game; /* the game time it was drawn in (a new game: drawn again) */
+	long lane; /* this trip's lane (bot_lanes): NONE none */
+	long lane_set; /* of which set */
 	int on_lane; /* this trip is by its lane */
+	int lane_live; /* this life went for the objective by a lane (getting there: bot_lane_worked) */
+	real_point3d meet_spot; /* where it last went to meet them (bot_goal_meet) */
+	real_point3d around; /* a long drive: a place to go by, round enemies its side knows of (bot_drive_around) */
+	int around_valid;
+	long around_until, around_next;
 	int carrying_objective; /* the flag or the ball in hand */
 	int escorting; /* with one of ours who has their flag, round them (bot_escort_slot) */
 	long escort_tick; /* when it last was (0: never) */
@@ -1895,6 +2045,24 @@ static struct bot_skill_parameters const bot_skills[5] =
 static real bot_skill_fraction(void)
 {
 	return (PIN(bot_skill_now, 1.f, 5.f) - 1.f) / 4.f;
+}
+
+/* How much of a sense of where the enemy is a level has, as good players
+   do (from the shots they hear, the kills, where they saw them last and
+   where they will have gone, the way a game goes): none up to level 2, all
+   of it at the top. With it, the side's knowledge (bot_sides_aware) has
+   more of them in it than its bots have seen, the routes and the lanes go
+   round them, and drivers drive round them. HALO_BOT_OFF=aware: none */
+static real bot_awareness_of(real skill)
+{
+	if (bot_env_off("aware"))
+		return 0.f;
+	return PIN((skill - 2.f) / 3.f, 0.f, 1.f);
+}
+
+static real bot_awareness(void)
+{
+	return bot_awareness_of(bot_skill_now);
 }
 
 /* how long the top level takes to see someone, of what level 4 does: 1
@@ -6141,6 +6309,24 @@ static struct bot_squad *bot_squad_update(long team, unsigned long seed)
 	return squad;
 }
 
+/* Whether a bot keeps with its team's squad: by how much it sticks with the
+   team (its own, all game), and its side's mood, which comes and goes (drawn
+   for each minute and a half: some of a game the side moves as one, some
+   it spreads out over the map). A leader leads whether or not. HALO_BOT_OFF=
+   sticks: every bot keeps with it, as before */
+static int bot_squad_member(struct bot_state const *bot, long team)
+{
+	long period = game_time_get() / (90 * BOT_TICKS_PER_SECOND);
+	unsigned long seed;
+	real mood, keen;
+	if (bot_env_off("sticks"))
+		return TRUE;
+	seed = bot_hash(bot_hash((unsigned long)(team * 0x9e3779b1UL) ^ (unsigned long)period * 0x85ebca6bUL) ^ bots_match());
+	mood = (real)(seed & 0xFFFF) / 65535.f;
+	keen = 0.55f * bot->personality.sticks + 0.45f * mood;
+	return keen > 0.42f;
+}
+
 static void bot_squad_candidates(struct bot_state *bot, long me, struct player_datum *player, real_point3d const *position,
 	struct bot_candidate *best)
 {
@@ -6174,6 +6360,8 @@ static void bot_squad_candidates(struct bot_state *bot, long me, struct player_d
 	{
 		/* following: a place of our own a few units behind the leader and
 		   to one side (by our order in the team) */
+		if (!bot_squad_member(bot, player->team_index))
+			return; /* (off on its own this while) */
 		struct data_iterator iterator;
 		struct player_datum *other;
 		long order = 0;
@@ -7199,6 +7387,65 @@ static void bot_goal_outgunned(struct bot_goal_pass *g)
 	}
 }
 
+/* Meeting them: the way the other side takes lately (bot_ways, the hottest
+   within reach), gone to and held a little short of, on our side of it,
+   from where it can see them coming; the more for the patient and the more
+   aware (bot_awareness), less for the rest; and, each time it has died
+   doing it, from another side of it. Not the place itself, where they are
+   already: a few units off toward us. HALO_BOT_OFF=meet: none */
+static void bot_goal_meet(struct bot_goal_pass *g)
+{
+	struct bot_state *bot = g->bot;
+	real_point3d const *position = g->position;
+	long side = bot_side_of(g->player);
+	long i, hottest = NONE;
+	real best = 0.f, score, angle, dx, dy, length;
+	real_point3d spot;
+	if (bot_env_off("meet") || side == NONE || side < 0 || side >= AAS_COST_SLOTS || bot->carrying_objective ||
+		g->unit->object.parent_object_index != NONE || g->held < 2.f || !aas_ready())
+	{
+		return;
+	}
+	bot_ways_fade(side);
+	for (i = 0; i < BOT_WAYS; i++)
+	{
+		struct bot_way const *way = &bot_ways[side][i];
+		real d = distance3d(&way->at, position);
+		real w;
+		if (way->weight < 2.f || d < 10.f || d > 120.f)
+			continue;
+		w = way->weight / (1.f + d / 60.f);
+		if (w > best)
+		{
+			best = w;
+			hottest = i;
+		}
+	}
+	if (hottest == NONE)
+		return;
+	spot = bot_ways[side][hottest].at;
+	dx = position->x - spot.x;
+	dy = position->y - spot.y;
+	length = (real)sqrt(dx * dx + dy * dy);
+	if (length < 1.f)
+		return;
+	/* (toward us, turned a third of the way round for each time it died
+	   there, one way then the other) */
+	angle = (real)atan2(dy, dx) + (bot->memory.meet_turn % 2 ? 1.f : -1.f) * 1.1f * (real)((bot->memory.meet_turn + 1) / 2);
+	spot.x += (real)cos(angle) * 9.f;
+	spot.y += (real)sin(angle) * 9.f;
+	if (aas_nearest_area(AAS_FOOT, &spot, 5.f, &spot) == NONE)
+		return;
+	score = (7.f + 0.5f * MIN(best, 12.f)) * (0.6f + 0.4f * bot_awareness()) * (0.6f + 0.6f * bot->personality.patience) *
+		(g->teams ? 1.f : 0.75f);
+	if (bot_consider(&g->best, score, _bot_goal_hold, &spot, NONE, (long)((8.f + 8.f * bot->personality.patience) * BOT_TICKS_PER_SECOND), FALSE))
+	{
+		bot->meet_spot = spot;
+		if (bot_logging() && bot_env_set("HALO_BOT_MEETTRACE"))
+			bot_log("meet: bot%ld weighs meeting them at %.1f %.1f %.1f (%.1f): %.1f", g->me, spot.x, spot.y, spot.z, best, score);
+	}
+}
+
 static void bot_goal_help_mate(struct bot_goal_pass *g)
 {
 	struct bot_state *bot = g->bot;
@@ -7827,6 +8074,7 @@ static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum 
 	bot_goal_reset(&g);
 	bot_goal_outgunned(&g);
 	bot_goal_help_mate(&g);
+	bot_goal_meet(&g);
 
 	/* team slayer: with the team */
 	if (bot_is_team_slayer() && unit->object.parent_object_index == NONE)
@@ -8032,10 +8280,18 @@ static void bot_learn_from_score(struct bot_state *bot, struct player_datum cons
 		}
 		if (bot->on_objective_route)
 			personality->route_died = TRUE; /* another way next time */
+		/* died going to meet them: from another side next time */
+		if (bot->goal_kind == _bot_goal_hold && distance3d(&bot->goal, &bot->meet_spot) < 3.f)
+		{
+			bot->memory.meet_turn++;
+			if (bot_logging())
+				bot_log("meet: bot%ld died meeting them at %.1f %.1f %.1f: another side next time (%ld)", (long)(bot - bot_states),
+					bot->meet_spot.x, bot->meet_spot.y, bot->meet_spot.z, bot->memory.meet_turn);
+		}
 		if (bot->on_lane)
 		{
 			struct player_datum *me_now = bot_player_at_index((long)(bot - bot_states));
-			bot_lane_died(bot, me_now ? me_now->team_index : NONE);
+			bot_lane_died(bot, me_now ? bot_side_of(me_now) : NONE);
 			bot->on_lane = FALSE;
 		}
 		/* losing: a little warier, and safer in numbers */
@@ -8298,7 +8554,16 @@ static float bot_traffic_along(long const *areas, long count)
    or one whose middle is within 4 units of one of the other's (the areas
    are small, many to a corridor, and two routes side by side through one
    are one way, not two) */
+static real bot_route_shared_within(long const *route, long count, long const *other, long other_count, real within);
+
 static real bot_route_shared(long const *route, long count, long const *other, long other_count)
+{
+	return bot_route_shared_within(route, count, other, other_count, 4.f);
+}
+
+/* (the same, with a place within so far of one of the other's its own: on
+   open ground, a way 5 units over from another is the same way) */
+static real bot_route_shared_within(long const *route, long count, long const *other, long other_count, real within)
 {
 	long i, j, shared = 0;
 	if (count <= 0)
@@ -8312,7 +8577,7 @@ static real bot_route_shared(long const *route, long count, long const *other, l
 			if (route[i] == other[j])
 				break;
 			b = &aas_area(AAS_FOOT, other[j])->center;
-			if ((a->x - b->x) * (a->x - b->x) + (a->y - b->y) * (a->y - b->y) < 16.f && fabs(a->z - b->z) < 2.f)
+			if ((a->x - b->x) * (a->x - b->x) + (a->y - b->y) * (a->y - b->y) < within * within && fabs(a->z - b->z) < 2.f + within / 4.f)
 				break;
 		}
 		if (j < other_count)
@@ -8323,23 +8588,36 @@ static real bot_route_shared(long const *route, long count, long const *other, l
 
 /* ---------- lanes
 
-The ways from a base to the other side's flag that are ways of their own:
+The ways from one place to another, on any map, that are ways of their own:
 the quickest, and the others the map has that share little of it or of each
 other (across a bridge, round by a ramp, through the rooms, by a teleporter
-or not), up to four times as long. Worked out for each side once a game, a
-few places tried each time a bot of that side plans a trip. Each bot draws
-one at the start of the game, the shorter likelier, and keeps it; it draws
-again when it dies on it, and, now and then, when one of its side dies on
-it (the side remembers where they have died, fading over a minute or two).
-In a game of flags before this, every bot went the quickest way every time:
-on Chill Out every one of 81 trips to the other flag was by a teleporter.
-HALO_BOT_OFF=lanes: as it was */
+or not, round the other side of a hill), up to four times as long. Worked
+out for a side's trips as they come, a few places tried each time one of
+its bots plans one: from its base to the other side's flag in a game of
+flags; for the others (the hill, the ball, a long walk to anywhere, any
+game) from about where it is to about where it goes, the "about" the
+looser the longer the way. Up to sixteen of them, the least lately used
+worked out again. Each bot draws one of each set's lanes the first time it
+goes that way, the shorter likelier, and keeps it all game; it draws again
+when it dies on it, and, now and then, when one of its side dies on it (the
+side remembers where they have died, fading over a minute or two); and the
+better ones, when its side knows the enemy are along it (bot_awareness).
+Trips that are not for the game's objective go by a lane only as often as
+they would have gone another way before (bot_plan_via's chance). In a game
+of flags before this, every bot went the quickest way every time: on Chill
+Out every one of 81 trips to the other flag was by a teleporter.
+HALO_BOT_OFF=lanes: as it was (a game of flags' trips to the flag by
+another way now and then); "lanesall": in a game of flags only */
 
 #define BOT_LANES 4
 #define BOT_LANE_TRIES 60
+#define BOT_LANE_TRIES_A_TICK 12
 static struct bot_lanes
 {
-	long game_tick; /* when worked out (a new game: again) */
+	long serial; /* (0: none) */
+	long side;
+	long game_tick; /* when worked out (game time going back: a new game, again) */
+	long used; /* game time */
 	real_point3d from, to;
 	long tries;
 	long count;
@@ -8349,10 +8627,13 @@ static struct bot_lanes
 	long areas[BOT_LANES][BOT_ROUTE_MOST];
 	long area_count[BOT_LANES];
 	float danger[BOT_LANES]; /* deaths on it lately, fading */
+	float worked[BOT_LANES]; /* the objective got by it lately (the flag, the ball), fading */
 	long teleports[BOT_LANES]; /* teleporters on it */
 	long faded_tick;
 	unsigned long random;
-} bot_lanes[2];
+} bot_lanes[BOT_LANE_SETS];
+static long bot_lanes_serial;
+static long bot_lanes_tick, bot_lanes_tries_this_tick;
 
 static real bot_lanes_random(struct bot_lanes *lanes)
 {
@@ -8365,23 +8646,56 @@ static int bot_lanes_on(void)
 	return !bot_env_off("lanes") && !bot_env_off("routes");
 }
 
-/* a few more places tried for a side's lanes (from its base to the other
-   flag's); TRUE when they are worked out */
-static int bot_lanes_advance(long team, real_point3d const *from, real_point3d const *to, long tries)
+/* the set of a side's lanes from about here to about there (exactly: within
+   3 units, from base to flag), found or begun (the least lately used set
+   given over to it) */
+static struct bot_lanes *bot_lanes_for(long side, real_point3d const *from, real_point3d const *to, int exactly)
 {
+	long now = game_time_get(), i, oldest = 0;
+	real length = bot_distance2d(from, to);
+	real near_from = exactly ? 3.f : PIN(length / 4.f, 8.f, 60.f);
+	real near_to = exactly ? 3.f : PIN(length / 8.f, 6.f, 30.f);
 	struct bot_lanes *lanes;
-	if (team < 0 || team > 1 || !aas_ready())
-		return FALSE;
-	lanes = &bot_lanes[team];
-	if (lanes->game_tick > game_time_get() || distance3d(&lanes->from, from) > 3.f || distance3d(&lanes->to, to) > 3.f ||
-		(lanes->count == 0 && lanes->tries == 0 && !lanes->ready))
+	for (i = 0; i < BOT_LANE_SETS; i++)
 	{
-		/* (a new game, new bases: begun again, with the quickest) */
-		memset(lanes, 0, sizeof(*lanes));
-		lanes->game_tick = game_time_get();
-		lanes->from = *from;
-		lanes->to = *to;
-		lanes->random = bot_hash((unsigned long)game_time_get() ^ (unsigned long)(team * 7919) ^ bots_match()) | 1;
+		lanes = &bot_lanes[i];
+		if (lanes->serial && lanes->game_tick > now)
+			lanes->serial = 0; /* (a new game) */
+		if (lanes->serial && lanes->side == side && bot_distance2d(&lanes->from, from) < near_from &&
+			bot_distance2d(&lanes->to, to) < near_to && fabs(lanes->to.z - to->z) < 4.f)
+		{
+			lanes->used = now;
+			return lanes;
+		}
+		if (!lanes->serial || (bot_lanes[oldest].serial && lanes->used < bot_lanes[oldest].used))
+			oldest = i;
+	}
+	lanes = &bot_lanes[oldest];
+	memset(lanes, 0, sizeof(*lanes));
+	lanes->serial = ++bot_lanes_serial;
+	lanes->side = side;
+	lanes->game_tick = now;
+	lanes->used = now;
+	lanes->from = *from;
+	lanes->to = *to;
+	return lanes;
+}
+
+/* a few more places tried for a set's lanes; TRUE when they are worked out */
+static int bot_lanes_advance(struct bot_lanes *lanes, long tries)
+{
+	real_point3d const *from = &lanes->from, *to = &lanes->to;
+	if (!aas_ready())
+		return FALSE;
+	if (bot_lanes_tick != game_time_get())
+	{
+		bot_lanes_tick = game_time_get();
+		bot_lanes_tries_this_tick = 0;
+	}
+	if (lanes->count == 0 && lanes->tries == 0 && !lanes->ready)
+	{
+		/* (begun with the quickest) */
+		lanes->random = bot_hash((unsigned long)game_time_get() ^ (unsigned long)(lanes->side * 7919) ^ (unsigned long)(lanes->serial * 104729) ^ bots_match()) | 1;
 		lanes->area_count[0] = bot_route_areas(from, to, lanes->areas[0], BOT_ROUTE_MOST);
 		lanes->teleports[0] = bot_route_teleports;
 		lanes->time[0] = aas_travel_time(AAS_FOOT, from, to);
@@ -8393,7 +8707,7 @@ static int bot_lanes_advance(long team, real_point3d const *from, real_point3d c
 		}
 		lanes->count = 1;
 	}
-	while (!lanes->ready && tries-- > 0)
+	while (!lanes->ready && tries-- > 0 && bot_lanes_tries_this_tick < BOT_LANE_TRIES_A_TICK)
 	{
 		real dx = to->x - from->x, dy = to->y - from->y;
 		real length = (real)sqrt(dx * dx + dy * dy);
@@ -8402,6 +8716,8 @@ static int bot_lanes_advance(long team, real_point3d const *from, real_point3d c
 		real_point3d spot, via;
 		long route[BOT_ROUTE_MOST], count, k, teleports;
 		float first, second;
+		real within;
+		bot_lanes_tries_this_tick++;
 		if (++lanes->tries >= BOT_LANE_TRIES || lanes->count >= BOT_LANES || length < 1.f)
 		{
 			lanes->ready = TRUE;
@@ -8426,16 +8742,19 @@ static int bot_lanes_advance(long team, real_point3d const *from, real_point3d c
 			continue;
 		/* (a way of its own: the middle of it, half its areas, little along
 		   any lane already found, nor theirs along it; or by a teleporter
-		   where that one goes on foot, or the other way about. The two ends,
-		   out of the base and up to the flag, are every lane's) */
+		   where that one goes on foot, or the other way about. The two ends
+		   are every lane's. Along: within a twelfth of the way from one end
+		   to the other, 4 units to 20; on a small map of rooms a corridor
+		   over is another way, on open ground it is the same one) */
+		within = PIN(length / 12.f, 4.f, 20.f);
 		for (k = 0; k < lanes->count; k++)
 		{
 			long a0 = count / 4, a1 = count - count / 4;
 			long b0 = lanes->area_count[k] / 4, b1 = lanes->area_count[k] - lanes->area_count[k] / 4;
 			if ((teleports > 0) != (lanes->teleports[k] > 0))
 				continue;
-			if (bot_route_shared(route + a0, a1 - a0, lanes->areas[k], lanes->area_count[k]) > 0.6f ||
-				bot_route_shared(lanes->areas[k] + b0, b1 - b0, route, count) > 0.6f)
+			if (bot_route_shared_within(route + a0, a1 - a0, lanes->areas[k], lanes->area_count[k], within) > 0.6f ||
+				bot_route_shared_within(lanes->areas[k] + b0, b1 - b0, route, count, within) > 0.6f)
 				break;
 		}
 		if (k < lanes->count)
@@ -8447,23 +8766,59 @@ static int bot_lanes_advance(long team, real_point3d const *from, real_point3d c
 		lanes->teleports[k] = teleports;
 		memcpy(lanes->areas[k], route, count * sizeof(long));
 		if (bot_logging())
-			bot_log("lanes: side %ld lane %ld by %.1f %.1f %.1f, %.1f s (the quickest %.1f s), %ld areas, %ld teleporters (the quickest %ld)", team, k,
-				via.x, via.y, via.z, lanes->time[k], lanes->time[0], count, teleports, lanes->teleports[0]);
+			bot_log("lanes: side %ld set %ld lane %ld by %.1f %.1f %.1f, %.1f s (the quickest %.1f s), %ld areas, %ld teleporters (the quickest %ld)",
+				lanes->side, lanes->serial, k, via.x, via.y, via.z, lanes->time[k], lanes->time[0], count, teleports, lanes->teleports[0]);
 	}
 	return lanes->ready;
 }
 
-/* a lane drawn for a bot of a side: the quicker likelier, the deadlier lately
-   less so, its last one (died on) less so still */
+/* the enemies a side knows of lately along a lane (past the first sixth of
+   it, the start: every lane's), each by how lately */
+static real bot_lane_known(struct bot_lanes const *lanes, long lane)
+{
+	struct bot_side const *knowledge;
+	long now = game_time_get(), k, i;
+	real known = 0.f;
+	real within = PIN(bot_distance2d(&lanes->from, &lanes->to) / 12.f, 6.f, 20.f);
+	if (lanes->side < 0 || lanes->side >= AAS_COST_SLOTS || lane < 0 || lane >= lanes->count)
+		return 0.f;
+	knowledge = &bot_sides[lanes->side];
+	for (k = 0; k < knowledge->known_count; k++)
+	{
+		struct bot_known const *seen = &knowledge->known[k];
+		real age = (now - seen->seen) / (real)BOT_TICKS_PER_SECOND;
+		if (seen->unit == NONE || age > BOT_KNOWN_SECONDS || age < 0.f || !bot_unit_alive(seen->unit))
+			continue;
+		for (i = lanes->area_count[lane] / 6; i < lanes->area_count[lane]; i++)
+		{
+			real_point3d const *c = &aas_area(AAS_FOOT, lanes->areas[lane][i])->center;
+			if (bot_distance2d(c, &seen->at) < within && fabs(c->z - seen->at.z) < 4.f)
+				break;
+		}
+		if (i < lanes->area_count[lane])
+			known += 1.f - age / BOT_KNOWN_SECONDS;
+	}
+	return known;
+}
+
+/* a lane drawn for a bot: the quicker likelier, the deadlier lately less so,
+   its last one (died on) less so still; and, the better the bot
+   (bot_awareness), the less one its side knows the enemy are along */
 static long bot_lane_draw(struct bot_state *bot, struct bot_lanes *lanes, long not_this)
 {
 	real weight[BOT_LANES], total = 0.f, pick;
+	real aware = bot_awareness();
 	long k;
 	if (lanes->count <= 0)
 		return NONE;
 	for (k = 0; k < lanes->count; k++)
 	{
-		weight[k] = (real)pow(lanes->time[0] / MAX(lanes->time[k], 0.1f), 1.2f) / (1.f + 1.5f * lanes->danger[k]);
+		/* (the longer ways: the more it wanders, the likelier; the most, as
+		   likely as the quickest, near enough) */
+		weight[k] = (real)pow(lanes->time[0] / MAX(lanes->time[k], 0.1f), 1.4f - 1.25f * bot->personality.wander) / (1.f + 1.5f * lanes->danger[k]) *
+			(1.f + 0.8f * lanes->worked[k]); /* (a way that worked: again) */
+		if (aware > 0.f)
+			weight[k] /= 1.f + 3.f * aware * bot_lane_known(lanes, k);
 		if (k == not_this && lanes->count > 1)
 			weight[k] *= 0.15f;
 		total += weight[k];
@@ -8474,71 +8829,131 @@ static long bot_lane_draw(struct bot_state *bot, struct bot_lanes *lanes, long n
 	return k;
 }
 
-/* the deaths on a side's lanes fade: by half in a minute and a half */
+/* the deaths on a set's lanes fade: by half in a minute and a half */
 static void bot_lanes_fade(struct bot_lanes *lanes)
 {
 	long now = game_time_get(), k;
 	if (now - lanes->faded_tick < 5 * BOT_TICKS_PER_SECOND)
 		return;
 	for (k = 0; k < lanes->count; k++)
+	{
 		lanes->danger[k] *= 0.962f;
+		lanes->worked[k] *= 0.962f;
+	}
 	lanes->faded_tick = now;
 }
 
-/* a bot of a side died on its lane: the side remembers, it draws another,
-   and those of its side on the same lane may */
-static void bot_lane_died(struct bot_state *bot, long team)
+/* a bot got the objective by its lane: its side remembers, and it and those
+   of its side on another lane of the set are the likelier to go that way */
+static void bot_lane_worked(struct bot_state *bot)
 {
+	long set = bot->lane_set, lane = bot->lane, i;
 	struct bot_lanes *lanes;
-	long lane = bot->lane, i;
-	if (team < 0 || team > 1 || lane < 0)
+	bot->lane_live = FALSE;
+	if (set < 0 || set >= BOT_LANE_SETS)
 		return;
-	lanes = &bot_lanes[team];
-	if (lane >= lanes->count)
+	lanes = &bot_lanes[set];
+	if (!lanes->serial || lane < 0 || lane >= lanes->count || bot->memory.lane_serial_of[set] != lanes->serial)
 		return;
-	lanes->danger[lane] += 1.f;
-	bot->lane = bot_lane_draw(bot, lanes, lane);
+	lanes->worked[lane] += 1.f;
 	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
 	{
 		struct bot_state *mate = &bot_states[i];
-		if (mate == bot || mate->unit_index == NONE || mate->team != team || mate->lane != lane)
+		if (mate == bot || mate->unit_index == NONE || mate->memory.lane_serial_of[set] != lanes->serial || mate->memory.lane_of[set] == lane)
 			continue;
-		if (bot_random(mate) < 0.35f)
-			mate->lane = bot_lane_draw(mate, lanes, lane);
+		if (bot_random(mate) < 0.25f)
+			mate->memory.lane_of[set] = bot_lane_draw(mate, lanes, NONE);
 	}
 	if (bot_logging())
-		bot_log("lanes: side %ld lane %ld died on (%.1f lately); now lane %ld", team, lane, lanes->danger[lane], bot->lane);
+		bot_log("lanes: side %ld set %ld lane %ld worked (%.1f lately)", lanes->side, lanes->serial, lane, lanes->worked[lane]);
 }
 
-/* For a trip to the other side's flag: by its lane, when it has a place to
-   go by and going by it is still a way there from here (not back). TRUE
-   when it is set */
-static int bot_lane_trip(struct bot_state *bot, struct bot_body const *body, long player_index)
+/* a bot's lane of a set, set (and remembered all game) */
+static void bot_lane_keep(struct bot_state *bot, long set, long lane)
+{
+	bot->memory.lane_of[set] = lane;
+	bot->memory.lane_serial_of[set] = bot_lanes[set].serial;
+	bot->lane = lane;
+	bot->lane_set = set;
+}
+
+/* a bot died on its lane: its side remembers, it draws another, and those of
+   its side on the same lane may */
+static void bot_lane_died(struct bot_state *bot, long side)
+{
+	struct bot_lanes *lanes;
+	long lane = bot->lane, set = bot->lane_set, i;
+	if (side < 0 || lane < 0 || set < 0 || set >= BOT_LANE_SETS)
+		return;
+	lanes = &bot_lanes[set];
+	if (!lanes->serial || lanes->side != side || lane >= lanes->count || bot->memory.lane_serial_of[set] != lanes->serial)
+		return;
+	lanes->danger[lane] += 1.f;
+	bot_lane_keep(bot, set, bot_lane_draw(bot, lanes, lane));
+	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+	{
+		struct bot_state *mate = &bot_states[i];
+		if (mate == bot || mate->unit_index == NONE || mate->memory.lane_serial_of[set] != lanes->serial || mate->memory.lane_of[set] != lane)
+			continue;
+		if (bot_random(mate) < 0.35f)
+		{
+			mate->memory.lane_of[set] = bot_lane_draw(mate, lanes, lane);
+			if (mate->lane_set == set)
+				mate->lane = mate->memory.lane_of[set];
+		}
+	}
+	if (bot_logging())
+		bot_log("lanes: side %ld set %ld lane %ld died on (%.1f lately); now lane %ld", side, lanes->serial, lane, lanes->danger[lane], bot->lane);
+}
+
+/* For a trip: by its lane, when it has a place to go by and going by it is
+   still a way there from here (not back). The other side's flag in a game
+   of flags: by its base's set; anything else: by the set from about here.
+   TRUE when the trip is by a lane (the quickest, or by its place) */
+static int bot_lane_trip(struct bot_state *bot, struct bot_body const *body, long player_index, int objective)
 {
 	struct player_datum *player = bot_player_at_index(player_index);
+	long side = player ? bot_side_of(player) : NONE;
 	long team = player ? player->team_index : NONE;
-	long mine, theirs;
+	long mine, theirs, set;
 	real_point3d my_base, their_base;
 	struct bot_lanes *lanes;
 	float direct, first, second;
 	struct bot_body there;
-	if (!bot_lanes_on() || !player || team < 0 || team > 1 || !game_engine || game_engine != &ctf_engine ||
-		!ctf_bot_flag(team, &mine, &my_base) || !ctf_bot_flag(1 - team, &theirs, &their_base))
-	{
+	int flags = game_engine && game_engine == &ctf_engine && team >= 0 && team <= 1 &&
+		ctf_bot_flag(team, &mine, &my_base) && ctf_bot_flag(1 - team, &theirs, &their_base);
+	if (!bot_lanes_on() || !player || side == NONE || side < 0 || side >= AAS_COST_SLOTS)
 		return FALSE;
-	}
-	lanes = &bot_lanes[team];
-	if (!bot_lanes_advance(team, &my_base, &their_base, 6) || lanes->count <= 1 || distance3d(&bot->goal, &their_base) > 10.f)
+	if (flags && objective && distance3d(&bot->goal, &their_base) <= 10.f)
+		lanes = bot_lanes_for(side, &my_base, &their_base, TRUE);
+	else if (bot_env_off("lanesall"))
+		return FALSE;
+	else
+		lanes = bot_lanes_for(side, &body->position, &bot->goal, FALSE);
+	set = (long)(lanes - bot_lanes);
+	bot_lanes_advance(lanes, 6);
+	if (lanes->count <= 1)
 		return FALSE;
 	bot_lanes_fade(lanes);
-	if (bot->lane < 0 || bot->lane >= lanes->count || bot->lane_game != lanes->game_tick + 1)
+	if (bot->memory.lane_serial_of[set] != lanes->serial || bot->memory.lane_of[set] < 0 || bot->memory.lane_of[set] >= lanes->count)
 	{
-		bot->lane = bot_lane_draw(bot, lanes, NONE);
-		bot->lane_game = lanes->game_tick + 1; /* (drawn for these lanes, this game's) */
+		bot_lane_keep(bot, set, bot_lane_draw(bot, lanes, NONE));
 		if (bot_logging())
-			bot_log("lanes: bot%ld draws lane %ld of %ld", player_index, bot->lane, lanes->count);
+			bot_log("lanes: bot%ld draws lane %ld of %ld (set %ld)", player_index, bot->lane, lanes->count, lanes->serial);
 	}
+	else if (bot_awareness() > 0.f && bot_lane_known(lanes, bot->memory.lane_of[set]) >= 0.5f && bot_random(bot) < bot_awareness())
+	{
+		/* (setting out, the better know the enemy are along its lane: another, likelier one they aren't on) */
+		long was = bot->memory.lane_of[set];
+		bot_lane_keep(bot, set, bot_lane_draw(bot, lanes, was));
+		if (bot_logging())
+			bot_log("lanes: bot%ld knows of %.1f along lane %ld: lane %ld", player_index, bot_lane_known(lanes, was), was, bot->lane);
+	}
+	else
+		bot_lane_keep(bot, set, bot->memory.lane_of[set]);
 	bot->on_lane = TRUE;
+	if (objective)
+		bot->lane_live = TRUE;
 	if (bot->lane <= 0)
 		return TRUE; /* (the quickest: no place to go by) */
 	direct = bot_travel_time(body, AAS_FOOT, &bot->goal);
@@ -8555,10 +8970,10 @@ static int bot_lane_trip(struct bot_state *bot, struct bot_body const *body, lon
 	bot->via_valid = TRUE;
 	bot->via_side = bot->lane;
 	bot->via_ticks = (long)((first + 6.f) * BOT_TICKS_PER_SECOND);
-	bot->on_objective_route = TRUE;
+	bot->on_objective_route = objective;
 	if (bot_logging())
-		bot_log("bot%ld t%ld via lane %ld (%.1f %.1f %.1f) for the flag", player_index, game_time_get(), bot->lane,
-			bot->via_point.x, bot->via_point.y, bot->via_point.z);
+		bot_log("bot%ld t%ld via lane %ld of set %ld (%.1f %.1f %.1f)%s", player_index, game_time_get(), bot->lane, lanes->serial,
+			bot->via_point.x, bot->via_point.y, bot->via_point.z, objective ? " for the objective" : "");
 	return TRUE;
 }
 
@@ -8623,7 +9038,7 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 	if (!aas_ready() || distance < (objective ? 14.f : flank ? 15.f : 18.f))
 		return;
 	/* (for the other flag in a game of flags: by its lane) */
-	if (objective && !carrying && bot_lane_trip(bot, body, player_index))
+	if (objective && !carrying && bot_lane_trip(bot, body, player_index, TRUE))
 		return;
 	if (carrying)
 		chance = 0.15f + 0.2f * (1.f - bot->personality.daring), slack = 1.12f; /* (home quick: the danger map already steers round them) */
@@ -8659,6 +9074,10 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 		chance = 0.35f + MIN(0.4f, distance / 150.f), slack = 1.3f;
 	if (bot->personality.route_died && objective)
 		chance = MAX(chance, 0.9f); /* (not that way again) */
+	/* (its own way more often, the more it wanders: one in five trips more
+	   for the middling, two in five for the most) */
+	if (!carrying && !bot_env_off("wander"))
+		chance = MIN(0.95f, chance + 0.4f * bot->personality.wander);
 	/* (the quickest route, by its areas: what a way round is measured
 	   against; and a busy one is a reason to take another) */
 	bot->via_plan.direct_count = 0;
@@ -8673,6 +9092,14 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 	{
 		bot_traffic_add(bot->via_plan.direct_areas, bot->via_plan.direct_count);
 		return;
+	}
+	/* (another way, on any map: by a lane of its own, when the way there
+	   has them; else a way round, below) */
+	if (!carrying && !flank && !objective && bot_lane_trip(bot, body, player_index, FALSE))
+	{
+		if (bot->via_valid && bot->lane > 0)
+			return;
+		bot->on_lane = FALSE; /* (its lane is the quickest: a way round, below, as before) */
 	}
 	direct = bot_travel_time(body, AAS_FOOT, &bot->goal);
 	if (direct <= 0.f)
@@ -10112,6 +10539,16 @@ static void bots_track_deaths(long now)
 			{
 				bots_killer[died[i]] = scored[k];
 				bots_killed_time[died[i]] = now;
+				{
+					/* (where they killed one of ours from: a way of theirs) */
+					struct player_datum *victim = bot_player_at_index(died[i]);
+					struct player_datum *killer = bot_player_at_index(scored[k]);
+					if (victim && killer && bot_side_of(victim) != NONE && bot_side_of(killer) != bot_side_of(victim) &&
+						scored[k] >= 0 && scored[k] < BOT_MAXIMUM_PLAYERS && alive_unit[scored[k]] != 0)
+					{
+						bot_ways_note(bot_side_of(victim), &last_position[scored[k]], 2.f);
+					}
+				}
 				if (died_count > 1 && scored_count > 1)
 					scored[k] = NONE;
 				break;
@@ -10169,6 +10606,84 @@ static void bots_track_visits(long now)
 		{
 			long team = player->team_index >= 0 ? player->team_index : DATUM_INDEX_TO_ABSOLUTE_INDEX(iterator.datum_index);
 			*nav_visit_slot(team, &object_get(object_get_ultimate_parent(player->unit_index))->object.position) = now;
+		}
+	}
+}
+
+/* Each side's sense of where the enemy is: once a second, each enemy the
+   side has not seen lately may be put in what it knows, roughly where they
+   are, the likelier the better its bots (bot_awareness), and the more so
+   when they are shooting or in a vehicle (heard, and big); the worse its
+   bots, the rougher. Games of teams only */
+static void bot_sides_aware(void)
+{
+	static unsigned long random = 0x2545f491UL;
+	long now = game_time_get();
+	long side;
+	if (!game_engine_has_teams() || bot_env_off("aware"))
+		return;
+	for (side = 0; side < 2; side++)
+	{
+		struct bot_side *knowledge = &bot_sides[side];
+		real total = 0.f, aware;
+		long bots = 0, i;
+		struct data_iterator iterator;
+		struct player_datum *player;
+		if (now - knowledge->aware_tick < BOT_TICKS_PER_SECOND && now >= knowledge->aware_tick)
+			continue;
+		knowledge->aware_tick = now;
+		for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+		{
+			struct player_datum *mine;
+			if (!bot_states[i].has_personality || bot_states[i].unit_index == NONE)
+				continue;
+			mine = bot_player_at_index(i);
+			if (!mine || bot_side_of(mine) != side)
+				continue;
+			total += bot_awareness_of(bot_skill_of(i));
+			bots++;
+		}
+		if (bots == 0 || total <= 0.f)
+			continue;
+		aware = total / (real)bots;
+		data_iterator_new(&iterator, player_data);
+		while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+		{
+			struct unit_datum *unit;
+			real chance, rough;
+			real_point3d at;
+			long k;
+			if (player->unit_index == NONE || bot_side_of(player) == side || bot_side_of(player) == NONE ||
+				!bot_unit_alive(player->unit_index))
+			{
+				continue;
+			}
+			/* (seen lately: what is known stands) */
+			for (k = 0; k < knowledge->known_count; k++)
+				if (knowledge->known[k].unit == player->unit_index && now - knowledge->known[k].seen < 2 * BOT_TICKS_PER_SECOND)
+					break;
+			if (k < knowledge->known_count)
+				continue;
+			unit = unit_get(player->unit_index);
+			chance = 0.3f * (real)pow(aware, 1.5f);
+			if (TEST_FLAG(unit->unit.control_flags, _unit_control_weapon_primary_trigger_bit))
+				chance *= 2.f;
+			if (object_get_ultimate_parent(player->unit_index) != player->unit_index)
+				chance *= 2.f;
+			random = random * 1664525UL + 1013904223UL;
+			if ((real)((random >> 8) & 0xFFFF) / 65535.f >= chance)
+				continue;
+			at = object_get(object_get_ultimate_parent(player->unit_index))->object.position;
+			rough = 1.f + 6.f * (1.f - aware);
+			random = random * 1664525UL + 1013904223UL;
+			at.x += rough * ((real)((random >> 8) & 0xFFFF) / 32767.f - 1.f);
+			random = random * 1664525UL + 1013904223UL;
+			at.y += rough * ((real)((random >> 8) & 0xFFFF) / 32767.f - 1.f);
+			bot_side_saw_rough = TRUE;
+			bot_side_saw(side, player->unit_index, &at);
+			bot_side_saw_rough = FALSE;
+			if (bot_logging() && bot_env_set("HALO_BOT_AWARETRACE"))
+				bot_log("aware: side %ld (%.2f) knows of unit %lx at %.1f %.1f %.1f", side, aware, player->unit_index, at.x, at.y, at.z);
 		}
 	}
 }
@@ -10271,7 +10786,10 @@ static void bots_world_tick(void)
 	bots_track_deaths(now);
 	/* each side's route costs, a part each tick (by turns) */
 	if (aas_ready())
+	{
+		bot_sides_aware();
 		bot_sides_update();
+	}
 	/* who's been where */
 	if (now % 15 == 0)
 		bots_track_visits(now);
@@ -12192,6 +12710,78 @@ static void bot_drive_turret(struct bot_think *t)
 		bot->turret_idle_ticks = 0;
 }
 
+/* A long drive across country (no mesh to route on, so no costs to route
+   round): when its side knows of an enemy near the way, short of the place
+   it is going (where they are is likely what it goes for), a place to go by
+   off to the side of them, 70 units over, the likelier the better the
+   driver (bot_awareness). Kept to until it is reached or overdue, or the
+   way is held up. TRUE, *by: go by it. HALO_BOT_OFF=drivearound: straight */
+static int bot_drive_around(struct bot_state *bot, long side, real_point3d const *from, real_point3d const *to, real_point3d *by)
+{
+	long now = game_time_get();
+	struct bot_side const *knowledge;
+	real dx, dy, length, aware, best_along = 1.0e9f, best_perp = 0.f, best_z = 0.f;
+	long k;
+	if (bot_env_off("drivearound") || side < 0 || side > 1 || !game_engine_has_teams())
+		return FALSE;
+	if (bot->around_valid)
+	{
+		if (now < bot->around_until && bot_distance2d(from, &bot->around) > 20.f &&
+			bot_distance2d(&bot->around, to) < bot_distance2d(from, to) + 40.f)
+		{
+			*by = bot->around;
+			return TRUE;
+		}
+		bot->around_valid = FALSE;
+		bot->around_next = now + 3 * BOT_TICKS_PER_SECOND;
+	}
+	if (now < bot->around_next && now >= bot->around_next - 10 * BOT_TICKS_PER_SECOND)
+		return FALSE;
+	bot->around_next = now + 2 * BOT_TICKS_PER_SECOND;
+	aware = bot_awareness();
+	dx = to->x - from->x;
+	dy = to->y - from->y;
+	length = (real)sqrt(dx * dx + dy * dy);
+	if (aware < 0.25f || length < 100.f)
+		return FALSE;
+	dx /= length;
+	dy /= length;
+	knowledge = &bot_sides[side];
+	for (k = 0; k < knowledge->known_count; k++)
+	{
+		struct bot_known const *seen = &knowledge->known[k];
+		real age = (now - seen->seen) / (real)BOT_TICKS_PER_SECOND;
+		real ex = seen->at.x - from->x, ey = seen->at.y - from->y;
+		real along = ex * dx + ey * dy;
+		real perp = -ex * dy + ey * dx;
+		if (seen->unit == NONE || age > BOT_KNOWN_SECONDS || age < 0.f || !bot_unit_alive(seen->unit))
+			continue;
+		if (along < 30.f || along > length - 50.f || along > 400.f || fabs(perp) > 45.f) /* (further on: they will have moved) */
+			continue;
+		if (along < best_along)
+		{
+			best_along = along;
+			best_perp = perp;
+			best_z = seen->at.z;
+		}
+	}
+	if (best_along > 1.0e8f || bot_random(bot) >= 0.4f + 0.6f * aware)
+		return FALSE;
+	{
+		real over = best_perp >= 0.f ? best_perp - 70.f : best_perp + 70.f;
+		bot->around.x = from->x + dx * best_along - dy * over;
+		bot->around.y = from->y + dy * best_along + dx * over;
+		bot->around.z = best_z;
+	}
+	bot->around_valid = TRUE;
+	bot->around_until = now + (long)((best_along / 12.f + 10.f) * BOT_TICKS_PER_SECOND);
+	*by = bot->around;
+	if (bot_logging())
+		bot_log("drive around: bot t%ld an enemy %.0f along, %.0f over: by %.1f %.1f %.1f", now, best_along, best_perp,
+			bot->around.x, bot->around.y, bot->around.z);
+	return TRUE;
+}
+
 static void bot_drive_cross_country(struct bot_think *t)
 {
 	long player_absolute_index = t->player_absolute_index;
@@ -12212,14 +12802,29 @@ static void bot_drive_cross_country(struct bot_think *t)
 	long waiting = t->teams ? bot_riders_coming(vehicle_index, player_absolute_index, 25.f) : 0;
 
 
+	real_point3d by;
+	int around;
+
 	bot_drive_country_jump_test(t);
 	t->drive_mode = 1;
-	*drive_to = *far_place;
-	bot_country_drive(&bot->traveller, body, far_place, &across);
+	/* (round the enemy its side knows of, when not going for them) */
+	around = bot->goal_kind != _bot_goal_enemy && t->target == NONE &&
+		bot_drive_around(bot, bot_side_of(me), position, far_place, &by);
+	*drive_to = around ? by : *far_place;
+	bot_country_drive(&bot->traveller, body, drive_to, &across);
+	if (around && (across.none || across.held_up))
+	{
+		/* (no way round there: straight on, then) */
+		bot->around_valid = FALSE;
+		bot->around_next = game_time_get() + 8 * BOT_TICKS_PER_SECOND;
+	}
+	else
+	{
 	if (across.off)
 		bot_drive_country_out_of_building(t, &across);
 	if (across.none || across.held_up)
 		bot_drive_country_give_up(t, &across);
+	}
 	if (bot_env_set("HALO_BOT_COUNTRYTRACE") && bot_logging() && game_time_get() % 10 == 0)
 		bot_log("drivetrace %ld t%ld at %.1f %.1f %.1f by %.1f %.1f %.1f: yaw %.2f throttle %.2f%s%s%s%s", me->unit_index & 0xffff, game_time_get(),
 			position->x, position->y, position->z, across.next.x, across.next.y, across.next.z, across.yaw, across.throttle,
@@ -16053,14 +16658,15 @@ personality.field = PIN(personality.field + swing, low, high))
 		BOT_MOOD(jumpiness, 0.1f, 1.f);
 		BOT_MOOD(vehicle_love, 0.f, 1.f);
 		BOT_MOOD(focus, 0.2f, 1.f);
+		/* (its way of going about the map: some lives more its own way than others) */
+		if (!bot_env_off("wander"))
+			BOT_MOOD(wander, 0.f, 1.f);
 #undef BOT_MOOD
 	}
 	bot_skill_traits(&personality); /* (the skill level may have changed) */
 	long ignore_object[6];
 	long ignore_until[6];
 	memcpy(ignore_object, bot->ignore_object, sizeof(ignore_object));
-	{
-		long lane = bot->lane, lane_game = bot->lane_game; /* (its lane is its own all game) */
 	memcpy(ignore_until, bot->ignore_until, sizeof(ignore_until));
 	/* (what it remembers of this game, through the life's clean slate) */
 	static struct bot_state kept;
@@ -16068,9 +16674,6 @@ personality.field = PIN(personality.field + swing, low, high))
 	memset(bot, 0, sizeof(*bot));
 	memcpy(&bot->memory, &kept.memory, sizeof(bot->memory));
 	memcpy(bot->ignore_object, ignore_object, sizeof(ignore_object));
-		bot->lane = lane;
-		bot->lane_game = lane_game;
-	}
 	memcpy(bot->ignore_until, ignore_until, sizeof(ignore_until));
 	bot->personality = personality;
 	bot->temperament = temperament;
@@ -18123,13 +18726,21 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	   don't bother) */
 	/* (not when going after someone: that's toward the danger; nor for
 	   the aggressive, who go straight in) */
-	bot->carrying_objective = t->vehicle_index == NONE && (bot_holds_named(unit, "flag") || bot_holds_named(unit, "ball"));
+	{
+		int was_carrying = bot->carrying_objective;
+		bot->carrying_objective = t->vehicle_index == NONE && (bot_holds_named(unit, "flag") || bot_holds_named(unit, "ball"));
+		if (bot->carrying_objective && !was_carrying && bot->lane_live)
+			bot_lane_worked(bot); /* (got there by its lane) */
+	}
 	/* (whoever has the flag or the ball keeps out of their sight, whatever
 	   its nature) */
 	bot->mover.move.cost_slot = ((bot->personality.daring < 0.8f && bot->personality.aggression < (BOT_ON(BOT_F_COSTSLOT) ? 0.6f : 0.7f)) ||
 		(bot->carrying_objective && BOT_ON(BOT_F_COSTSLOT)) ||
 		/* (a free-for-all, hurt: by the ways nobody is watching, BOT_G_ROUTES) */
-		(bot_ffa_pro(BOT_G_ROUTES) > 0.5f && (unit->object.shield_vitality < 0.5f || unit->object.body_vitality < 0.5f))) &&
+		(bot_ffa_pro(BOT_G_ROUTES) > 0.5f && (unit->object.shield_vitality < 0.5f || unit->object.body_vitality < 0.5f)) ||
+		/* (the better, in a game of teams: round where they know the enemy is,
+		   on foot or driving) */
+		(t->teams && bot_awareness() >= 0.5f)) &&
 		bot->goal_kind != _bot_goal_enemy && bot->target_unit == NONE ? bot_side_of(me) : NONE;
 	t->committed = t->vehicle_index == NONE && bot_move_committed(&bot->mover);
 	bot_weapon_describe(unit->unit.current_weapon_index >= 0 ?

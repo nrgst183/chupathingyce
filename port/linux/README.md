@@ -2980,6 +2980,53 @@ and two kinds of walker); the wrecks of the others stayed.
   slayer there were more fights in the middle of the map (Wizard: 75 deaths
   against 45). In CTF, flag pickups stayed level with meeting off (Chill
   Out 23 against 24, Blood Gulch 66 against 71).
+- **Team King of the Hill: one holds, the rest guard:** while nobody on a
+  side is on the hill, everyone goes for it, and the first one there holds
+  it. The rest stand guard around it: a first row just off its edge, a
+  second row a few steps further out, fanned toward the nearest enemy (or
+  where the enemy has been coming from). If someone of the other side is
+  on the hill, everyone goes in to clear it. When the holder dies, the next
+  nearest bot takes over (`hillguard`: everyone on the hill, as before;
+  `HALO_BOT_HILLGUARD_TEAM=<0|1>` makes only one side guard, for
+  comparing). In games pitting a guarding side against an all-on-the-hill
+  side, the guarding side came out ahead in two and behind in two.
+- **Team Oddball: round the carrier:** teammates of the ball carrier spread
+  out around them, about four to six units off, between them and the
+  nearest enemy, and keep with them (`ballguard`).
+- **CTF: more escorts:** up to four bots escort the flag carrier on bigger
+  teams (one for three or fewer, two for four, three for up to six). Others
+  nearby go with the carrier more readily than before (`escorts`: up to
+  three, as before).
+- **Flag juggling (level 7 and up):** a carrier on open ground, with no
+  enemy known within 15 units, drops the flag ahead on the run, keeps
+  running, and takes it up again when it settles. The top levels jump first
+  and let go near the top of the jump. Each bot measures its own juggles
+  against its running speed with the flag. After three juggles it stops
+  unless they have been quicker, and tries again now and then. The stock CE
+  flag does not slow its carrier: on flat ground a juggle measured about 1.6
+  units a second against about 1.7 running, so on stock maps bots try it a
+  few times and then mostly keep hold. It pays on a map whose flag slows
+  its carrier (`juggle`, `jugglejump`, `jugglecheck`: off, no jump,
+  regardless of speed).
+- **A grenade to bring a power item closer (level 7 and up):** when a bot is
+  going for a power weapon or a powerup 8 to 35 units off, holds a grenade,
+  and the walk is three seconds or more, it works out where a blast just
+  beyond the item would throw it. The prediction follows the game's own
+  rules (damage.c, items.c): the push away from the blast toward the
+  item's middle, tipped up, scaled by the blast's push and the item's
+  acceleration scale, then the item's fall a tick at a time until it hits
+  the ground. Of nine places behind the item, it picks the one where the
+  throw, the flight, the fuse, the item's flight and the walk to where it
+  lands beat walking there by a second or more. The landing spot must be
+  walkable, and nobody on its own side (itself included) may be in the
+  blast. It stands while the grenade goes off. How far each kind of
+  grenade rolls past where it was thrown to is learned from the bots' own
+  throws (about a unit to a unit and a half). In test games a rocket
+  launcher came down 1.9 units from where it was predicted to land. Other
+  throws missed: a frag that rolls on past the item doesn't reach it.
+  Bots seldom have a grenade at the moment they go for a power item, so
+  this is occasional (`nadeitem`; `HALO_BOT_NADEGIVE` gives grenades, for
+  testing).
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

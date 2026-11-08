@@ -2911,6 +2911,22 @@ and two kinds of walker); the wrecks of the others stayed.
   weighed by the big map's distances, not only the flags themselves
   (`HALO_BOT_OFF=ctffar`).
 
+- **Out of the vehicle at home:** a bot carrying the flag at the wheel of
+  a vehicle drove home and held at its stand as it would for someone aboard
+  with the flag, and stayed in (a Ghost by its own flag stand on Hugeass,
+  minutes at a time). Now it gets out there to score
+  (`HALO_BOT_OFF=carrierout`). The button to get out is pressed and let
+  go, not held. Stopped by the flag to go the rest on foot, a vehicle that
+  never quite stops (a Ghost hovers) counts as stopped after a moment
+  (`outsoon`).
+- **The long way on foot:** on Chill Out, every one of 81 trips from a
+  base to the other flag went by a teleporter. For the flag, the hill or
+  the ball, when the quickest way is by a teleporter, a bot now sometimes
+  (35% to 65% of the time, the more whimsical the more often) takes a way
+  round with no teleporter in it, up to four times as long: across the
+  bridge, round by the ramp, through the rooms. In two games 5 of 34 trips
+  went on foot (`HALO_BOT_OFF=onfoot`).
+
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:
 the one who took the flag stayed within 55 units of its base.

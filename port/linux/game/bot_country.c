@@ -4027,7 +4027,7 @@ static real country_lane(real_point3d const *eye, real yaw, real slope, real hal
 				break;
 			if (collision.type == _collision_result_object || collision.plane.n.k < COUNTRY_LEVEL)
 			{
-				if (length - reach + collision.t * reach < nearest && getenv("HALO_BOT_COUNTRYTRACE"))
+				if (length - reach + collision.t * reach < nearest && bot_env_set("HALO_BOT_COUNTRYTRACE"))
 				{
 					if (collision.type == _collision_result_object && object_try_and_get(collision.object_index))
 					{
@@ -4521,7 +4521,7 @@ static void country_see_things(struct country_drive *drive)
 	{
 		country_lane_saw[0] = 0;
 		ahead = country_lane(&eye, going, slope, half, reach, body->vehicle_index);
-		if (getenv("HALO_BOT_COUNTRYTRACE") && ahead < reach * 0.95f && now % 3 == 0)
+		if (bot_env_set("HALO_BOT_COUNTRYTRACE") && ahead < reach * 0.95f && now % 3 == 0)
 			bot_log("countrysaw %ld t%ld %s at %.1f of %.1f, speed %.1f", body->unit_index & 0xffff, now, country_lane_saw, ahead, reach, speed);
 		ours = bot_body_friendly_ahead(body, position, going, MIN(reach, 4.f + speed * 1.2f), half + 0.7f);
 	}
@@ -5210,7 +5210,7 @@ void bot_country_drive(struct bot_traveller *traveller, struct bot_body const *b
 		before = drive.throttle;
 		country_backing(&drive);
 		if (drive.throttle != before) limited = 8;
-		if (getenv("HALO_BOT_DRIVELIMIT"))
+		if (bot_env_set("HALO_BOT_DRIVELIMIT"))
 		{
 			limit_counts[limited]++;
 			if (speed < 2.5f)
@@ -5234,7 +5234,7 @@ void bot_country_drive(struct bot_traveller *traveller, struct bot_body const *b
 	if (!result->note && throttle <= 0.f && speed < 1.f)
 		result->note = result->edge ? "an edge" : now < traveller->escape_until ? "getting clear" : country_way_narrow ? "onto something narrow" :
 			traveller->swerve_ticks > 0 ? "round something" : "the throttle shut";
-	if (bot_logging() && getenv("HALO_BOT_COUNTRYTRACE") && now % 3 == 0)
+	if (bot_logging() && bot_env_set("HALO_BOT_COUNTRYTRACE") && now % 3 == 0)
 		bot_log("countrytrace %ld t%ld at %.1f %.1f %.1f heading %.2f speed %.1f by %.1f %.1f %.1f yaw %.2f throttle %.2f%s%s%s swerve %ld stuck %ld; sees %.1f of %.1f%s, a way round %d", body->unit_index & 0xffff, now,
 			position->x, position->y, position->z, heading, speed, next.x, next.y, next.z, yaw, throttle, result->edge ? " edge" : country_way_narrow ? " narrow" : "",
 			now < traveller->escape_until ? " escaping" : "", result->into_portal ? " portal" : "", traveller->swerve_ticks, traveller->stuck_count,

@@ -1658,6 +1658,7 @@ struct bot_state
 	int last_seat_kind;
 	long crouch_jump_ticks; /* a crouch jump: crouch from a few ticks in */
 	long errand_out_ticks; /* stopped at the end of the road for an errand on foot, this long */
+	long errand_hold_ticks; /* stopped by the flag (or its stand) for it on foot, this long */
 	/* an enemy we can't see but know is there: on the motion tracker, or
 	   heard shooting */
 	long tracked_unit;
@@ -1681,6 +1682,7 @@ struct bot_state
 	{
 		long samples; /* tries left (0: not looking) */
 		int objective, carrying, flank;
+		int on_foot; /* (this way round: none by a teleporter, to the place or on from it) */
 		real slack;
 		float direct;
 		long quarry;
@@ -5382,7 +5384,14 @@ static int bot_ctf_drive_target(struct bot_state *bot, struct player_datum *play
 		if (carrier == mine_now && mine_now != player->unit_index)
 		{
 			*point = my_base;
-			bot_ctf_drive_pick_up = TRUE; /* (up to it, and there: not round it) */
+			/* (it is this bot that has it: home, and out to score. Up to the
+			   stand and held there, as for someone aboard with it, a carrier
+			   at the wheel of a Ghost sat by its own flag on Hugeass for
+			   minutes, the flag in its hand. HALO_BOT_OFF=carrierout) */
+			if (theirs->object.parent_object_index == player->unit_index && !bot_env_off("carrierout"))
+				*get_out_there = TRUE;
+			else
+				bot_ctf_drive_pick_up = TRUE; /* (up to it, and there: not round it) */
 			return TRUE;
 		}
 		if (mine_now != player->unit_index && !TEST_FLAG(_object_mask_vehicle, object_get(carrier)->object.type) &&
@@ -8181,12 +8190,14 @@ have lately taken, every bot's, fading). HALO_BOT_OFF=routes: as it was. */
 
 /* the areas of the quickest route from a point to another, in order: how
    many, or 0 for no way */
+static long bot_route_teleports; /* (the teleporters on the last route traced) */
 static long bot_route_areas(real_point3d const *from, real_point3d const *to, long *areas, long most)
 {
 	real_point3d at = *from;
 	long area = aas_nearest_area(AAS_FOOT, from, 2.f, NULL);
 	long goal = aas_nearest_area(AAS_FOOT, to, 2.f, NULL);
 	long n = 0;
+	bot_route_teleports = 0;
 	if (area == NONE || goal == NONE)
 		return 0;
 	areas[n++] = area;
@@ -8198,6 +8209,8 @@ static long bot_route_areas(real_point3d const *from, real_point3d const *to, lo
 		if (reach == NONE)
 			return 0;
 		way = aas_reach(AAS_FOOT, reach);
+		if (way->travel == _aas_travel_teleport)
+			bot_route_teleports++;
 		area = way->to;
 		at = way->end;
 		areas[n++] = area;
@@ -8401,6 +8414,20 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 		if (bot->via_plan.direct_count > 0)
 			chance = MIN(0.85f, chance + 0.3f * MIN(1.f, bot_traffic_along(bot->via_plan.direct_areas, bot->via_plan.direct_count) / 3.f));
 	}
+	/* For the flag (or the hill, the ball), now and then the long way on
+	   foot when the quickest is by a teleporter: on Chill Out every one of
+	   81 trips from a base to the other flag went by a teleporter, never
+	   across the bridge, round by the ramp or through the rooms. A way
+	   round with no teleporter in it, to its place or on from there, up to
+	   four times as long. The whimsical more often. HALO_BOT_OFF=onfoot */
+	bot->via_plan.on_foot = FALSE;
+	if (objective && bot->via_plan.direct_count > 0 && bot_route_teleports > 0 && !bot_env_off("onfoot") &&
+		bot_random(bot) < 0.35f + 0.3f * bot->personality.whim)
+	{
+		bot->via_plan.on_foot = TRUE;
+		chance = 1.f;
+		slack = 4.f;
+	}
 	if (bot_random(bot) > chance)
 	{
 		bot_traffic_add(bot->via_plan.direct_areas, bot->via_plan.direct_count);
@@ -8431,7 +8458,7 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 			}
 		}
 	}
-	bot->via_plan.samples = objective ? 8 : bot->via_plan.direct_count > 0 ? 8 : 4;
+	bot->via_plan.samples = bot->via_plan.on_foot ? 14 : objective ? 8 : bot->via_plan.direct_count > 0 ? 8 : 4;
 	bot->via_plan.objective = objective;
 	bot->via_plan.carrying = carrying;
 	bot->via_plan.flank = flank;
@@ -8544,10 +8571,17 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 	   no way round) */
 	if (routes)
 	{
+		long teleports;
 		route_count = bot_route_areas(from, &via, route, BOT_ROUTE_MOST);
+		teleports = bot_route_teleports;
 		if (route_count > 0)
+		{
 			route_count += bot_route_areas(&via, &bot->goal, route + route_count - 1, BOT_ROUTE_MOST - route_count + 1) - 1;
+			teleports += bot_route_teleports;
+		}
 		if (route_count <= 1)
+			goto tried;
+		if (bot->via_plan.on_foot && teleports > 0)
 			goto tried;
 		shared = bot_route_shared(route, route_count, bot->via_plan.direct_areas, bot->via_plan.direct_count);
 		if (shared > 0.85f)
@@ -12155,8 +12189,11 @@ static void bot_drive_flag_errand(struct bot_think *t, struct bot_area_drive *d)
 	int get_out = FALSE;
 	if (teams && bot_ctf_drive_target(bot, me, &errand, &get_out) && !(target != NONE && t->target_distance < 12.f))
 	{
-		if (get_out && distance3d(&errand, position) < 7.f)
-			action->control_flags |= FLAG(_unit_control_action_bit); /* out, and take it */
+		/* (out, and take it: the button pressed and let go, not held down,
+		   which is one press, and one that came while the vehicle was
+		   still going did nothing) */
+		if (get_out && distance3d(&errand, position) < 7.f && game_time_get() % 6 < 3)
+			action->control_flags |= FLAG(_unit_control_action_bit);
 		d->errand_on_foot = bot_nav_in_parts() && get_out && distance3d(&errand, position) < 80.f;
 		picking_up = bot_ctf_drive_pick_up;
 		d->enemy = errand;
@@ -12171,10 +12208,18 @@ static void bot_drive_flag_errand(struct bot_think *t, struct bot_area_drive *d)
 		   little way off it and the rest walked. The flag of
 		   Coldsnap's north-west base stands on the lip of a
 		   canyon, and a Warthog driven up to it goes in.) */
+		if (!(d->errand_on_foot && distance3d(&errand, position) < 16.f))
+			bot->errand_hold_ticks = 0;
 		if (d->errand_on_foot && distance3d(&errand, position) < 16.f)
 		{
+			/* (still, or as good as after a moment, or after a while
+			   anyway: a Ghost hovers, never still, and a carrier in one
+			   sat by its flag stand on Hugeass ten seconds and more.
+			   HALO_BOT_OFF=outsoon: quite still only) */
+			long held = !bot_env_off("outsoon") ? ++bot->errand_hold_ticks : 0;
+			real still = held > BOT_SECONDS(2.5f) ? 0.25f : held > BOT_SECONDS(1.f) ? 0.08f : 0.03f;
 			d->hold = TRUE;
-			if (magnitude3d(&object_get(vehicle_index)->object.translational_velocity) < 0.03f)
+			if (magnitude3d(&object_get(vehicle_index)->object.translational_velocity) < still)
 			{
 				if (game_time_get() % 6 < 3)
 					action->control_flags |= FLAG(_unit_control_action_bit);
@@ -12604,7 +12649,11 @@ static void bot_drive_get_out_for_errand(struct bot_think *t, struct bot_area_dr
 		/* (... or as good as: one held a while on a slope creeps, never
 		   quite still, and a Warthog held at the edge by Coldsnap's bridge
 		   crept over it with its driver in it. HALO_BOT_OFF=outsoon) */
-		real still = !bot_env_off("outsoon") && ++bot->errand_out_ticks > BOT_SECONDS(1.f) ? 0.08f : 0.03f;
+		/* (... and after a while, whatever it is doing: a Ghost hovers,
+		   never still, and a carrier in one sat by the flag stand on
+		   Hugeass, the flag in hand, for ten seconds at a time) */
+		long held = !bot_env_off("outsoon") ? ++bot->errand_out_ticks : 0;
+		real still = held > BOT_SECONDS(2.5f) ? 0.25f : held > BOT_SECONDS(1.f) ? 0.08f : 0.03f;
 		d->hold = TRUE;
 		if (magnitude3d(&ride->object.translational_velocity) < still)
 			action->control_flags |= FLAG(_unit_control_action_bit);

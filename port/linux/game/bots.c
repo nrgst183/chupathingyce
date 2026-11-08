@@ -7424,6 +7424,30 @@ static void bot_goal_meet(struct bot_goal_pass *g)
 	if (hottest == NONE)
 		return;
 	spot = bot_ways[side][hottest].at;
+	/* (a game of flags: the flags come first. Only the defenders go to
+	   meet them, on the way to our flag, the near half of the map, and
+	   only while both flags are at home: one taken, everyone to it.
+	   HALO_BOT_OFF=meetflags: as any game) */
+	if (game_engine == &ctf_engine && !bot_env_off("meetflags"))
+	{
+		long team = g->player->team_index, k;
+		real_point3d base[2];
+		for (k = 0; k < 2; k++)
+		{
+			long flag;
+			struct object_datum *object;
+			if (!ctf_bot_flag(k, &flag, &base[k]) || flag == NONE || !(object = object_try_and_get(flag)) ||
+				object->object.parent_object_index != NONE || distance3d(&object->object.position, &base[k]) > 3.f)
+			{
+				return;
+			}
+		}
+		if (team < 0 || team > 1 || !bot_ctf_defender(bot, g->player) ||
+			bot_distance2d(&spot, &base[team]) > 0.5f * bot_distance2d(&base[0], &base[1]))
+		{
+			return;
+		}
+	}
 	dx = position->x - spot.x;
 	dy = position->y - spot.y;
 	length = (real)sqrt(dx * dx + dy * dy);
@@ -7438,6 +7462,9 @@ static void bot_goal_meet(struct bot_goal_pass *g)
 		return;
 	score = (7.f + 0.5f * MIN(best, 12.f)) * (0.6f + 0.4f * bot_awareness()) * (0.6f + 0.6f * bot->personality.patience) *
 		(g->teams ? 1.f : 0.75f);
+	/* (the hill, the ball: those first too, the meeting by the way) */
+	if (g->objective_game)
+		score *= game_engine == &ctf_engine ? 0.6f : 0.5f;
 	if (bot_consider(&g->best, score, _bot_goal_hold, &spot, NONE, (long)((8.f + 8.f * bot->personality.patience) * BOT_TICKS_PER_SECOND), FALSE))
 	{
 		bot->meet_spot = spot;

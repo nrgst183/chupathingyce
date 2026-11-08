@@ -2972,9 +2972,14 @@ and two kinds of walker); the wrecks of the others stayed.
   over a minute or so. Bots go to the busiest of these and hold a spot a
   few units short of it, on their own side, to meet the enemy there. The
   patient and the higher levels do this more. A bot that dies doing it
-  comes at that spot from another side next time (`meet`). In test games,
-  there were more fights in the middle of the map: on Chill Out (CTF) 123
-  deaths against 32, on Wizard 75 against 45.
+  comes at that spot from another side next time (`meet`). In a game of
+  flags the flags come first: only defenders go to meet them, only on their
+  own half of the map, and only while both flags are at home. Once a flag
+  is taken, everyone goes for it (`meetflags`: as in any other game). With
+  the hill or the ball, meeting counts for half as much. In test games of
+  slayer there were more fights in the middle of the map (Wizard: 75 deaths
+  against 45). In CTF, flag pickups stayed level with meeting off (Chill
+  Out 23 against 24, Blood Gulch 66 against 71).
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

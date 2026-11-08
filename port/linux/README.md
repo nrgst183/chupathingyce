@@ -2883,7 +2883,7 @@ and two kinds of walker); the wrecks of the others stayed.
   worked out from the map's own collision only, and a Halo PC map builds
   with scenery what the Xbox's build into the map. Coldsnap's blue flag
   stands on a bridge that is scenery, so there was no floor there and no
-  way to it. Every piece of scenery 3 units or more across now goes into
+  way to it. Every piece of scenery 6 units or more across now goes into
   the navigation as the map does: its tops are floors, its sides walls. On
   Coldsnap that is 9 pieces; the flag now has a way to it, 19 seconds from
   the land beside the bridge. Navigation already worked out without them is
@@ -3615,7 +3615,7 @@ were.
   free-for-all, where a bot goes is decided by what it goes for (someone to
   fight, a gun) far more than by the way it takes. The busy squares were
   also tried as a cost on every route, and that put the bots in fewer
-  squares (182 against 198), so it is off (`HALO_BOT_TRAFFICCOST=1` to try)
+  squares (182 against 198), so that was not kept
   (`HALO_BOT_OFF=routes`: the ways round as they were).
 - **Crouch jumps up ledges:** these were already in. The route's jumps
   tuck the legs up for any ledge over 0.55 units, and the navigation counts

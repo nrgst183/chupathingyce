@@ -783,7 +783,7 @@ static int air_flies_better(char const *part)
 		asked = TRUE;
 		off = getenv("HALO_BOT_OFF");
 	}
-	return !(off && strstr(off, part));
+	return !(off && bot_name_in_list(off, part));
 }
 
 /* Ways found lately, for any pilot to have: one going from about where

@@ -357,7 +357,7 @@ static int country_water_counts(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "water"));
+		on = !(off && bot_name_in_list(off, "water"));
 	}
 	return on;
 }
@@ -3354,7 +3354,7 @@ static int country_handles(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "handling"));
+		on = !(off && bot_name_in_list(off, "handling"));
 	}
 	return on;
 }
@@ -4750,7 +4750,7 @@ static int country_grips(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "grip"));
+		on = !(off && bot_name_in_list(off, "grip"));
 	}
 	return on;
 }
@@ -5084,7 +5084,7 @@ static int country_looks_far(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "lookahead"));
+		on = !(off && bot_name_in_list(off, "lookahead"));
 	}
 	return on;
 }

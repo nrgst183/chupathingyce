@@ -3302,7 +3302,7 @@ static int bot_drive_looks_ahead(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "lookahead"));
+		on = !(off && bot_name_in_list(off, "lookahead"));
 	}
 	return on;
 }

@@ -132,7 +132,6 @@ real bot_yaw_to(real_point3d const *from, real_point3d const *to)
 	return bot_wrap((real)atan2(to->y - from->y, to->x - from->x));
 }
 
-static float bot_traffic_at(long area); /* (the traffic: below) */
 static unsigned long bot_hash(unsigned long value)
 {
 	value ^= value >> 16;
@@ -764,23 +763,6 @@ static boolean bot_side_update_costs(long side)
 			}
 		}
 	}
-	/* the traffic (bot_traffic): a busy way costs everyone a little more, so
-	   that the bots of a big game spread over the ways there are. Tried, and
-	   not kept: in free-for-alls of 15 on Blood Gulch, Sidewinder and Danger
-	   Canyon the bots were in fewer of the map's squares with it (182 a game
-	   against 198), not more. HALO_BOT_TRAFFICCOST=1: on, to try */
-	if (!bot_env_off("routes") && bot_env_set("HALO_BOT_TRAFFICCOST"))
-	{
-		for (a = 0; a < area_count; a++)
-		{
-			float busy = bot_traffic_at(a);
-			if (busy > 0.5f)
-			{
-				knowledge->cost[a] += 0.15f * MIN(busy, 6.f);
-				knowledge->update_any = TRUE;
-			}
-		}
-	}
 	/* (per stretch of ground, not per area: a route over open ground
 	   crosses many small areas, and seconds for each would have everyone
 	   hugging the edges of the map, going round the back of the bases) */
@@ -1127,7 +1109,7 @@ static unsigned bot_off_parse(char const *text)
 	if (!text)
 		return 0;
 	for (i = 0; i < (long)(sizeof(names) / sizeof(names[0])); i++)
-		if (strstr(text, names[i].name))
+		if (bot_name_in_list(text, names[i].name))
 			mask |= names[i].bit;
 	return mask;
 }
@@ -1215,7 +1197,7 @@ static unsigned bot_off2_parse(char const *text)
 	if (!text)
 		return 0;
 	for (i = 0; i < (long)(sizeof(names) / sizeof(names[0])); i++)
-		if (strstr(text, names[i].name))
+		if (bot_name_in_list(text, names[i].name))
 			mask |= names[i].bit;
 	return mask;
 }
@@ -1386,8 +1368,15 @@ static real bot_skill_of(long slot)
 	/* (testing, HALO_BOT_SKILL_T1=<1 to 10>: the second side's bots at a
 	   level of their own, for setting one level against another) */
 	{
-		char const *t1 = getenv("HALO_BOT_SKILL_T1");
-		struct player_datum *player = t1 ? bot_player_at_index(slot) : NULL;
+		static int asked;
+		static char const *t1;
+		struct player_datum *player;
+		if (!asked)
+		{
+			asked = TRUE;
+			t1 = getenv("HALO_BOT_SKILL_T1");
+		}
+		player = t1 ? bot_player_at_index(slot) : NULL;
 		if (player && player->team_index == 1)
 			return bot_skill_inner((real)atof(t1));
 	}
@@ -6498,7 +6487,7 @@ static void bot_goal_items(struct bot_goal_pass *g)
 		for (i = 1; i < item_count; i++)
 			if (items[i].most > items[most].most)
 				most = i;
-		if (items[most].most <= best->score)
+		if (items[most].most * bot_consider_scale <= best->score) /* (bot_consider scales what it is given) */
 			break;
 		object = object_get(items[most].object_index);
 		distance = items[most].distance;
@@ -8074,7 +8063,7 @@ static int bot_fair_sight(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "fair"));
+		on = !(off && bot_name_in_list(off, "fair"));
 	}
 	return on;
 }
@@ -8264,14 +8253,6 @@ static void bot_traffic_add(long const *areas, long count)
 			bot_traffic[cell] += 1.f;
 		}
 	}
-}
-
-/* the traffic of an area's square */
-static float bot_traffic_at(long area)
-{
-	if (!aas_ready() || bot_traffic_areas != aas_area_count(AAS_FOOT))
-		return 0.f;
-	return bot_traffic[bot_traffic_cell(area)];
 }
 
 /* the traffic along a route, an area's worth on average */
@@ -12034,7 +12015,7 @@ static int bot_drive_waits_less(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "riders"));
+		on = !(off && bot_name_in_list(off, "riders"));
 	}
 	return on;
 }
@@ -12212,7 +12193,7 @@ static int bot_drive_fights_better(void)
 	{
 		char const *off = getenv("HALO_BOT_OFF");
 		asked = TRUE;
-		on = !(off && strstr(off, "vfight"));
+		on = !(off && bot_name_in_list(off, "vfight"));
 	}
 	return on;
 }
@@ -18575,6 +18556,7 @@ boolean bots_console_command(char const *text)
 	return TRUE;
 }
 
+static void bot_debug_reset(void);
 void bots_map_disposed(void)
 {
 	bot_name_cache_map++;
@@ -18598,6 +18580,11 @@ void bots_map_disposed(void)
 	   has the same handle in the next game on the map, and would be let
 	   alone where it starts) */
 	memset(bot_stranded, 0, sizeof(bot_stranded));
+	/* (and the two tables by the same handles: a vehicle of the next map
+	   with a handle of this one's had this one's home, and its bays) */
+	memset(bot_bays, 0, sizeof(bot_bays));
+	memset(bot_vehicle_homes, 0, sizeof(bot_vehicle_homes));
+	bot_debug_reset();
 	memset(bots_thought_tick, 0, sizeof(bots_thought_tick));
 	memset(bots_alive_unit, 0, sizeof(bots_alive_unit));
 	memset(bots_person_anchor, 0, sizeof(bots_person_anchor));
@@ -18684,6 +18671,14 @@ static struct
 	char text[200];
 } bot_debug_events[BOT_MAXIMUM_PLAYERS][BOT_DEBUG_EVENTS];
 static long bot_debug_event_count[BOT_MAXIMUM_PLAYERS];
+
+/* (a new game: the last one's lines and snapshots are not this one's) */
+static void bot_debug_reset(void)
+{
+	memset(bot_debug_snapshots, 0, sizeof(bot_debug_snapshots));
+	memset(bot_debug_events, 0, sizeof(bot_debug_events));
+	memset(bot_debug_event_count, 0, sizeof(bot_debug_event_count));
+}
 int bot_debug_capturing;
 
 static void bot_debug_snapshot_take(struct bot_think *t)

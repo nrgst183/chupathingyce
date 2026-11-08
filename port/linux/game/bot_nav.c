@@ -762,8 +762,8 @@ static void navm_rasterize_bsp(struct navm_raster *raster, struct collision_bsp 
    made for Halo PC builds with scenery what the Xbox's maps build into the
    map: Coldsnap's bridge, with a flag on it, is scenery, and the floors were
    the map's alone, so there was no floor on the bridge, no way onto it,
-   and nobody went for that flag. Each piece of scenery 3 units or more
-   across goes into the raster as the map does, its every surface where it
+   and nobody went for that flag. Each piece of scenery 6 units or more
+   across (3 round) goes into the raster as the map does, its every surface where it
    stands (its walls are walls, its tops floors); a smaller one (a rock, a
    crate) is in the way, as before (navm_mark_scenery).
    HALO_BOT_OFF=scenefloor: the map's alone */
@@ -2064,24 +2064,49 @@ int bot_logging(void)
 	return logging || bot_debug_capturing;
 }
 
-/* a part named in HALO_BOT_OFF (testing: the ones not in bots.c's own list) */
+/* whether a list of names (commas or spaces between them) has this one, the
+   whole of it: "lookahead" is not "head" */
+int bot_name_in_list(char const *list, char const *name)
+{
+	size_t length = strlen(name);
+	char const *at;
+	if (!list || !length)
+		return FALSE;
+	for (at = strstr(list, name); at; at = strstr(at + 1, name))
+	{
+		int starts = at == list || at[-1] == ',' || at[-1] == ' ';
+		int ends = at[length] == 0 || at[length] == ',' || at[length] == ' ';
+		if (starts && ends)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/* a part named in HALO_BOT_OFF (testing: the ones not in bots.c's own list).
+   (Read once: this is asked many times a tick for each bot) */
 int bot_env_off(char const *part)
 {
-	char const *off = getenv("HALO_BOT_OFF");
-	return off && strstr(off, part) != NULL;
+	static int read;
+	static char const *off;
+	if (!read)
+	{
+		read = TRUE;
+		off = getenv("HALO_BOT_OFF");
+	}
+	return off && bot_name_in_list(off, part);
 }
 
 int bot_env_set(char const *name)
 {
 	/* (the debugging switches: read once each, kept by their names, copied:
 	   a name the caller made up and let go of is not left pointed at) */
-	static char names[16][32];
-	static int values[16];
+	static char names[64][32];
+	static int values[64];
 	int i;
-	for (i = 0; i < 16 && names[i][0]; i++)
+	for (i = 0; i < 64 && names[i][0]; i++)
 		if (!strcmp(names[i], name))
 			return values[i];
-	if (i == 16 || strlen(name) >= sizeof(names[i]))
+	if (i == 64 || strlen(name) >= sizeof(names[i]))
 		return getenv(name) != NULL;
 	strcpy(names[i], name);
 	values[i] = getenv(name) != NULL;

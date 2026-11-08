@@ -315,7 +315,9 @@ static void bot_move_plan(struct bot_move_state *move, long area, real_point3d c
 {
 	long a = area;
 	real_point3d point = *from;
-	long slot = move->type == AAS_FOOT ? move->cost_slot : NONE;
+	/* (drivers too, round the enemy their side knows of: bots.c
+	   bot_side_vehicle_costs; HALO_BOT_OFF=drivearound: on foot only) */
+	long slot = move->type == AAS_FOOT || !bot_env_off("drivearound") ? move->cost_slot : NONE;
 	move->corridor_count = 0;
 	move->corridor_complete = FALSE;
 	while (move->corridor_count < BOT_CORRIDOR && a != goal_area)

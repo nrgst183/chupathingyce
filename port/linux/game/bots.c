@@ -1669,6 +1669,8 @@ struct bot_state
 		long lane_of[BOT_LANE_SETS];
 		long lane_serial_of[BOT_LANE_SETS];
 		long meet_turn; /* how often it has died going to meet them: each time, from another side (bot_goal_meet) */
+		real juggle_speed, carry_speed; /* how fast its juggles have gone, and its running with the flag (units a second, lately) */
+		long juggles;
 	} memory;
 	/* aim */
 	real yaw;
@@ -1850,6 +1852,14 @@ struct bot_state
 	long lane_set; /* of which set */
 	int on_lane; /* this trip is by its lane */
 	int lane_live; /* this life went for the objective by a lane (getting there: bot_lane_worked) */
+	long nade_item; /* a thing it threw a grenade to bring closer (bot_grenade_item): NONE none */
+	real_point3d nade_item_lands;
+	long nade_item_check;
+	real_point3d nade_aim; /* where its grenade was to go off */
+	real_point3d nade_last; /* where it was seen last (where it went off) */
+	int nade_seen;
+	long nade_type;
+	real nade_way_x, nade_way_y; /* the way it was thrown */
 	real_point3d meet_spot; /* where it last went to meet them (bot_goal_meet) */
 	real_point3d around; /* a long drive: a place to go by, round enemies its side knows of (bot_drive_around) */
 	int around_valid;
@@ -1883,7 +1893,9 @@ struct bot_state
 	/* flag juggling: dropped it ahead a tick ago, picking it up again */
 	long juggle_ticks;
 	long juggle_cooldown;
+	long juggle_jump; /* a jump first, the flag let go near the top of it: ticks to go (0: none) */
 	long juggle_flag;
+	real_point3d juggle_from; /* where it let go (how far it got: the log) */
 	/* where it's been going lately */
 	real_point3d recent_spot[BOT_RECENT_SPOTS];
 	long recent_until[BOT_RECENT_SPOTS];
@@ -2237,12 +2249,21 @@ static real bot_projectile_blast(struct projectile_definition const *projectile)
 #define BOT_BLAST_KILLS 150.f
 static void bot_blast_of_projectile(struct projectile_definition const *projectile, long depth, real *kills_within, real *hurts_within);
 
+/* (bot_grenade_push_of: the hardest push of the damage being walked, and how far it reaches) */
+static int bot_push_collecting;
+static real bot_push_accel, bot_push_radius;
+
 static void bot_blast_of_damage(long damage_index, real *kills_within, real *hurts_within)
 {
 	struct damage_effect_definition const *damage = damage_index != NONE ? damage_effect_definition_get(damage_index) : NULL;
 	real most, least, kills;
 	if (!damage)
 		return;
+	if (bot_push_collecting && damage->damage.instantaneous_acceleration > bot_push_accel && damage->cutoff_radius > 0.1f)
+	{
+		bot_push_accel = damage->damage.instantaneous_acceleration;
+		bot_push_radius = damage->cutoff_radius;
+	}
 	most = damage->damage.damage_upper_bound;
 	least = most * damage->cutoff_scale;
 	if (most <= 0.f)
@@ -4467,7 +4488,7 @@ static int bot_ctf_defender(struct bot_state const *bot, struct player_datum con
    them and whoever chases; one at their side. The rest go on with what
    they were doing. Chosen again twice a second, and when the carrier
    changes. */
-#define BOT_ESCORTS_MOST 3
+#define BOT_ESCORTS_MOST 4
 #define BOT_ESCORT_FROM 80.f /* nobody further off than this from the carrier */
 #define BOT_ESCORT_AHEAD 8.f
 #define BOT_ESCORT_BEHIND 6.f
@@ -4482,7 +4503,7 @@ static struct
 	long tick;
 	long carrier;
 	long escorts[BOT_ESCORTS_MOST]; /* bots' places in the game, NONE none */
-} bot_escorts[2] = { { NONE, NONE, { NONE, NONE, NONE } }, { NONE, NONE, { NONE, NONE, NONE } } };
+} bot_escorts[2] = { { NONE, NONE, { NONE, NONE, NONE, NONE } }, { NONE, NONE, { NONE, NONE, NONE, NONE } } };
 
 static long bot_wingman_person(long index, long team, real_point3d const *my_base, real_point3d const *their_base);
 
@@ -4545,8 +4566,14 @@ static long bot_escort_slot(long index, long team, long carrier)
 				}
 			}
 		}
-		/* (one for a side of three or fewer, two for up to six, three for more) */
-		wanted = teammates <= 3 ? 1 : teammates <= 6 ? 2 : 3;
+		/* (one for a side of three or fewer, two for four, three for up to
+		   six, four for more: the flag home is the game, so all but its
+		   defenders and whoever goes for ours. HALO_BOT_OFF=escorts: one, two
+		   for up to six, three, as before) */
+		if (bot_env_off("escorts"))
+			wanted = teammates <= 3 ? 1 : teammates <= 6 ? 2 : 3;
+		else
+			wanted = teammates <= 3 ? 1 : teammates <= 4 ? 2 : teammates <= 6 ? 3 : 4;
 		for (slot = wanted; slot < BOT_ESCORTS_MOST; slot++)
 			bot_escorts[team].escorts[slot] = NONE;
 		bot_escorts[team].carrier = carrier;
@@ -4579,8 +4606,10 @@ static void bot_escort_point(long slot, real_point3d const *carrier_at, real_poi
 	}
 	else
 	{
-		point->x += -dy * BOT_ESCORT_BESIDE;
-		point->y += dx * BOT_ESCORT_BESIDE;
+		/* (the third on one side, the fourth on the other) */
+		real side = slot == 3 ? -1.f : 1.f;
+		point->x += -dy * BOT_ESCORT_BESIDE * side;
+		point->y += dx * BOT_ESCORT_BESIDE * side;
 	}
 }
 
@@ -5074,7 +5103,8 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 				at.x += (my_base.x - at.x) / toward * 4.f;
 				at.y += (my_base.y - at.y) / toward * 4.f;
 			}
-			bot_consider(best, (6.f + 16.f * bot->personality.teamwork) / (1.f + distance / (80.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
+			/* (the flag home first: with them, whoever is near, the team-minded the more) */
+			bot_consider(best, (14.f + 18.f * bot->personality.teamwork) / (1.f + distance / (80.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 				2 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 		/* (... and on a map that is not walked across, with them on foot a
@@ -5279,6 +5309,147 @@ static real_point3d bot_intercept(long unit_index, real_point3d const *from)
 	return lead;
 }
 
+/* ---------- team King of the Hill: one holds it, the rest guard it
+
+The hill counts for a side while any of its people are on it and none of
+the other side's: one on it is as good as all of them, and all of them on
+it stand in one grenade's blast. So one of a side holds it, the one nearest
+it, or whichever of ours is already on it (a person too); the rest stand
+guard round it, a few steps out, toward where the enemy comes from, spread
+out, and shoot whoever comes. Someone of theirs on it: everyone in, to clear
+it. The holder dies: the next nearest. HALO_BOT_OFF=hillguard: everyone on
+the hill, as before */
+static struct { long tick, holder; } bot_hill_holders[2] = { { NONE, NONE }, { NONE, NONE } };
+
+static long bot_hill_holder(long team, real_point3d const *hill)
+{
+	long now = game_time_get(), i, on = NONE, nearest = NONE;
+	real nearest_distance = 1.0e9f, holder_distance = 1.0e9f;
+	if (team < 0 || team > 1)
+		return NONE;
+	if (bot_hill_holders[team].tick != NONE && now >= bot_hill_holders[team].tick && now - bot_hill_holders[team].tick < BOT_SECONDS(0.5f))
+		return bot_hill_holders[team].holder;
+	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+	{
+		struct player_datum *other = bot_player_at_index(i);
+		real d;
+		if (!other || other->team_index != team || other->unit_index == NONE || !bot_unit_alive(other->unit_index))
+			continue;
+		d = bot_distance2d(&object_get(object_get_ultimate_parent(other->unit_index))->object.position, hill);
+		if (king_bot_player_on_hill(i) && (on == NONE || i == bot_hill_holders[team].holder))
+			on = i;
+		if (i == bot_hill_holders[team].holder)
+			holder_distance = d;
+		/* (a person off the hill is not counted on to hold it: a bot goes) */
+		if (bot_player_is_bot(i) && d < nearest_distance)
+		{
+			nearest_distance = d;
+			nearest = i;
+		}
+	}
+	/* (on it: the one on it; else the one going, unless another is much nearer) */
+	{
+		long was = bot_hill_holders[team].holder;
+		if (on != NONE)
+			bot_hill_holders[team].holder = on;
+		else if (holder_distance > 1.0e8f || was == NONE || !bot_player_is_bot(was) || nearest_distance < holder_distance - 4.f)
+			bot_hill_holders[team].holder = nearest;
+		if (bot_logging() && bot_hill_holders[team].holder != was)
+			bot_log("hill: side %ld holder now player %ld%s", team, bot_hill_holders[team].holder, on != NONE ? " (on it)" : "");
+	}
+	bot_hill_holders[team].tick = now;
+	return bot_hill_holders[team].holder;
+}
+
+/* a guard's post round the hill: toward the nearest of them (or where they
+   have been coming from, bot_ways), each guard its own place in a fan */
+static void bot_hill_post(struct bot_state *bot, long me_index, struct player_datum *player, long holder, real_point3d const *hill, real reach,
+	real_point3d *post)
+{
+	long i, order = 0, count = 0, side = bot_side_of(player);
+	real toward = 0.f, step, angle, radius;
+	real_point3d enemy, spot;
+	real enemy_distance;
+	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+	{
+		struct player_datum *other = bot_player_at_index(i);
+		if (!other || i == holder || other->team_index != player->team_index || other->unit_index == NONE || !bot_unit_alive(other->unit_index))
+			continue;
+		if (i < me_index)
+			order++;
+		count++;
+	}
+	if (bot_nearest_enemy(player, hill, &enemy, &enemy_distance))
+		toward = (real)atan2(enemy.y - hill->y, enemy.x - hill->x);
+	else if (side >= 0 && side < AAS_COST_SLOTS)
+	{
+		real best = 0.f;
+		for (i = 0; i < BOT_WAYS; i++)
+			if (bot_ways[side][i].weight > best)
+			{
+				best = bot_ways[side][i].weight;
+				toward = (real)atan2(bot_ways[side][i].at.y - hill->y, bot_ways[side][i].at.x - hill->x);
+			}
+	}
+	step = MIN(0.9f, 3.6f / (real)MAX(count, 1));
+	angle = toward + ((real)order - (real)(count - 1) * 0.5f) * step;
+	/* (the first row just off its edge, a step from it when the holder
+	   falls; the second further out) */
+	radius = reach + 1.5f + (real)(order % 2) * 3.5f;
+	*post = *hill;
+	post->x += (real)cos(angle) * radius;
+	post->y += (real)sin(angle) * radius;
+	if (aas_ready())
+	{
+		if (aas_nearest_area(AAS_FOOT, post, 4.f, &spot) != NONE)
+			*post = spot;
+		else
+		{
+			*post = *hill;
+			post->x += (real)cos(angle) * (reach + 2.f);
+			post->y += (real)sin(angle) * (reach + 2.f);
+			if (aas_nearest_area(AAS_FOOT, post, 4.f, &spot) != NONE)
+				*post = spot;
+		}
+	}
+	(void)bot;
+}
+
+/* team oddball: round one of ours with the ball, between them and the
+   nearest of the enemy, each its own place (HALO_BOT_OFF=ballguard: a
+   little after them, as before) */
+static void bot_ball_post(long me_index, struct player_datum *player, long carrier_player_index, real_point3d const *carrier_at, real_point3d *post)
+{
+	long i, order = 0, count = 0;
+	real toward = 0.f, step, angle, radius;
+	real_point3d enemy, spot;
+	real enemy_distance;
+	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+	{
+		struct player_datum *other = bot_player_at_index(i);
+		if (!other || i == carrier_player_index || other->team_index != player->team_index || other->unit_index == NONE ||
+			!bot_unit_alive(other->unit_index))
+		{
+			continue;
+		}
+		if (i < me_index)
+			order++;
+		count++;
+	}
+	if (bot_nearest_enemy(player, carrier_at, &enemy, &enemy_distance))
+		toward = (real)atan2(enemy.y - carrier_at->y, enemy.x - carrier_at->x);
+	step = MIN(1.f, 3.8f / (real)MAX(count, 1));
+	angle = toward + ((real)order - (real)(count - 1) * 0.5f) * step;
+	radius = 4.f + (real)(order % 2) * 2.5f;
+	*post = *carrier_at;
+	post->x += (real)cos(angle) * radius;
+	post->y += (real)sin(angle) * radius;
+	if (aas_ready() && aas_nearest_area(AAS_FOOT, post, 4.f, &spot) != NONE)
+		*post = spot;
+	else
+		*post = *carrier_at;
+}
+
 static void bot_game_candidates(struct bot_state *bot, struct player_datum *player, struct unit_datum *unit,
 	real_point3d const *position, real held, struct bot_candidate *best)
 {
@@ -5410,7 +5581,30 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 					bot_consider(best, 700.f, _bot_goal_item, &object->object.position, iterator.index, 3 * BOT_TICKS_PER_SECOND, TRUE);
 			}
 		}
-		if (!on && ours >= 1 && theirs == 0 && distance < reach + 10.f)
+		/* (testing, HALO_BOT_HILLGUARD_TEAM=<0 or 1>: that side only guards) */
+		static int guard_team_asked;
+		static char const *guard_team;
+		int guards_off;
+		if (!guard_team_asked)
+		{
+			guard_team_asked = TRUE;
+			guard_team = getenv("HALO_BOT_HILLGUARD_TEAM");
+		}
+		guards_off = bot_env_off("hillguard") || (guard_team && atol(guard_team) != player->team_index);
+		long holder = guards_off ? NONE : bot_hill_holder(player->team_index, &hill_center);
+		/* (nobody of ours on it: everyone for it, the first there holds it) */
+		if (holder != NONE && holder != me_index && theirs == 0 && ours >= 1)
+		{
+			/* (one of ours holds it, none of theirs on it: a guard, at its
+			   post round it, toward where they come from) */
+			real_point3d post;
+			bot_hill_post(bot, me_index, player, holder, &hill_center, reach, &post);
+			if (distance3d(&post, position) > 2.f)
+				bot_consider(best, 600.f, _bot_goal_roam, &post, NONE, 3 * BOT_TICKS_PER_SECOND, TRUE);
+			else
+				bot_consider(best, 600.f, _bot_goal_hold, &post, NONE, 2 * BOT_TICKS_PER_SECOND, TRUE);
+		}
+		else if (guards_off && !on && ours >= 1 && theirs == 0 && distance < reach + 10.f)
 		{
 			/* (it is ours, others hold it: just outside it, toward the
 			   nearest of them, from where it can shoot whoever comes) */
@@ -5514,6 +5708,18 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 				if (carrier_player && bot_is_enemy((short)player->team_index, carrier_player))
 					bot_consider(best, (40.f + 30.f * focus) * MAX(armed, 0.5f) / (1.f + distance / (120.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 						2 * BOT_TICKS_PER_SECOND, TRUE);
+				else if (carrier_player && game_engine_has_teams() && !bot_env_off("ballguard"))
+				{
+					/* (one of ours: round them, between them and the enemy) */
+					long carrier_index = NONE, k;
+					real_point3d post;
+					for (k = 0; k < BOT_MAXIMUM_PLAYERS; k++)
+						if (bot_player_at_index(k) == carrier_player)
+							carrier_index = k;
+					bot_ball_post((long)(bot - bot_states), player, carrier_index, &at, &post);
+					bot_consider(best, (30.f + 25.f * bot->personality.teamwork) * focus / (1.f + distance / (150.f * bot_ctf_far())),
+						distance3d(&post, position) > 2.5f ? _bot_goal_enemy : _bot_goal_hold, &post, NONE, BOT_SECONDS(1.f), TRUE);
+				}
 				else if (distance > 6.f)
 					bot_consider(best, (4.f + 12.f * bot->personality.teamwork) / (1.f + distance / (80.f * bot_ctf_far())), _bot_goal_enemy, &at, NONE,
 						2 * BOT_TICKS_PER_SECOND, TRUE);
@@ -10812,6 +11018,23 @@ static void bots_world_tick(void)
 	   friends, may have it in for */
 	bots_track_deaths(now);
 	/* each side's route costs, a part each tick (by turns) */
+	/* (testing, HALO_BOT_HILLTRACE: who is on the hill, each second) */
+	if (bot_env_set("HALO_BOT_HILLTRACE") && bot_logging() && now % BOT_TICKS_PER_SECOND == 0)
+	{
+		long on_hill[2] = { 0, 0 }, k;
+		real_point3d hill;
+		if (king_bot_hill(&hill))
+		{
+			for (k = 0; k < BOT_MAXIMUM_PLAYERS; k++)
+			{
+				struct player_datum *other = bot_player_at_index(k);
+				if (other && other->team_index >= 0 && other->team_index <= 1 && other->unit_index != NONE && bot_unit_alive(other->unit_index) &&
+					king_bot_player_on_hill(k))
+					on_hill[other->team_index]++;
+			}
+			bot_log("hilltrace t%ld on it: %ld %ld", now, on_hill[0], on_hill[1]);
+		}
+	}
 	if (aas_ready())
 	{
 		bot_sides_aware();
@@ -16186,13 +16409,25 @@ static void bot_juggle_chase(struct bot_think *t)
 		/* caught it (or someone else did, or it's gone, or trouble):
 		   the goals see to the rest */
 		if (bot_logging() && flag && object_get_ultimate_parent(bot->juggle_flag) == me->unit_index)
-			bot_log("bot%ld t%ld juggled in %ld ticks", t->player_absolute_index, game_time_get(), bot->juggle_ticks);
+			bot_log("bot%ld t%ld juggled in %ld ticks, %.1f units (%.2f a second; running with it %.2f)", t->player_absolute_index, game_time_get(), bot->juggle_ticks,
+				bot_distance2d(&bot->juggle_from, position), bot_distance2d(&bot->juggle_from, position) * BOT_TICKS_PER_SECOND / (real)MAX(bot->juggle_ticks, 1),
+				bot->memory.carry_speed);
+		if (flag && object_get_ultimate_parent(bot->juggle_flag) == me->unit_index)
+		{
+			real speed = bot_distance2d(&bot->juggle_from, position) * BOT_TICKS_PER_SECOND / (real)MAX(bot->juggle_ticks, 1);
+			bot->memory.juggle_speed = bot->memory.juggles > 0 ? 0.7f * bot->memory.juggle_speed + 0.3f * speed : speed;
+			bot->memory.juggles++;
+		}
 		bot->juggle_ticks = 0;
 	}
 	else if (bot->juggle_ticks > 2)
 	{
 		/* after it (it's ahead, along the way) and grab it */
 		real d = bot_distance2d(position, &flag->object.position);
+		if (bot_env_set("HALO_BOT_JUGGLETRACE") && bot_logging())
+			bot_log("jugglestep bot%ld tick %ld d %.2f dz %.2f ignore %d rest %d vel %.3f", t->player_absolute_index, bot->juggle_ticks, d,
+				flag->object.position.z - position->z, ((struct item_datum *)flag)->item.ignore_object_index != NONE,
+				TEST_FLAG(flag->object.flags, _object_at_rest_bit) != 0, magnitude3d(&flag->object.translational_velocity));
 		if (d < 1.2f && fabs(flag->object.position.z - position->z) < 1.5f && bot->juggle_ticks % 2 == 0)
 			action->control_flags |= FLAG(_unit_control_swap_weapons_bit);
 		if (d > 0.4f && t->vehicle_index == NONE)
@@ -16205,16 +16440,60 @@ static void bot_juggle_chase(struct bot_think *t)
 				t->move_speed = 1.f;
 			}
 		}
+		else if (t->vehicle_index == NONE && !bot_env_off("jugglerun"))
+		{
+			/* (over it, the game not giving it back yet: on at a run the way
+			   it was going, not standing on it; it is taken up as it settles,
+			   or turned back for if it falls behind) */
+			t->moving = TRUE;
+			t->move_speed = 1.f;
+		}
 	}
+}
+
+/* (juggling: none with an enemy its side knows of lately within 15 units;
+   on the ground the flag is theirs to touch) */
+static int bot_juggle_crowded(struct bot_think *t)
+{
+	real_point3d at;
+	real distance;
+	long side = bot_side_of(t->me);
+	(void)distance;
+	if (bot_env_set("HALO_BOT_JUGGLEALWAYS"))
+		return FALSE;
+	return bot_side_nearest_known(side, &t->position, 2.f, &at) && distance3d(&at, &t->position) < 15.f;
 }
 
 static void bot_juggle_start(struct player_action *action, struct bot_state *bot, struct unit_datum *unit)
 {
+	/* (at the higher levels, the higher the oftener: level 7 now and then,
+	   the top every second or so) */
 	bot->juggle_cooldown = (long)((0.4f + 0.6f * bot_random(bot)) * BOT_TICKS_PER_SECOND);
-	if (bot_random(bot) < (0.15f + 0.85f * bot_skill_fraction()) * (0.4f + 0.6f * MAX(bot->personality.jumpiness, bot->personality.daring)))
+	if (bot_random(bot) < (BOT_FLAG_JUGGLING ? 0.15f + 0.85f * bot_skill_fraction() : 0.2f + 0.8f * PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f)) *
+		(0.4f + 0.6f * MAX(bot->personality.jumpiness, bot->personality.daring)))
 	{
+		/* (a few tried; then only while they have gone quicker than running
+		   with it: the flag that slows its carrier (a map's own) makes it
+		   pay; the game's own does not, and on flat ground a juggle is about
+		   as quick as a run. HALO_BOT_OFF=jugglecheck: on regardless) */
+		if (!BOT_FLAG_JUGGLING && !bot_env_off("jugglecheck") && bot->memory.juggles >= 3 &&
+			bot->memory.juggle_speed < bot->memory.carry_speed * 1.02f)
+		{
+			bot->juggle_cooldown = BOT_SECONDS(8.f);
+			if (bot->memory.juggles < 1000 && bot_random(bot) < 0.9f)
+				return; /* (one in ten, it tries again: the ground ahead is not all the same) */
+		}
+		/* (a jump first, at the top of the levels: the flag let go in the air
+		   flies on with its speed and more. HALO_BOT_OFF=jugglejump: none) */
+		if (!bot_env_off("jugglejump") && bot_random(bot) < PIN((bot_skill_now - 4.f), 0.f, 1.f))
+		{
+			bot->juggle_jump = 8;
+			action->control_flags |= FLAG(_unit_control_jump_bit);
+			return;
+		}
 		bot->juggle_flag = unit->unit.weapon_object_indices[unit->unit.current_weapon_index];
 		bot->juggle_ticks = 1;
+		bot->juggle_from = unit->object.position;
 		/* (pulling the trigger with the flag in hand drops it: players.c) */
 		action->primary_trigger = 1.f;
 		action->control_flags |= FLAG(_unit_control_weapon_primary_trigger_bit);
@@ -17736,6 +18015,301 @@ static void bot_fight_choose_weapon(struct bot_think *t)
 	}
 }
 
+/* ---------- a grenade to bring a power weapon or a powerup closer
+
+A good player with a grenade and an overshield or a rocket launcher a long
+walk off throws the grenade just beyond it: the blast throws it toward him,
+and he meets it halfway. A bot at the higher levels (7 up) does the same
+when its goal is a power weapon or a powerup lying a way off: it works out,
+as the game does (damage.c, items.c), where the blast would throw it. The
+push: away from where the grenade goes off, toward its middle, tipped up by
+nearly half again, by the blast's push and the thing's own share of it; then
+the thing's fall, a tick at a time, under the world's gravity, until it hits
+the ground. Of a few places just beyond it to set the grenade off, the one
+that brings it nearest the soonest: the throw, the flight, the fuse, its
+flight, and the walk to where it lands, against the walk there now, a
+second better at least, where it lands on ground that can be walked to, and
+none of ours (nor itself) in the blast. It stands while the grenade goes
+off, then goes on. HALO_BOT_OFF=nadeitem: none */
+
+extern real global_gravity; /* physics.c */
+
+static struct bot_grenade_push
+{
+	int worked_out;
+	real accel; /* the blast's push (damage effect: instantaneous acceleration) */
+	real radius; /* how far it reaches (its cutoff) */
+	real hurts; /* how far it hurts */
+	real fuse; /* seconds, about */
+	int fuse_on_landing; /* (the timer from when it lands, not from the throw) */
+} bot_grenade_pushes[NUMBER_OF_UNIT_GRENADE_TYPES];
+
+/* how far on a grenade of each kind goes after it lands, along the way it
+   was thrown (it bounces and rolls): learned from the bots' own, a little at
+   a time. In test games a frag went off a unit and a half to two past where
+   it was thrown to, a plasma a unit or two */
+static real bot_grenade_roll[NUMBER_OF_UNIT_GRENADE_TYPES] = { 1.5f, 1.0f };
+static long bot_grenade_rolls[NUMBER_OF_UNIT_GRENADE_TYPES];
+
+static struct bot_grenade_push const *bot_grenade_push_of(long type)
+{
+	struct game_globals const *globals = scenario_get_game_globals();
+	struct bot_grenade_push *push;
+	if (type < 0 || type >= NUMBER_OF_UNIT_GRENADE_TYPES)
+		return NULL;
+	push = &bot_grenade_pushes[type];
+	if (!push->worked_out)
+	{
+		push->worked_out = TRUE;
+		if (globals && type < globals->grenades.count)
+		{
+			struct game_globals_grenade const *grenade = TAG_BLOCK_GET_ELEMENT(&globals->grenades, type, struct game_globals_grenade);
+			if (grenade->projectile.index != NONE)
+			{
+				struct projectile_definition const *projectile = projectile_definition_get(grenade->projectile.index);
+				real kills = 0.f, hurts = 0.f;
+				bot_push_collecting = TRUE;
+				bot_push_accel = 0.f;
+				bot_push_radius = 0.f;
+				bot_blast_of_projectile(projectile, 0, &kills, &hurts);
+				bot_push_collecting = FALSE;
+				push->accel = bot_push_accel;
+				push->radius = bot_push_radius;
+				push->hurts = hurts;
+				push->fuse = 0.5f * (projectile->projectile.timer_lower_bound + projectile->projectile.timer_upper_bound);
+				push->fuse_on_landing = projectile->projectile.detonation_timer_starts != 0;
+				if (bot_logging())
+					bot_log("nadeitem: grenade %ld pushes %.2f within %.2f, hurts within %.2f, fuse %.2f s%s", type, push->accel, push->radius,
+						push->hurts, push->fuse, push->fuse_on_landing ? " from landing" : "");
+			}
+		}
+	}
+	return push->accel > 0.f && push->radius > 0.f ? push : NULL;
+}
+
+/* where a thing lying at rest would land, thrown by a blast at this place:
+   FALSE when it is not thrown (out of reach, or it does not move for blasts)
+   or comes down on no floor (a wall, nothing within four seconds) */
+static int bot_item_thrown_to(long item_index, struct bot_grenade_push const *push, real_point3d const *blast, real_point3d *lands, real *seconds)
+{
+	struct item_datum *item = item_try_and_get(item_index);
+	struct object_definition const *definition;
+	real_vector3d v;
+	real_point3d at;
+	real size, scale;
+	long tick;
+	unsigned long const flags = FLAG(_collision_test_structure_bit) | FLAG(_collision_test_front_facing_surfaces_bit) |
+		FLAG(_collision_test_objects_scenery_bit);
+	if (!item || item->object.parent_object_index != NONE || TEST_FLAG(item->item.flags, _item_does_not_accelerate_bit))
+		return FALSE;
+	definition = object_definition_get(item->definition_index);
+	if (definition->object.acceleration_scale <= 0.001f)
+		return FALSE;
+	v.i = item->object.bounding_sphere_center.x - blast->x;
+	v.j = item->object.bounding_sphere_center.y - blast->y;
+	v.k = item->object.bounding_sphere_center.z - blast->z;
+	size = (real)sqrt(v.i * v.i + v.j * v.j + v.k * v.k);
+	if (size >= push->radius || size < 0.01f)
+		return FALSE;
+	v.i /= size;
+	v.j /= size;
+	v.k = v.k / size + 0.45f;
+	size = (real)sqrt(v.i * v.i + v.j * v.j + v.k * v.k);
+	scale = push->accel * definition->object.acceleration_scale * 0.033333335f / size;
+	v.i *= scale;
+	v.j *= scale;
+	v.k *= scale;
+	at = item->object.position;
+	for (tick = 1; tick <= 4 * BOT_TICKS_PER_SECOND; tick++)
+	{
+		struct collision_result collision;
+		real_vector3d step;
+		v.k -= global_gravity;
+		step = v;
+		if (collision_test_vector(flags, &at, &step, item_index, &collision))
+		{
+			if (collision.plane.n.k < 0.7f)
+				return FALSE;
+			*lands = collision.point;
+			*seconds = (real)tick / BOT_TICKS_PER_SECOND;
+			return TRUE;
+		}
+		at.x += step.i;
+		at.y += step.j;
+		at.z += step.k;
+	}
+	return FALSE;
+}
+
+static void bot_grenade_item(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	struct unit_datum *unit = t->unit;
+	real_point3d const *position = &t->position;
+	struct object_datum *thing;
+	real walk, best_gain = 1.f, best_time = 0.f, best_pitch = 0.f, best_flight = 0.f;
+	real_point3d best_aim, best_lands;
+	long best_type = NONE, type, k;
+	real ux, uy, d;
+	/* (testing, HALO_BOT_NADEGIVE: grenades in hand to try it with) */
+	if (bot_env_set("HALO_BOT_NADEGIVE") && unit->unit.grenade_counts[0] + unit->unit.grenade_counts[1] <= 0 && (bot_goal_is_power_weapon(bot) || bot_goal_is_powerup(bot)))
+		unit->unit.grenade_counts[game_time_get() / 300 % 2] = 2;
+	if (bot_env_set("HALO_BOT_NADETRACE") && bot_logging() && game_time_get() % 15 == 0 && (bot_goal_is_power_weapon(bot) || bot_goal_is_powerup(bot)))
+		bot_log("nadetrace bot%ld: skill %.2f vehicle %d cool %ld pending %ld forced %d grenades %d", t->player_absolute_index, bot_skill_now,
+			t->vehicle_index != NONE, bot->grenade_cooldown, bot->grenade_pending_ticks, t->look_forced, unit->unit.grenade_counts[0] + unit->unit.grenade_counts[1]);
+	if (bot_env_off("nadeitem") || bot_skill_now < 3.5f || t->vehicle_index != NONE || bot->grenade_cooldown > 0 || bot->grenade_pending_ticks > 0 ||
+		t->look_forced || game_time_get() % 15 != (t->player_absolute_index % 15) || bot->goal_kind != _bot_goal_item || bot->goal_object == NONE ||
+		!(bot_goal_is_power_weapon(bot) || bot_goal_is_powerup(bot)) || unit->unit.grenade_counts[0] + unit->unit.grenade_counts[1] <= 0 || !aas_ready())
+	{
+		return;
+	}
+	thing = object_try_and_get(bot->goal_object);
+	if (!thing || thing->object.parent_object_index != NONE || !TEST_FLAG(_object_mask_item, thing->object.type) ||
+		magnitude3d(&thing->object.translational_velocity) > 0.01f)
+	{
+		return;
+	}
+	d = bot_distance2d(position, &thing->object.position);
+	walk = bot_travel_time(&t->body, AAS_FOOT, &thing->object.position);
+	if (bot_env_set("HALO_BOT_NADETRACE") && bot_logging())
+		bot_log("nadetrace bot%ld %s %.1f off, walk %.1f", t->player_absolute_index, tag_get_name(thing->definition_index), d, walk);
+	if (d < 8.f || d > 35.f)
+		return;
+	if (walk < 3.f)
+		return;
+	ux = (thing->object.position.x - position->x) / d;
+	uy = (thing->object.position.y - position->y) / d;
+	for (type = 0; type < NUMBER_OF_UNIT_GRENADE_TYPES; type++)
+	{
+		struct bot_grenade_push const *push;
+		if (unit->unit.grenade_counts[type] <= 0 || !(push = bot_grenade_push_of(type)))
+			continue;
+		for (k = 0; k < 9; k++)
+		{
+			real behind = 0.35f + 0.45f * (real)(k / 3), across = 0.5f * (real)(k % 3 - 1);
+			real roll = bot_grenade_roll[type < NUMBER_OF_UNIT_GRENADE_TYPES ? type : 0];
+			real_point3d blast, aim, lands, there;
+			real pitch, flight, item_seconds, fuse, total, to_it, gain;
+			struct bot_body walker;
+			long i;
+			int ours_near = FALSE;
+			blast = thing->object.position;
+			blast.x += ux * behind - uy * across;
+			blast.y += uy * behind + ux * across;
+			blast.z += 0.05f;
+			if (!bot_item_thrown_to(bot->goal_object, push, &blast, &lands, &item_seconds))
+			{
+				if (bot_env_set("HALO_BOT_NADETRACE") && bot_logging())
+					bot_log("nadetrace   %ld: not thrown (%.2f from its middle)", k, distance3d(&blast, &thing->object.bounding_sphere_center));
+				continue;
+			}
+			if (bot_env_set("HALO_BOT_NADETRACE") && bot_logging())
+				bot_log("nadetrace   %ld: thrown %.1f toward, %.2f s", k, d - bot_distance2d(position, &lands), item_seconds);
+			if (aas_nearest_area(AAS_FOOT, &lands, 1.5f, &there) == NONE || fabs(there.z - lands.z) > 1.f)
+				continue;
+			/* (none of ours in the blast, itself least of all) */
+			if (distance3d(position, &blast) < push->hurts + 1.5f)
+				continue;
+			for (i = 0; i < BOT_MAXIMUM_PLAYERS && !ours_near; i++)
+			{
+				struct player_datum *other = bot_player_at_index(i);
+				if (other && other != t->me && other->unit_index != NONE && bot_unit_alive(other->unit_index) && !bot_is_enemy((short)t->me->team_index, other) &&
+					distance3d(&object_get(object_get_ultimate_parent(other->unit_index))->object.position, &blast) < push->hurts + 1.f)
+					ours_near = TRUE;
+			}
+			if (ours_near)
+				continue;
+			aim = blast;
+			aim.x -= ux * roll;
+			aim.y -= uy * roll;
+			if (!bot_grenade_lob(unit, type, &t->eye, &aim, t->me->unit_index, &pitch, &flight))
+				continue;
+			fuse = push->fuse_on_landing ? push->fuse + 0.3f : MAX(push->fuse - flight, 0.f);
+			total = 0.5f + flight + fuse + item_seconds;
+			bot_walker_at(&walker, position);
+			to_it = bot_travel_time(&walker, AAS_FOOT, &there);
+			if (to_it < 0.f)
+				continue;
+			gain = walk - (total + to_it);
+			if (gain > best_gain)
+			{
+				best_gain = gain;
+				best_type = type;
+				best_aim = aim;
+				best_lands = there;
+				best_time = total;
+				best_pitch = pitch;
+				best_flight = flight;
+			}
+		}
+	}
+	if (best_type == NONE)
+		return;
+	bot->grenade_index = (short)best_type;
+	bot->grenade_point = best_aim;
+	bot->grenade_lobbed = TRUE;
+	bot->grenade_pitch = best_pitch;
+	bot->grenade_pending_ticks = 20;
+	bot->nade_item = bot->goal_object;
+	bot->nade_aim = best_aim;
+	bot->nade_seen = FALSE;
+	bot->nade_type = best_type;
+	bot->nade_way_x = ux;
+	bot->nade_way_y = uy;
+	/* (standing while it goes off: then on to where it lands) */
+	bot_set_goal(bot, _bot_goal_hold, position, NONE, BOT_SECONDS(best_time + 0.5f));
+	bot->nade_item_lands = best_lands;
+	bot->nade_item_check = game_time_get() + BOT_SECONDS(best_time + 1.5f);
+	if (bot_logging())
+		bot_log("nadeitem: bot%ld t%ld at %.1f %.1f %.1f, grenade %ld to bring %s at %.1f %.1f %.1f closer: %.1f off, %.1f s walk; lands at %.1f %.1f %.1f (%.1f off), %.1f s better (%.1f s in the air)",
+			t->player_absolute_index, game_time_get(), position->x, position->y, position->z, best_type, tag_get_name(thing->definition_index),
+			thing->object.position.x, thing->object.position.y, thing->object.position.z, d, walk, best_lands.x, best_lands.y, best_lands.z,
+			bot_distance2d(position, &best_lands), best_gain, best_flight);
+}
+
+/* (the log: where it was to land and where it did) */
+static void bot_grenade_item_check(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	struct object_datum *thing;
+	if (bot->nade_item != NONE && bot->nade_item_check != 0)
+	{
+		/* (its grenade, as it goes: where it went off, for the log) */
+		struct object_iterator projectiles;
+		struct object_datum *projectile;
+		object_iterator_new(&projectiles, _object_mask_projectile, 0);
+		while ((projectile = (struct object_datum *)object_iterator_next(&projectiles)) != NULL)
+			if (projectile->object.owner_object_index == t->me->unit_index && bot_name_has(projectile->definition_index, "grenade"))
+			{
+				bot->nade_last = projectile->object.position;
+				bot->nade_seen = TRUE;
+			}
+	}
+	if (bot->nade_item == NONE || bot->nade_item_check == 0 || game_time_get() < bot->nade_item_check)
+		return;
+	thing = object_try_and_get(bot->nade_item);
+	if (thing && bot_logging())
+		bot_log("nadeitem: bot%ld t%ld its grenade went off %.1f from where it was to (%.1f %.1f %.1f, to %.1f %.1f %.1f); the thing came to %.1f %.1f %.1f (to land at %.1f %.1f %.1f: %.1f off)%s",
+			t->player_absolute_index, game_time_get(), bot->nade_seen ? distance3d(&bot->nade_last, &bot->nade_aim) : -1.f,
+			bot->nade_last.x, bot->nade_last.y, bot->nade_last.z, bot->nade_aim.x, bot->nade_aim.y, bot->nade_aim.z,
+			thing->object.position.x, thing->object.position.y, thing->object.position.z, bot->nade_item_lands.x, bot->nade_item_lands.y,
+			bot->nade_item_lands.z, bot_distance2d(&thing->object.position, &bot->nade_item_lands),
+			thing->object.parent_object_index != NONE ? " (taken)" : "");
+	/* (how far on it went from where it was thrown to: learned) */
+	if (bot->nade_seen && bot->nade_type >= 0 && bot->nade_type < NUMBER_OF_UNIT_GRENADE_TYPES && distance3d(&bot->nade_last, &bot->nade_aim) < 6.f)
+	{
+		real on = (bot->nade_last.x - bot->nade_aim.x) * bot->nade_way_x + (bot->nade_last.y - bot->nade_aim.y) * bot->nade_way_y;
+		long n = bot_grenade_rolls[bot->nade_type]++;
+		real share = n < 4 ? 0.5f : 0.2f;
+		real was = bot_grenade_roll[bot->nade_type];
+		bot_grenade_roll[bot->nade_type] = PIN(was + share * (on - was), -1.f, 4.f);
+		if (bot_logging())
+			bot_log("nadeitem: grenade %ld went on %.1f past where it was thrown to: now thrown %.1f short", bot->nade_type, on, bot_grenade_roll[bot->nade_type]);
+	}
+	bot->nade_item = NONE;
+	bot->nade_item_check = 0;
+}
+
 static void bot_grenade_at_target(struct bot_think *t)
 {
 	struct bot_state *bot = t->bot;
@@ -18775,6 +19349,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	if (t->vehicle_index != NONE && (t->driving || t->gunner))
 		bot_vehicle_gun(&t->weapon, t->vehicle_index, t->gunner && !t->driving);
 
+	bot_grenade_item_check(t);
 	BOT_PROFILE_MARK("perception");
 	/* ---- perception */
 	bot_finding_teamwork = bot->personality.teamwork;
@@ -19016,9 +19591,46 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	   Off for now (BOT_FLAG_JUGGLING): the carrier keeps hold of the flag */
 	if (bot->juggle_cooldown > 0)
 		bot->juggle_cooldown--;
-	if (bot->juggle_ticks > 0)
+	if (bot_env_set("HALO_BOT_JUGGLETRACE") && bot_logging() && bot->carrying_objective && game_time_get() % 30 == 0)
+	{
+		real_vector3d v;
+		object_get_velocities(t->me->unit_index, &v, NULL);
+		long held_index = unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT ?
+			unit->unit.weapon_object_indices[unit->unit.current_weapon_index] : NONE;
+		struct weapon_datum *held_weapon = held_index != NONE ? weapon_try_and_get(held_index) : NULL;
+		bot_log("carrytrace bot%ld %s speed %.2f penalty %.2f mode %d", t->player_absolute_index, bot->juggle_ticks > 0 ? "juggling" : "carrying",
+			(real)sqrt(v.i * v.i + v.j * v.j) * BOT_TICKS_PER_SECOND,
+			held_weapon ? weapon_definition_get(held_weapon->definition_index)->weapon.forward_movement_penalty : -1.f,
+			held_weapon ? (int)weapon_definition_get(held_weapon->definition_index)->weapon.movement_penalty_mode : -1);
+	}
+	if (bot_env_set("HALO_BOT_JUGGLETRACE") && bot_logging() && bot->carrying_objective && game_time_get() % 15 == 0)
+		bot_log("juggletrace bot%ld: crowded %d none %d moving %d moved %d committed %d walk %d look %d target %d hit %ld cool %ld switch %ld yaw %.2f pitch %.2f goal %.1f safe %d",
+			t->player_absolute_index, bot_juggle_crowded(t), t->weapon.none, t->moving, t->moved, t->committed, t->result.travel == _aas_travel_walk,
+			t->result.look, t->target != NONE, bot->hit_ticks, bot->juggle_cooldown, bot->weapon_switch_ticks, fabs(bot_angle_difference(t->move_yaw, bot->yaw)),
+			bot->pitch, bot_distance2d(&t->position, &bot->goal), !aas_ready() || bot_move_direction_safe(&t->body, t->move_yaw, 2.5f));
+	/* (its running with the flag, as it goes: what a juggle has to beat) */
+	if (bot->carrying_objective && t->moving && t->vehicle_index == NONE && bot->juggle_ticks <= 0 && bot->juggle_jump <= 0 && game_time_get() % 10 == 0)
+	{
+		real_vector3d v;
+		object_get_velocities(me->unit_index, &v, NULL);
+		bot->memory.carry_speed = bot->memory.carry_speed > 0.f ? 0.9f * bot->memory.carry_speed + 0.1f * (real)sqrt(v.i * v.i + v.j * v.j) * BOT_TICKS_PER_SECOND :
+			(real)sqrt(v.i * v.i + v.j * v.j) * BOT_TICKS_PER_SECOND;
+	}
+	if (bot->juggle_jump > 0)
+	{
+		/* (in the air: let go near the top, the flag the furthest to fly) */
+		if (--bot->juggle_jump == 0 && bot->carrying_objective)
+		{
+			bot->juggle_flag = unit->unit.weapon_object_indices[unit->unit.current_weapon_index];
+			bot->juggle_ticks = 1;
+			bot->juggle_from = unit->object.position;
+			action->primary_trigger = 1.f;
+			action->control_flags |= FLAG(_unit_control_weapon_primary_trigger_bit);
+		}
+	}
+	else if (bot->juggle_ticks > 0)
 		bot_juggle_chase(t);
-	else if (BOT_FLAG_JUGGLING && t->vehicle_index == NONE && game_engine == &ctf_engine && t->weapon.none && t->moving && t->moved && !t->committed &&
+	else if ((BOT_FLAG_JUGGLING || (bot_skill_now >= 3.5f && !bot_env_off("juggle") && !bot_juggle_crowded(t))) && t->vehicle_index == NONE && game_engine == &ctf_engine && t->weapon.none && t->moving && t->moved && !t->committed &&
 		t->result.travel == _aas_travel_walk && !t->result.look && t->target == NONE && bot->hit_ticks <= 0 &&
 		bot->juggle_cooldown <= 0 && bot->weapon_switch_ticks <= 0 &&
 		unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT &&
@@ -19230,6 +19842,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	{
 		bot_grenade_at_popout(t);
 		bot_grenade_at_tracked(t);
+		bot_grenade_item(t);
 		if (t->vehicle_index == NONE && !t->weapon.none && t->weapon.uses_ammunition && t->weapon.rounds_total > 0 &&
 			t->weapon.rounds_loaded < MAX(1, t->weapon.rounds_total / 4) && t->weapon.rounds_loaded < 8)
 		{
@@ -19416,6 +20029,7 @@ void bots_map_loaded(void)
 	struct scenario *scenario = global_scenario_get();
 
 	bot_blast_known_count = 0;
+	memset(bot_grenade_pushes, 0, sizeof(bot_grenade_pushes));
 
 	/* (and when the navigation is being baked, bot_bake.c: whoever plays) */
 	if (game_connection() != _game_connection_network_server || !scenario ||

@@ -1668,6 +1668,7 @@ struct bot_state
 	long last_vehicle;
 	int last_seat_kind;
 	long crouch_jump_ticks; /* a crouch jump: crouch from a few ticks in */
+	long errand_out_ticks; /* stopped at the end of the road for an errand on foot, this long */
 	/* an enemy we can't see but know is there: on the motion tracker, or
 	   heard shooting */
 	long tracked_unit;
@@ -4612,6 +4613,16 @@ static struct player_datum *bot_holder_player(long object_index)
 }
 
 
+/* How far a flag counts as far: a map navigated in parts (Coldsnap,
+   Hugeass: a mile or two across, crossed in vehicles) is ten times a small
+   map's. Weighed by a small map's distances, the enemy flag a mile off was
+   worth less than any vehicle near by, and nobody on Coldsnap went for it.
+   HALO_BOT_OFF=ctffar: as it was */
+static real bot_ctf_far(void)
+{
+	return bot_nav_in_parts() && !bot_env_off("ctffar") ? 10.f : 1.f;
+}
+
 static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *player, struct unit_datum *unit,
 	real_point3d const *position, real held, struct bot_candidate *best)
 {
@@ -4744,11 +4755,11 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 					bot_consider(best, urgency * focus * (defender ? 16.f : 8.f), _bot_goal_hold, &spot, NONE, 4 * BOT_TICKS_PER_SECOND, TRUE);
 				}
 				else
-					bot_consider(best, urgency * focus * (defender ? 20.f : 10.f) / (1.f + distance / 60.f), _bot_goal_roam, &spot, NONE,
+					bot_consider(best, urgency * focus * (defender ? 20.f : 10.f) / (1.f + distance / (60.f * bot_ctf_far())), _bot_goal_roam, &spot, NONE,
 						10 * BOT_TICKS_PER_SECOND, TRUE);
 			}
 			else
-				bot_consider(best, urgency * focus * 25.f / (1.f + distance / 60.f), _bot_goal_item, &mine->object.position, my_flag,
+				bot_consider(best, urgency * focus * 25.f / (1.f + distance / (60.f * bot_ctf_far())), _bot_goal_item, &mine->object.position, my_flag,
 					20 * BOT_TICKS_PER_SECOND, TRUE);
 		}
 	}
@@ -4805,16 +4816,24 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 		   The team-minded wait a moment for company when others are on
 		   the way too */
 		real distance = distance3d(&theirs->object.position, position);
-		real score = armed * focus * (20.f + 10.f * bot->personality.aggression) / (1.f + distance / 120.f);
+		real score = armed * focus * (20.f + 10.f * bot->personality.aggression) / (1.f + distance / (120.f * bot_ctf_far()));
 		/* (an escort a moment ago, and it fell close by: up with it again) */
 		if (bot->escort_tick != 0 && game_time_get() >= bot->escort_tick && game_time_get() - bot->escort_tick < BOT_SECONDS(6.f) && distance < 30.f &&
 			distance3d(&theirs->object.position, &their_base) > 2.f)
 		{
 			score *= 3.f;
 		}
-		bot_consider(best, score, _bot_goal_item, &theirs->object.position, their_flag, 40 * BOT_TICKS_PER_SECOND, TRUE);
+		{
+			/* (a map crossed in vehicles, the flag a long way off: a ride
+			   there first. On foot there was no way, the flag the goal all
+			   the same, and a bot stood at its base wanting it all game.
+			   HALO_BOT_OFF=ctffar) */
+			real on_foot = bot_ctf_far() > 1.f && distance > 250.f && unit->object.parent_object_index == NONE ? 0.3f : 1.f;
+			bot_consider(best, score * on_foot, _bot_goal_item, &theirs->object.position, their_flag, 40 * BOT_TICKS_PER_SECOND, TRUE);
+		}
 		if (distance > 50.f && unit->object.parent_object_index == NONE)
 		{
+			real ride = bot_ctf_far() > 1.f && distance > 250.f ? 3.f : 1.f;
 			struct object_iterator iterator;
 			struct object_datum *object;
 			object_iterator_new(&iterator, _object_mask_vehicle, 0);
@@ -4827,7 +4846,7 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 				int its_down = FALSE;
 				int waits = driver != NONE && bot_vehicle_transport(iterator.index) &&
 					bot_haul_job_of(iterator.index, &its_down) == _bot_haul_load && its_down;
-				if (to_vehicle > (waits ? 80.f : 25.f) || object->object.parent_object_index != NONE || bot_ignoring(bot, iterator.index) ||
+				if (to_vehicle > (waits ? 80.f : 25.f) * (ride > 1.f ? 3.f : 1.f) || object->object.parent_object_index != NONE || bot_ignoring(bot, iterator.index) ||
 					!bot_vehicle_entry(player->unit_index, iterator.index, &entry) ||
 					bot_vehicle_has_enemy(iterator.index, player)) /* (one of them at its gun and nobody driving: theirs) */
 				{
@@ -4841,7 +4860,7 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 					if (!driver_player || bot_is_enemy((short)player->team_index, driver_player))
 						continue;
 				}
-				bot_consider(best, (waits ? MAX(score, 12.f) * 1.5f : score * (0.9f + 0.8f * bot->personality.vehicle_love)) / (1.f + to_vehicle / (waits ? 80.f : 40.f)),
+				bot_consider(best, ride * (waits ? MAX(score, 12.f) * 1.5f : score * (0.9f + 0.8f * bot->personality.vehicle_love)) / (1.f + to_vehicle / (waits ? 80.f : 40.f)),
 					_bot_goal_vehicle, &entry, iterator.index, 20 * BOT_TICKS_PER_SECOND, TRUE);
 			}
 		}
@@ -12579,6 +12598,9 @@ static void bot_drive_get_out_for_errand(struct bot_think *t, struct bot_area_dr
 	/* (as near the flag as a vehicle gets, and that is not at it: the
 	   rest on foot. The way on is the walker's to find; sitting at the
 	   end of the road with the flag in sight is nobody's) */
+	if (!(d->errand_on_foot && !d->circling && !d->hold && !result->no_route && (result->arrived || !result->moving) &&
+		bot_distance2d(position, &d->next) < 5.f))
+		bot->errand_out_ticks = 0;
 	if (d->errand_on_foot && !d->circling && !d->hold && !result->no_route && (result->arrived || !result->moving) &&
 		bot_distance2d(position, &d->next) < 5.f)
 	{
@@ -12586,10 +12608,14 @@ static void bot_drive_get_out_for_errand(struct bot_think *t, struct bot_area_dr
 		/* (stopped first: out of a Warthog that is still going is on with
 		   it at its speed, and the flag of Coldsnap's north-west base
 		   stands by a cliff) */
+		/* (... or as good as: one held a while on a slope creeps, never
+		   quite still, and a Warthog held at the edge by Coldsnap's bridge
+		   crept over it with its driver in it. HALO_BOT_OFF=outsoon) */
+		real still = !bot_env_off("outsoon") && ++bot->errand_out_ticks > BOT_SECONDS(1.f) ? 0.08f : 0.03f;
 		d->hold = TRUE;
-		if (magnitude3d(&ride->object.translational_velocity) < 0.03f)
+		if (magnitude3d(&ride->object.translational_velocity) < still)
 			action->control_flags |= FLAG(_unit_control_action_bit);
-		if (magnitude3d(&ride->object.translational_velocity) < 0.03f && !bot_ignoring(bot, vehicle_index))
+		if (magnitude3d(&ride->object.translational_velocity) < still && !bot_ignoring(bot, vehicle_index))
 		{
 			bot_ignore(bot, vehicle_index, 20 * BOT_TICKS_PER_SECOND);
 			if (bot_logging())

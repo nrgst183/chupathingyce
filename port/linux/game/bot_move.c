@@ -3475,6 +3475,13 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	if (area == NONE)
 	{
 		area = aas_nearest_area(type, position, type == AAS_VEHICLE ? 4.f : 2.f, &spot);
+		/* (none that near: further, and the longer it is off them the
+		   further. Two bots born on a ledge of Coldsnap's, its nearest floor
+		   3 units under it, stood there the whole game: no area within 2
+		   units, no way from where it was, and none tried.
+		   HALO_BOT_OFF=farspot: 2 units only) */
+		if (area == NONE && type == AAS_FOOT && !bot_env_off("farspot"))
+			area = aas_nearest_area(type, position, move->off_mesh_ticks > BOT_SECONDS(1.f) ? 8.f : 4.f, &spot);
 		move->off_mesh_ticks++;
 	}
 	else

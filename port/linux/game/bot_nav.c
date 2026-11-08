@@ -24,6 +24,8 @@ Surfaces the map marks climbable (ladders) are kept for the reachabilities.
 #include "objects/objects.h"
 #include "physics/collisions.h"
 #include "physics/collision_bsp_definitions.h"
+#include "physics/collision_model_definitions.h"
+#include "objects/object_definitions.h"
 #include "scenario/scenario.h"
 #include "scenario/scenario_definitions.h"
 #include "tag_files/files.h"
@@ -756,6 +758,108 @@ static void navm_rasterize_bsp(struct navm_raster *raster, struct collision_bsp 
 	}
 }
 
+/* Scenery is floor too, on a Custom Edition map: its big pieces. A map
+   made for Halo PC builds with scenery what the Xbox's maps build into the
+   map: Coldsnap's bridge, with a flag on it, is scenery, and the floors were
+   the map's alone, so there was no floor on the bridge, no way onto it,
+   and nobody went for that flag. Each piece of scenery 3 units or more
+   across goes into the raster as the map does, its every surface where it
+   stands (its walls are walls, its tops floors); a smaller one (a rock, a
+   crate) is in the way, as before (navm_mark_scenery).
+   HALO_BOT_OFF=scenefloor: the map's alone */
+#define NAVM_SCENERY_FLOOR_RADIUS 3.f
+static boolean navm_scenery_floors(void)
+{
+	extern boolean cache_file_tags_are_ce(void);
+	return cache_file_tags_are_ce() && !bot_env_off("scenefloor");
+}
+
+static void navm_rasterize_scenery(struct navm_raster *raster)
+{
+	struct object_iterator iterator;
+	struct object_datum *object;
+	long pieces = 0, surfaces = 0;
+	if (!navm_scenery_floors())
+		return;
+	object_iterator_new(&iterator, _object_mask_scenery, 0);
+	while ((object = (struct object_datum *)object_iterator_next(&iterator)) != NULL)
+	{
+		struct object_definition *definition = object_definition_get(object->definition_index);
+		struct collision_model *model;
+		long n;
+		if (object->object.bounding_sphere_radius < NAVM_SCENERY_FLOOR_RADIUS || definition->object.collision_model.index == NONE)
+			continue;
+		model = collision_model_definition_get(definition->object.collision_model.index);
+		if (!model)
+			continue;
+		pieces++;
+		for (n = 0; n < model->nodes.count; n++)
+		{
+			struct collision_node *node = TAG_BLOCK_GET_ELEMENT(&model->nodes, n, struct collision_node);
+			struct collision_bsp *bsp;
+			real_matrix4x3 *matrix = object_get_node_matrix(iterator.index, (short)n);
+			long permutation = 0, s;
+			if (node->bsps.count <= 0 || !matrix)
+				continue;
+			if (node->region_index >= 0 && node->region_index < MAXIMUM_REGIONS_PER_OBJECT)
+				permutation = object->object.region_permutations[node->region_index];
+			permutation = PIN(permutation, 0, node->bsps.count - 1);
+			bsp = TAG_BLOCK_GET_ELEMENT(&node->bsps, permutation, struct collision_bsp);
+			for (s = 0; s < bsp->surfaces.count; s++)
+			{
+				real_point3d polygon[16];
+				real_plane3d plane;
+				long count = navm_surface_polygon(bsp, s, polygon, &plane);
+				real minimum_x = 1.0e9f, maximum_x = -1.0e9f, minimum_y = 1.0e9f, maximum_y = -1.0e9f;
+				long cx0, cx1, cy0, cy1, cx, cy, c;
+				if (count < 3)
+					continue;
+				for (c = 0; c < count; c++)
+				{
+					real_point3d world;
+					matrix4x3_transform_point(matrix, &polygon[c], &world);
+					polygon[c] = world;
+				}
+				/* (its plane where it stands: the surface's, facing out, turned
+				   as the piece is) */
+				{
+					real_vector3d turned;
+					real length;
+					matrix4x3_transform_vector(matrix, &plane.n, &turned);
+					length = (real)sqrt(turned.i * turned.i + turned.j * turned.j + turned.k * turned.k);
+					if (length < 1.0e-6f)
+						continue;
+					plane.n.i = turned.i / length;
+					plane.n.j = turned.j / length;
+					plane.n.k = turned.k / length;
+				}
+				plane.d = plane.n.i * polygon[0].x + plane.n.j * polygon[0].y + plane.n.k * polygon[0].z;
+				for (c = 0; c < count; c++)
+				{
+					minimum_x = MIN(minimum_x, polygon[c].x);
+					maximum_x = MAX(maximum_x, polygon[c].x);
+					minimum_y = MIN(minimum_y, polygon[c].y);
+					maximum_y = MAX(maximum_y, polygon[c].y);
+				}
+				surfaces++;
+				navm_column_range(minimum_x, maximum_x, minimum_y, maximum_y, &cx0, &cx1, &cy0, &cy1);
+				for (cy = cy0; cy <= cy1; cy++)
+					for (cx = cx0; cx <= cx1; cx++)
+					{
+						if (!navm_wanted_at(cx, cy))
+						{
+							cx |= NAVM_BLOCK - 1;
+							continue;
+						}
+						navm_rasterize_column(raster, cx, cy, polygon, count, &plane, plane.n.k >= NAVM_MINIMUM_NORMAL_K);
+					}
+			}
+		}
+	}
+	if (bot_logging())
+		bot_log("navm: %ld pieces of scenery, %ld surfaces, as the map's", pieces, surfaces);
+}
+
 static int navm_float_compare(void const *a, void const *b)
 {
 	float fa = *(float const *)a;
@@ -1192,6 +1296,10 @@ void navm_signature(char *map, unsigned long *signature)
 		sum = sum * 31 + words[0] + words[1] * 7 + words[2] * 13;
 	}
 	signature[3] = sum;
+	/* (a map with its scenery for floor has navigation of its own: one
+	   worked out without it is not this one) */
+	if (navm_scenery_floors())
+		signature[3] ^= 0x5ce7f10fUL;
 }
 
 /* (baking: bot_bake.c has the game working out every map's navigation to
@@ -1779,6 +1887,7 @@ boolean navm_build(void)
 	}
 
 	navm_rasterize_bsp(&raster, bsp);
+	navm_rasterize_scenery(&raster);
 	if (!navm_build_failed)
 		navm_build_spans(&raster);
 	if (navm_build_failed)

@@ -4165,6 +4165,31 @@ static int bot_seat_keeps(long unit_index, long vehicle_index, short seat, long 
 
 /* where to stand to get into the seat we want: the wheel if nobody's
    driving, else the gun, else any free seat; FALSE when it's full */
+static int bot_vehicle_entry_seat(long unit_index, long vehicle_index, real_point3d *entry, int *rank_out, short *seat_out);
+static long bot_riders_coming(long vehicle_index, long me, real within);
+static int bot_vehicle_flipped(long vehicle_index);
+
+/* a seat the game offers that would do as well as the one gone for: any
+   free one, the same as bot_vehicle_entry_seat's best (its rank) */
+static int bot_seat_will_do(long unit_index, long vehicle_index, short seat)
+{
+	real_point3d entry;
+	int best_rank = 99;
+	struct unit_datum *enterer = unit_try_and_get(unit_index);
+	int has_driver = unit_scripting_unit_driver(vehicle_index) != NONE;
+	long me_index;
+	if (seat < 0 || bot_env_off("anyseat") || !enterer || bot_holds_named(enterer, "flag") || bot_holds_named(enterer, "ball") ||
+		!bot_vehicle_entry_seat(unit_index, vehicle_index, &entry, &best_rank, NULL) || best_rank >= 99)
+	{
+		return FALSE;
+	}
+	if (has_driver)
+		return TRUE;
+	me_index = enterer->unit.player_index != NONE ? DATUM_INDEX_TO_ABSOLUTE_INDEX(enterer->unit.player_index) : NONE;
+	return unit_seat_is_driver(vehicle_index, seat) ||
+		(me_index >= 0 && me_index < BOT_MAXIMUM_PLAYERS && bot_riders_coming(vehicle_index, me_index, 25.f) > 0);
+}
+
 static int bot_vehicle_entry_seat(long unit_index, long vehicle_index, real_point3d *entry, int *rank_out, short *seat_out)
 {
 	struct object_datum *vehicle = object_get(vehicle_index);
@@ -4176,6 +4201,13 @@ static int bot_vehicle_entry_seat(long unit_index, long vehicle_index, real_poin
 	   as well, the one whose door is nearest. They are yards apart, on both
 	   sides of it and at its tail.) */
 	int nearest_door = enterer && enterer->object.parent_object_index == NONE && bot_vehicle_transport(vehicle_index);
+	/* (any seat: someone at the wheel, or another of ours on the way to it,
+	   and whichever free seat's door is nearest is the one; the wheel first
+	   only for one that would be its only rider. HALO_BOT_OFF=anyseat:
+	   the wheel, then the gun, then the rest, as before) */
+	long me_index = enterer && enterer->unit.player_index != NONE ? DATUM_INDEX_TO_ABSOLUTE_INDEX(enterer->unit.player_index) : NONE;
+	int any_seat = !bot_env_off("anyseat") && enterer && !carrier && enterer->object.parent_object_index == NONE &&
+		(has_driver || (me_index >= 0 && me_index < BOT_MAXIMUM_PLAYERS && bot_riders_coming(vehicle_index, me_index, 25.f) > 0));
 	real best_off = 1.0e9f;
 	short best = NONE;
 	int best_rank = 99;
@@ -4208,19 +4240,21 @@ static int bot_vehicle_entry_seat(long unit_index, long vehicle_index, real_poin
 				unit_seat_is_driver(vehicle_index, seat) ? (has_driver ? 99 : 1) : (has_driver ? 0 : 99);
 		/* nobody at the wheel: the wheel (a gun on a parked vehicle is a
 		   sitting duck); someone driving: the gun, then any seat */
+		else if (any_seat)
+			rank = 0;
 		else if (unit_seat_is_driver(vehicle_index, seat))
 			rank = has_driver ? 99 : 0;
 		else if (unit_seat_is_gunner(vehicle_index, seat))
 			rank = has_driver ? 0 : 99;
 		else
 			rank = has_driver ? 2 : 99;
-		if (rank < best_rank || (nearest_door && rank == best_rank && rank < 99))
+		if (rank < best_rank || ((nearest_door || any_seat) && rank == best_rank && rank < 99))
 		{
 			real_point3d exit_point;
 			real_point3d seat_point;
 			if (unit_get_seat_entrance_point(unit_index, vehicle_index, seat, entry, &exit_point, &seat_point))
 			{
-				real off = nearest_door ? distance3d(entry, &enterer->object.position) : 0.f;
+				real off = nearest_door || any_seat ? distance3d(entry, &enterer->object.position) : 0.f;
 				if (rank < best_rank || off < best_off)
 				{
 					best_rank = rank;
@@ -4232,6 +4266,28 @@ static int bot_vehicle_entry_seat(long unit_index, long vehicle_index, real_poin
 	}
 	if (best == NONE)
 		return FALSE;
+	/* (on its side or its roof: to be turned over, by its side on the
+	   ground, not at a door up on it: HALO_BOT_OFF=flipnear: the door) */
+	if (bot_vehicle_flipped(vehicle_index) && enterer && unit_scripting_unit_driver(vehicle_index) == NONE && !bot_env_off("flipnear"))
+	{
+		real_point3d at = vehicle->object.position;
+		real dx = enterer->object.position.x - at.x, dy = enterer->object.position.y - at.y;
+		real d = (real)sqrt(dx * dx + dy * dy);
+		real reach = MIN(vehicle->object.bounding_sphere_radius * 0.8f, 2.5f);
+		if (d > 0.1f)
+		{
+			at.x += dx / d * reach;
+			at.y += dy / d * reach;
+		}
+		if (aas_ready())
+			aas_nearest_area(AAS_FOOT, &at, 3.f, &at);
+		*entry = at;
+		if (rank_out)
+			*rank_out = best_rank;
+		if (seat_out)
+			*seat_out = best;
+		return TRUE;
+	}
 	if (rank_out)
 		*rank_out = best_rank;
 	if (seat_out)
@@ -11204,8 +11260,8 @@ static void bots_world_tick(void)
 						near_at = object_get(who->unit_index)->object.position;
 					}
 				}
-				bot_log("balltrace   ball at %.2f %.2f %.2f, nearest %.2f off (at %.2f %.2f %.2f)", thing->object.position.x, thing->object.position.y,
-					thing->object.position.z, near, near_at.x, near_at.y, near_at.z);
+				bot_log("balltrace   ball at %.2f %.2f %.2f, nearest %.2f off, %.2f across (at %.2f %.2f %.2f)", thing->object.position.x, thing->object.position.y,
+					thing->object.position.z, near, bot_distance2d(&near_at, &thing->object.position), near_at.x, near_at.y, near_at.z);
 			}
 		}
 	}
@@ -15406,7 +15462,24 @@ static void bot_pickup_item(struct bot_think *t, struct object_datum *item, int 
 					bot_log("bot%ld pickup: the last step: %.2f off, %.2f above, way clear %d, floor halfway %d", player_absolute_index, off, above,
 						bot_line_clear(bot_move_flags, &from, &to, me->unit_index), !bot_line_clear(bot_move_flags, &half, &under, me->unit_index));
 			}
-			if (open)
+			/* (a little below us, over something knee high: on floor the
+			   navigation has, a step down past a kerb or a rail. Over it at a
+			   hop, toward it, again every so often till it comes: Hang 'em
+			   High's ball lies on such a ledge, and the bots stood at its lip.
+			   HALO_BOT_OFF=pickuphop: as before) */
+			if (!open && above < -0.3f && above > -2.5f && off < 1.4f && aas_ready() && !bot_env_off("pickuphop") &&
+				aas_point_area(AAS_FOOT, &item->object.position) != NONE)
+			{
+				t->moving = TRUE;
+				t->move_yaw = yaw;
+				t->move_speed = 1.f;
+				if (bot->action_ticks % 20 == 6 && !body->airborne)
+				{
+					t->jump = TRUE;
+					bot_jump_cause = 3;
+				}
+			}
+			else if (open)
 			{
 				t->moving = TRUE;
 				t->move_yaw = yaw;
@@ -15444,7 +15517,21 @@ static void bot_pickup_vehicle(struct bot_think *t, struct object_datum *item)
 	real_point3d door;
 	short wanted = NONE;
 	int at_hand = me->action_result == _player_action_result_enter_vehicle && me->action_object_index == bot->goal_object &&
-		bot_vehicle_entry_seat(me->unit_index, bot->goal_object, &door, NULL, &wanted) && me->action_seat_index == wanted;
+		bot_vehicle_entry_seat(me->unit_index, bot->goal_object, &door, NULL, &wanted) &&
+		(me->action_seat_index == wanted || bot_seat_will_do(me->unit_index, bot->goal_object, me->action_seat_index));
+	/* (on its side or its roof, and the game has us where it turns it
+	   over: the button, from where we stand. No climbing up onto it) */
+	if (me->action_result == _player_action_result_flip_vehicle && me->action_object_index == bot->goal_object && !bot_env_off("flipnear"))
+	{
+		t->moving = FALSE;
+		t->desired_yaw = bot_yaw_to(position, &item->object.position);
+		t->look_reason = _bot_look_act;
+		if ((bot->action_ticks / 6) % 2 == 0)
+			action->control_flags |= FLAG(_unit_control_action_bit);
+		if (bot_logging() && bot->action_ticks % 30 == 1)
+			bot_log("bot%ld t%ld turns the %s over", player_absolute_index, game_time_get(), tag_get_name(item->definition_index));
+		return;
+	}
 	t->moving = off > 0.15f;
 	t->move_yaw = bot_yaw_to(position, &bot->goal);
 	t->move_speed = off > 0.6f ? 0.5f : 0.25f;

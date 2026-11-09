@@ -3015,9 +3015,32 @@ and two kinds of walker); the wrecks of the others stayed.
   games, the average hold went from 3.8 to 5.4 and 3.9 to 8.4 seconds, and
   the longest from 16 to 25 and 18 to 97. `HALO_BOT_BALLTRACE` logs who
   holds the ball each second, and how near anyone is to it when loose.
-  On Hang 'em High the bots seldom reach the ball where it starts. The
-  ledge it sits on is only reachable by one hop on the nav mesh, and they
-  get no nearer than about 4 units, with or without this change.
+  On Hang 'em High the ball starts on a strip of ledge that can only be
+  reached by a three-unit jump across a gap. Bots near a goal on foot now
+  go for whichever area within reach of it is quickest to get to
+  (`besidearea`). An item a little below them, past a kerb or rail, gets a
+  hop toward it every so often (`pickuphop`). Over four test games the
+  ball was taken in two (47 and 188 seconds of 580 held), against small
+  amounts in two games before. The jump across stays hard, and bots that
+  fall short drop to the floor below.
+- **Any seat:** a bot getting into a vehicle that someone drives, or that
+  another bot of its side is on its way to, takes whichever free seat's
+  door is nearest. A bot that would be the vehicle's only rider still goes
+  for the wheel. A seat the game offers that will do is taken at once,
+  even when it isn't the one the bot was walking to (`anyseat`).
+- **Drivers look further:** across country (Blood Gulch, the open maps)
+  the point steered at is up to 21 units or 2.6 seconds ahead at speed,
+  from 18 and 2.2. On the vehicle mesh the route is looked along over
+  eight corners, not two. When the point ahead can't be seen straight
+  through the vehicle's areas, a nearer one is tried before falling back
+  to the next corner. In the driving benchmark over three seeds on Blood
+  Gulch, 58 legs were driven against 40 before, at the same speed. Looking
+  much further (26 to 30 units) was worse: fewer legs done and more
+  reversing, so it was left out (`farsight`: as before).
+- **Turning a vehicle over:** an empty vehicle on its side or roof is gone
+  to beside it on the ground, not at a door up on it, so bots no longer
+  jump up on it. When the game offers to turn it over, the bot presses the
+  button from where it stands (`flipnear`).
 - **CTF: more escorts:** up to four bots escort the flag carrier on bigger
   teams (one for three or fewer, two for four, three for up to six). Others
   nearby go with the carrier more readily than before (`escorts`: up to

@@ -5134,7 +5134,9 @@ void bot_country_drive(struct bot_traveller *traveller, struct bot_body const *b
 	   it goes, as a driver looks up the road, not at the next bend of it;
 	   HALO_BOT_OFF=lookahead, as it was) */
 	if (!bot_country_way(position, to, bot_country_portals_of(body->vehicle_index), TRUE,
-		country_looks_far() ? MAX(18.f, speed * 2.2f) : MAX(14.f, speed * 1.6f), &next, &soon, &off, NULL))
+		/* (further still, the farsighted: HALO_BOT_OFF=farsight, 18 and 2.2 s) */
+		country_looks_far() ? (bot_env_off("farsight") ? MAX(18.f, speed * 2.2f) : MAX(21.f, speed * 2.6f)) : MAX(14.f, speed * 1.6f),
+		&next, &soon, &off, NULL))
 	{
 		country_without_way(traveller, body, speed, heading, soon, off, result);
 		return;

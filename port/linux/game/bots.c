@@ -1855,6 +1855,7 @@ struct bot_state
 	long lane_set; /* of which set */
 	int on_lane; /* this trip is by its lane */
 	int lane_live; /* this life went for the objective by a lane (getting there: bot_lane_worked) */
+	long jink_side, jink_until; /* the ball in hand: which way it jinks, and till when */
 	long live_set, live_lane, live_serial; /* ... which */
 	long nade_item; /* a thing it threw a grenade to bring closer (bot_grenade_item): NONE none */
 	real_point3d nade_item_lands;
@@ -4768,6 +4769,106 @@ static void bot_keep_away_spot(struct bot_state *bot, real_point3d const *enemy,
 	}
 }
 
+/* The ball in hand: somewhere away from all of them, not just the nearest.
+   Each place by how far it is from the nearest of them, and a little by how
+   far from the rest; less the further it is to go, and much less if the way
+   there runs toward one of them; of the best few, one out of the nearest's
+   sight better still. Kept to while it stays good (no darting between two),
+   with a little of the bot's own chance in it. HALO_BOT_OFF=ballrun: away
+   from the nearest only, as before */
+static int bot_ball_away_spot(struct bot_state *bot, struct player_datum *player, real_point3d const *position, real_point3d *away)
+{
+	real_point3d enemies[16];
+	long count = 0, i, k, nearest = NONE;
+	real nearest_distance = 1.0e9f;
+	real best[4] = { -1.0e9f, -1.0e9f, -1.0e9f, -1.0e9f };
+	real_point3d best_at[4];
+	struct data_iterator iterator;
+	struct player_datum *other;
+	unsigned long const flags = FLAG(_collision_test_structure_bit) | FLAG(_collision_test_front_facing_surfaces_bit);
+	data_iterator_new(&iterator, player_data);
+	while ((other = (struct player_datum *)data_iterator_next(&iterator)) != NULL && count < 16)
+	{
+		real d;
+		if (other == player || other->unit_index == NONE || !bot_unit_alive(other->unit_index) || !bot_is_enemy((short)player->team_index, other))
+			continue;
+		enemies[count] = object_get(object_get_ultimate_parent(other->unit_index))->object.position;
+		d = distance3d(&enemies[count], position);
+		if (d < nearest_distance)
+		{
+			nearest_distance = d;
+			nearest = count;
+		}
+		count++;
+	}
+	if (count == 0 || nav_place_count() <= 0)
+		return FALSE;
+	for (i = 0; i < nav_place_count(); i++)
+	{
+		real_point3d const *place = aas_place(i);
+		real closest = 1.0e9f, sum = 0.f, score, go = bot_distance2d(place, position);
+		for (k = 0; k < count; k++)
+		{
+			real d = bot_distance2d(place, &enemies[k]);
+			closest = MIN(closest, d);
+			sum += MIN(d, 60.f);
+		}
+		score = closest + 0.25f * sum / (real)count - 0.4f * go;
+		/* (the way there toward the nearest of them: through them) */
+		if (go > 1.f && nearest_distance < 40.f)
+		{
+			real ex = enemies[nearest].x - position->x, ey = enemies[nearest].y - position->y;
+			real toward = ((place->x - position->x) * ex + (place->y - position->y) * ey) / (go * MAX(nearest_distance, 1.f));
+			if (toward > 0.3f)
+				score -= 25.f * toward;
+		}
+		score += (bot_random(bot) - 0.5f) * 0.3f * (real)fabs(score);
+		if (bot->goal_objective && distance3d(place, &bot->goal) < 3.f)
+			score += 0.25f * (real)fabs(score) + 3.f; /* (keep going where it was going) */
+		for (k = 0; k < 4; k++)
+		{
+			if (score > best[k])
+			{
+				long m;
+				for (m = 3; m > k; m--)
+				{
+					best[m] = best[m - 1];
+					best_at[m] = best_at[m - 1];
+				}
+				best[k] = score;
+				best_at[k] = *place;
+				break;
+			}
+		}
+	}
+	if (best[0] <= -1.0e8f)
+		return FALSE;
+	*away = best_at[0];
+	/* (out of the nearest's sight: better) */
+	if (nearest_distance < 60.f)
+	{
+		real_point3d eye = enemies[nearest];
+		real top = -1.0e9f;
+		eye.z += 0.6f;
+		for (k = 0; k < 4; k++)
+		{
+			real_point3d spot = best_at[k];
+			real score = best[k];
+			if (score <= -1.0e8f)
+				continue;
+			spot.z += 0.6f;
+			if (!bot_line_clear(flags, &eye, &spot, NONE))
+				score += 10.f;
+			if (score > top)
+			{
+				top = score;
+				*away = best_at[k];
+			}
+		}
+	}
+	return TRUE;
+}
+
 /* How much the game's objective (the flag, the hill, the ball, the next
    checkpoint) is worth to a bot: much the same to all of them. Its character
    shows in how it goes about it, and in what it does when there is nothing
@@ -5669,12 +5770,20 @@ static void bot_game_candidates(struct bot_state *bot, struct player_datum *play
 				continue;
 			if (bot_holds_object(unit, ball))
 			{
-				/* got it: keep away from them */
+				/* got it: keep away from them (all of them: on the move, out
+				   of their sight, never toward them) */
 				real_point3d enemy;
 				real enemy_distance;
-				if (bot_nearest_enemy(player, position, &enemy, &enemy_distance) && enemy_distance < 30.f)
+				real_point3d away;
+				if (!bot_env_off("ballrun") && bot_ball_away_spot(bot, player, position, &away))
 				{
-					real_point3d away;
+					if (bot_distance2d(&away, position) > 3.f)
+						bot_consider(best, 1000.f, _bot_goal_roam, &away, NONE, 4 * BOT_TICKS_PER_SECOND, TRUE);
+					else
+						bot_consider(best, 1000.f, _bot_goal_hold, position, NONE, 2 * BOT_TICKS_PER_SECOND, TRUE);
+				}
+				else if (bot_nearest_enemy(player, position, &enemy, &enemy_distance) && enemy_distance < 30.f)
+				{
 					bot_keep_away_spot(bot, &enemy, position, &away);
 					bot_consider(best, 1000.f, _bot_goal_roam, &away, NONE, 5 * BOT_TICKS_PER_SECOND, TRUE);
 				}
@@ -11060,6 +11169,46 @@ static void bots_world_tick(void)
 	   (whoever's kills went up as they died) is who the dead, and their
 	   friends, may have it in for */
 	bots_track_deaths(now);
+	/* (testing, HALO_BOT_BALLTRACE: who has the ball, each second) */
+	if (bot_env_set("HALO_BOT_BALLTRACE") && bot_logging() && now % BOT_TICKS_PER_SECOND == 0 && game_engine == &oddball_engine)
+	{
+		struct data_iterator balls;
+		long holder = NONE;
+		data_iterator_new(&balls, player_data);
+		while (data_iterator_next(&balls))
+			if (player_has_ball(balls.datum_index))
+				holder = DATUM_INDEX_TO_ABSOLUTE_INDEX(balls.datum_index);
+		bot_log("balltrace t%ld holder %ld", now, holder);
+		if (holder == NONE)
+		{
+			struct object_iterator things;
+			struct object_datum *thing;
+			object_iterator_new(&things, _object_mask_weapon, 0);
+			while ((thing = (struct object_datum *)object_iterator_next(&things)) != NULL)
+			{
+				long k;
+				real near = 1.0e9f;
+				real_point3d near_at = thing->object.position;
+				if (!bot_name_has(thing->definition_index, "ball") || thing->object.parent_object_index != NONE)
+					continue;
+				for (k = 0; k < BOT_MAXIMUM_PLAYERS; k++)
+				{
+					struct player_datum *who = bot_player_at_index(k);
+					real d;
+					if (!who || who->unit_index == NONE || !bot_unit_alive(who->unit_index))
+						continue;
+					d = distance3d(&object_get(who->unit_index)->object.position, &thing->object.position);
+					if (d < near)
+					{
+						near = d;
+						near_at = object_get(who->unit_index)->object.position;
+					}
+				}
+				bot_log("balltrace   ball at %.2f %.2f %.2f, nearest %.2f off (at %.2f %.2f %.2f)", thing->object.position.x, thing->object.position.y,
+					thing->object.position.z, near, near_at.x, near_at.y, near_at.z);
+			}
+		}
+	}
 	/* (testing, HALO_BOT_HILLTRACE: who is on the hill, each second) */
 	if (bot_env_set("HALO_BOT_HILLTRACE") && bot_logging() && now % BOT_TICKS_PER_SECOND == 0)
 	{
@@ -19664,6 +19813,36 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	}
 	else
 		bot->parked_ticks = 0;
+
+	/* ---- the ball in hand, someone after it (seen, shooting at it, or
+	   close): hard to hit on the run. Jinking either side of the way it is
+	   going, a new way every half second or so, and now and then a jump,
+	   the more agile the more (never off an edge: the way must be safe).
+	   HALO_BOT_OFF=balljink: straight on */
+	if (game_engine == &oddball_engine && bot->carrying_objective && t->moving && t->vehicle_index == NONE && !t->committed &&
+		bot_holds_named(unit, "ball") && !bot_env_off("balljink"))
+	{
+		real_point3d enemy;
+		real enemy_distance;
+		int pressed = t->threatened || bot->hit_ticks > 0 || t->target != NONE ||
+			(bot_nearest_enemy(me, &t->position, &enemy, &enemy_distance) && enemy_distance < 15.f);
+		if (pressed && aas_ready())
+		{
+			long now = game_time_get();
+			if (now >= bot->jink_until || now < bot->jink_until - BOT_SECONDS(2.f))
+			{
+				bot->jink_side = bot->jink_side > 0 ? -1 : 1;
+				bot->jink_until = now + (long)((0.35f + 0.4f * bot_random(bot)) * BOT_TICKS_PER_SECOND);
+			}
+			{
+				real yaw = t->move_yaw + (real)bot->jink_side * (0.45f + 0.35f * bot->personality.agility_luck);
+				if (bot_move_direction_safe(&t->body, yaw, 1.5f))
+					t->move_yaw = yaw;
+			}
+			if (!t->body.airborne && bot_random(bot) < 0.02f + 0.04f * bot->personality.jumpiness && bot_move_direction_safe(&t->body, t->move_yaw, 2.5f))
+				action->control_flags |= FLAG(_unit_control_jump_bit);
+		}
+	}
 
 	BOT_PROFILE_MARK("flag juggling");
 	/* ---- flag juggling: running home with the flag (which slows its

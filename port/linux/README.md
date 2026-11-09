@@ -3002,6 +3002,22 @@ and two kinds of walker); the wrecks of the others stayed.
 - **Team Oddball: round the carrier:** teammates of the ball carrier spread
   out around them, about four to six units off, between them and the
   nearest enemy, and keep with them (`ballguard`).
+- **Oddball: the carrier runs, the rest hunt it:** the bot with the ball
+  heads for places away from all of the enemy, not just the nearest. Each
+  place is scored by how far it is from the nearest enemy and from the
+  rest. Places whose way runs toward the nearest enemy are marked well
+  down, and among the best few, one out of the nearest enemy's sight wins.
+  The carrier keeps moving rather than standing. When it is pressed (shot
+  at, a target in view, or an enemy within 15 units), it jinks either side
+  of its way every half second or so and jumps now and then, never off an
+  edge (`ballrun`, `balljink`: off). Everyone else still goes after the
+  carrier and fights whoever they meet on the way. On Chill Out, over two
+  games, the average hold went from 3.8 to 5.4 and 3.9 to 8.4 seconds, and
+  the longest from 16 to 25 and 18 to 97. `HALO_BOT_BALLTRACE` logs who
+  holds the ball each second, and how near anyone is to it when loose.
+  On Hang 'em High the bots seldom reach the ball where it starts. The
+  ledge it sits on is only reachable by one hop on the nav mesh, and they
+  get no nearer than about 4 units, with or without this change.
 - **CTF: more escorts:** up to four bots escort the flag carrier on bigger
   teams (one for three or fewer, two for four, three for up to six). Others
   nearby go with the carrier more readily than before (`escorts`: up to

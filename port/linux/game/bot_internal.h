@@ -97,6 +97,9 @@ struct bot_move_state
 	long route_goal_type;
 	real_point3d route_goal_spot;
 	real_point3d route_goal_origin;
+	/* (an area beside the goal's quicker to get to: bot_move_area_beside) */
+	long beside_tick, beside_area, beside_from_area;
+	real_point3d beside_origin, beside_spot;
 	int corridor_complete; /* to the goal's area, or to a reachability that's more than a walk */
 	/* stuck */
 	real_point3d progress_point;

@@ -3187,7 +3187,66 @@ static void bot_move_reachtrace(struct bot_mover *bot, struct bot_body const *bo
    the map: from far off the route stays the one to where the goal was,
    until it has moved a fifth as far as we are from it (four world
    units at most). Near it, where the search is short, the goal itself. */
-static long bot_move_goal_area(struct bot_move_state *move, long type, struct bot_goal const *goal, real to_goal, real_point3d *goal_spot)
+/* Near a goal on foot, of the areas within reach of it (a hand's reach
+   across, a step up or down: what lies on a lip, on a ledge past a kerb,
+   between two areas), the one quickest to get to from here, when it is a
+   good deal quicker than the goal's own: the goal's own may be one a body
+   gets onto only by a jump across from a way off (Hang 'em High's ball, on
+   a strip with one gap into it from three units off) while one beside it,
+   at its height, is a walk. Worked out a second at a time. HALO_BOT_OFF=
+   besidearea: the goal's own, as before */
+static long bot_move_area_beside(struct bot_move_state *move, struct bot_goal const *goal, real_point3d const *from, long goal_area,
+	real_point3d *goal_spot)
+{
+	long now = game_time_get(), a, count, best = goal_area;
+	float best_time;
+	real_point3d best_spot = *goal_spot;
+	if (bot_env_off("besidearea") || goal_area == NONE)
+		return goal_area;
+	if (move->beside_tick != 0 && now >= move->beside_tick && now - move->beside_tick < BOT_TICKS_PER_SECOND &&
+		bot_move_distance(&goal->origin, &move->beside_origin) < 0.3f && move->beside_from_area == goal_area)
+	{
+		if (move->beside_area != NONE)
+			*goal_spot = move->beside_spot;
+		return move->beside_area != NONE ? move->beside_area : goal_area;
+	}
+	move->beside_tick = now;
+	move->beside_origin = goal->origin;
+	move->beside_from_area = goal_area;
+	move->beside_area = NONE;
+	best_time = aas_travel_time(AAS_FOOT, from, goal_spot);
+	count = aas_area_count(AAS_FOOT);
+	for (a = 0; a < count; a++)
+	{
+		struct aas_area const *area = aas_area(AAS_FOOT, a);
+		real_point3d spot;
+		float time;
+		if (a == goal_area || !(area->flags & _aas_area_reachable) || fabs(area->center.z - goal->origin.z) > 1.f)
+			continue;
+		spot.x = PIN(goal->origin.x, area->x0, area->x1);
+		spot.y = PIN(goal->origin.y, area->y0, area->y1);
+		if ((spot.x - goal->origin.x) * (spot.x - goal->origin.x) + (spot.y - goal->origin.y) * (spot.y - goal->origin.y) > 0.8f * 0.8f)
+			continue;
+		spot.z = area->center.z;
+		time = aas_travel_time(AAS_FOOT, from, &spot);
+		if (time >= 0.f && (best_time < 0.f || time < best_time - 1.5f))
+		{
+			best_time = time;
+			best = a;
+			best_spot = spot;
+		}
+	}
+	if (best != goal_area)
+	{
+		move->beside_area = best;
+		move->beside_spot = best_spot;
+		*goal_spot = best_spot;
+	}
+	return best;
+}
+
+static long bot_move_goal_area(struct bot_move_state *move, long type, struct bot_goal const *goal, real to_goal, real_point3d *goal_spot,
+	real_point3d const *from)
 {
 	long goal_area;
 
@@ -3198,6 +3257,8 @@ static long bot_move_goal_area(struct bot_move_state *move, long type, struct bo
 		return move->route_goal_area;
 	}
 	goal_area = aas_nearest_area(type, &goal->origin, type == AAS_VEHICLE ? 10.f : 3.f, goal_spot);
+	if (type == AAS_FOOT && to_goal < 25.f)
+		goal_area = bot_move_area_beside(move, goal, from, goal_area, goal_spot);
 	move->route_goal_area = goal_area;
 	move->route_goal_type = type;
 	move->route_goal_spot = *goal_spot;
@@ -3239,6 +3300,8 @@ static void bot_move_off_areas(struct bot_body const *body, struct bot_goal cons
 	}
 }
 
+#define BOT_DRIVE_CORNERS 8
+
 static long bot_move_route_corners(struct bot_move_state const *move, struct bot_body const *body, struct bot_goal const *goal, long type, long area, long goal_area,
 	real_point3d const *goal_spot, real_point3d const *spot, real to_goal, real_point3d *corners)
 {
@@ -3259,7 +3322,9 @@ static long bot_move_route_corners(struct bot_move_state const *move, struct bot
 		else if (!move->corridor_complete)
 			final = last->end; /* (as far as the route goes) */
 	}
-	corner_count = bot_move_corners(move, area == aas_point_area(type, position) ? position : spot, &final, corners, 2);
+	/* (a driver: more of the way, to look further along it, bot_move_drive_route) */
+	corner_count = bot_move_corners(move, area == aas_point_area(type, position) ? position : spot, &final, corners,
+		type == AAS_VEHICLE && !bot_env_off("farsight") ? BOT_DRIVE_CORNERS : 2);
 	/* by the goal (in its area, or in the last one before it): the
 	   goal itself, even off the areas (items by walls) */
 	if (area == goal_area && to_goal < 2.5f)
@@ -3348,11 +3413,27 @@ static void bot_move_drive_route(struct bot_mover *bot, struct bot_body const *b
 	   every one, braked, and set off again: slow, and looked it.) */
 	if (bot_drive_looks_ahead() && corner_count > 1)
 	{
+		/* (along eight corners of the way, not two, and when the point is
+		   not to be seen straight from here by the vehicle's areas, a little
+		   short of it, and shorter: not the next corner only. Further than
+		   four to fourteen units was tried, to twenty and thirty: on
+		   Sidewinder the drivers got fewer of their legs done, cutting
+		   corners into the walls. HALO_BOT_OFF=farsight: two corners, the
+		   point or the next corner) */
+		int far = !bot_env_off("farsight");
 		real speed = bot_move_ground_speed(body);
 		real ahead = PIN(3.f + speed * 1.2f, 4.f, 14.f);
+		real tries[4] = { 1.f, 0.7f, 0.5f, 0.35f };
+		long attempt;
+		real whole = ahead;
+		for (attempt = 0; attempt < (far ? 4 : 1); attempt++)
+		{
 		real_point3d from = *position;
 		real_point3d aim = corners[0];
 		long k, aim_index = -1;
+		ahead = whole * tries[attempt];
+		if (attempt > 0 && ahead < 5.f)
+			break;
 		for (k = 0; k < corner_count; k++)
 		{
 			real leg = bot_distance2d(&from, &corners[k]);
@@ -3372,12 +3453,11 @@ static void bot_move_drive_route(struct bot_mover *bot, struct bot_body const *b
 		}
 		if (aim_index > 0 && aas_line_in_areas(AAS_VEHICLE, position, &aim))
 		{
-			/* (the turn after it: the corner it is on the way to, or the
-			   one after when it is that corner) */
 			real_point3d const *after = !bot_same_point(&aim, &corners[aim_index]) ? &corners[aim_index] :
 				aim_index + 1 < corner_count ? &corners[aim_index + 1] : NULL;
 			bot_move_drive(bot, body, &aim, after, result);
 			return;
+		}
 		}
 	}
 	/* (a straight way through gives its end twice: no corner after it.
@@ -3435,7 +3515,7 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	real_point3d const *position = &body->position;
 	real_point3d spot = *position;
 	real_point3d goal_spot;
-	real_point3d corners[2];
+	real_point3d corners[BOT_DRIVE_CORNERS];
 	long corner_count;
 	long area;
 	long goal_area = NONE;
@@ -3512,7 +3592,7 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	}
 
 	/* where the goal is */
-	goal_area = bot_move_goal_area(move, type, goal, to_goal, &goal_spot);
+	goal_area = bot_move_goal_area(move, type, goal, to_goal, &goal_spot, &body->position);
 	if (type == AAS_FOOT)
 		goal->area = goal_area;
 	/* (off the areas, there is no route by them: the one planned when it

@@ -1286,7 +1286,10 @@ static void bot_move_travel_jump(struct bot_mover *bot, struct bot_body const *b
 	/* (going across it: a moment to be going at it first; and less across
 	   it for a high one, which is gone up beside the face of, a second
 	   long, before the feet are over the top) */
-	if (!move->reach_started && to_landing < 0.8f && to_landing > 0.2f && move->reach_settle_ticks < BOT_JUMP_SETTLE_TICKS &&
+	/* (the better, the shorter the settling: the top level a quarter of it,
+	   HALO_BOT_OFF=quickjump: all of it, as before) */
+	if (!move->reach_started && to_landing < 0.8f && to_landing > 0.2f &&
+		move->reach_settle_ticks < (bot_env_off("quickjump") ? BOT_JUMP_SETTLE_TICKS : (long)(BOT_JUMP_SETTLE_TICKS * (1.f - 0.75f * bot->fluency))) &&
 		bot_move_jump_across(body, landing) > (landing->z - position->z > 0.55f ? 0.3f : BOT_JUMP_ACROSS_MOST))
 	{
 		move->reach_settle_ticks++;
@@ -1441,17 +1444,26 @@ static boolean bot_move_gap_runup(struct bot_mover *bot, struct bot_body const *
 			most = MAX(most, 2.f);
 		for (back = most; back > 0.3f; back -= 0.3f)
 		{
-			runup.x = reach->edge.x - (real)cos(run) * back;
-			runup.y = reach->edge.y - (real)sin(run) * back;
+			/* (straight behind the edge, or at a slant up to a third of a
+			   right angle when the floor there is too narrow for a run:
+			   the nav mesh counts those, aas_gap_has_runup) */
+			static real const slants[5] = { 0.f, 0.3f, -0.3f, 0.5f, -0.5f };
+			long slant;
+			for (slant = 0; slant < (bot_env_off("slantrun") ? 1 : 5); slant++)
+			{
+			runup.x = reach->edge.x - (real)cos(run + slants[slant]) * back;
+			runup.y = reach->edge.y - (real)sin(run + slants[slant]) * back;
 			runup.z = reach->edge.z + 0.2f;
-			/* (floor to run on, and not up over a rise on the way to
-			   the edge: come over the crown of a rock at a run a body
-			   is in the air, and the game takes no jump from it. The
-			   run at the wall by the west base of Battle Creek began on
-			   the shelf below the top of the rock it is jumped from,
-			   and every one of them ran off the rock with the button
-			   down) */
 			if (navm_line_walkable(&reach->edge, &runup, 0.15f, 0.f) && bot_move_rise_between(body, &runup, &reach->edge) < BOT_RUNUP_RISE)
+				break;
+			}
+			/* (floor to run on, and not up over a rise on the way to
+			   the edge, above: come over the crown of a rock at a run a
+			   body is in the air, and the game takes no jump from it. The
+			   run at the wall by the west base of Battle Creek began on
+			   the shelf below the top of the rock it is jumped from, and
+			   every one of them ran off the rock with the button down) */
+			if (slant < (bot_env_off("slantrun") ? 1 : 5))
 				break;
 		}
 		move->reach_no_room = back <= 0.3f;
@@ -1570,7 +1582,8 @@ static boolean bot_move_gap_leap(struct bot_mover *bot, struct bot_body const *b
 	{
 		/* (going across it, with floor to stand on meanwhile: a
 		   moment to be going at it first) */
-		if (move->reach_settle_ticks < BOT_JUMP_SETTLE_TICKS && bot_move_jump_across(body, landing) > BOT_JUMP_ACROSS_MOST &&
+		if (move->reach_settle_ticks < (bot_env_off("quickjump") ? BOT_JUMP_SETTLE_TICKS : (long)(BOT_JUMP_SETTLE_TICKS * (1.f - 0.75f * bot->fluency))) &&
+			bot_move_jump_across(body, landing) > BOT_JUMP_ACROSS_MOST &&
 			bot_distance2d(position, landing) > 0.2f && bot_ground(&ahead, 0.8f, body->unit_index, NULL))
 		{
 			move->reach_settle_ticks++;

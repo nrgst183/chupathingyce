@@ -1856,6 +1856,10 @@ struct bot_state
 	int on_lane; /* this trip is by its lane */
 	int lane_live; /* this life went for the objective by a lane (getting there: bot_lane_worked) */
 	long jink_side, jink_until; /* the ball in hand: which way it jinks, and till when */
+	long foot_strand_tick; /* on foot, since when within two units of foot_strand_at (bot_travel_route) */
+	real_point3d foot_strand_at;
+	long push_until, push_next; /* a game of flags: waiting near their base for company till then, and not again till then (bot_ctf_push_wait) */
+	real_point3d push_at;
 	long live_set, live_lane, live_serial; /* ... which */
 	long nade_item; /* a thing it threw a grenade to bring closer (bot_grenade_item): NONE none */
 	real_point3d nade_item_lands;
@@ -4981,6 +4985,99 @@ static real bot_ctf_far(void)
 	return bot_nav_in_parts() && !bot_env_off("ctffar") ? 10.f : 1.f;
 }
 
+/* one of them by their flag lying there (within eight units of it), alive,
+   seen by our side lately or in view, and this bot near it (within twenty
+   units) and fit to fight: where they are, in *guard. Off but for
+   HALO_BOT_CLEARFIRST: over 24 games on eight maps, no more captures (1.5 in
+   ten minutes against 1.75) and fewer flags taken */
+static int bot_ctf_flag_guarded(struct player_datum *player, real_point3d const *position, real_point3d const *flag, real_point3d *guard)
+{
+	long side = bot_side_of(player), i;
+	struct unit_datum *unit = player->unit_index != NONE ? unit_try_and_get(player->unit_index) : NULL;
+	real best = 1.0e9f;
+	if (!bot_env_set("HALO_BOT_CLEARFIRST") || side < 0 || side >= AAS_COST_SLOTS || !unit || distance3d(position, flag) > 20.f ||
+		unit->object.shield_vitality + unit->object.body_vitality < 0.6f)
+	{
+		return FALSE;
+	}
+	for (i = 0; i < bot_sides[side].known_count; i++)
+	{
+		struct bot_known const *seen = &bot_sides[side].known[i];
+		real d;
+		if (seen->unit == NONE || game_time_get() - seen->seen > BOT_SECONDS(3.f) || game_time_get() < seen->seen || !bot_unit_alive(seen->unit))
+			continue;
+		d = distance3d(&object_get(object_get_ultimate_parent(seen->unit))->object.position, flag);
+		if (d < 8.f && d < best)
+		{
+			best = d;
+			*guard = object_get(object_get_ultimate_parent(seen->unit))->object.position;
+		}
+	}
+	return best < 1.0e8f;
+}
+
+/* Going in together. An attacker on foot that has come to within sight of
+   their base (a third of the way from it to ours, 12 units to 40), on its
+   own, waits a moment where it is for another of ours to come up: one at a
+   time, each was killed on the way in, the flag hardly taken (Sidewinder:
+   eight taken in half an hour, none brought home). Not when another of ours
+   is in already, nor when its side knows of none of them about their base,
+   nor for more than six seconds a time, nor again for twenty after. The
+   flag at home only. TRUE: wait, at *stage. Off but for HALO_BOT_PUSH: over
+   24 games on eight maps it made fewer captures (1.2 in ten minutes against
+   1.6), not more */
+static int bot_ctf_push_wait(struct bot_state *bot, struct player_datum *player, struct unit_datum *unit, real_point3d const *position,
+	real_point3d const *their_base, real_point3d const *my_base, real_point3d *stage)
+{
+	long now = game_time_get(), i, company = 0, side = bot_side_of(player);
+	real across = bot_distance2d(their_base, my_base);
+	real near = PIN(across * 0.33f, 12.f, 40.f);
+	real here = bot_distance2d(position, their_base);
+	real_point3d known;
+	if (!bot_env_set("HALO_BOT_PUSH") || unit->object.parent_object_index != NONE || bot_ctf_defender(bot, player) || here < near || here > near + 25.f)
+	{
+		if (here < near)
+			bot->push_until = 0;
+		return FALSE;
+	}
+	if (bot->push_next != 0 && now < bot->push_next && now >= bot->push_next - BOT_SECONDS(30.f))
+		return FALSE;
+	/* (none of them known about their base: no reason to wait) */
+	if (side >= 0 && side < AAS_COST_SLOTS && !(bot_side_nearest_known(side, their_base, 6.f, &known) && bot_distance2d(&known, their_base) < near + 5.f))
+		return FALSE;
+	for (i = 0; i < BOT_MAXIMUM_PLAYERS; i++)
+	{
+		struct player_datum *other = bot_player_at_index(i);
+		real_point3d at;
+		if (!other || other == player || other->team_index != player->team_index || other->unit_index == NONE || !bot_unit_alive(other->unit_index))
+			continue;
+		at = object_get(object_get_ultimate_parent(other->unit_index))->object.position;
+		if (bot_distance2d(&at, their_base) < near || distance3d(&at, position) < 12.f)
+			company++;
+	}
+	if (company > 0)
+	{
+		bot->push_until = 0;
+		return FALSE;
+	}
+	if (bot->push_until == 0 || now < bot->push_until - BOT_SECONDS(7.f))
+	{
+		bot->push_until = now + BOT_SECONDS(6.f);
+		bot->push_at = *position;
+		if (bot_logging())
+			bot_log("push: bot%ld t%ld waits for company %.0f from their base", (long)(bot - bot_states), now, here);
+	}
+	if (now >= bot->push_until)
+	{
+		/* (waited long enough: in, and not again for a while) */
+		bot->push_until = 0;
+		bot->push_next = now + BOT_SECONDS(20.f);
+		return FALSE;
+	}
+	*stage = bot->push_at;
+	return TRUE;
+}
+
 static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *player, struct unit_datum *unit,
 	real_point3d const *position, real held, struct bot_candidate *best)
 {
@@ -5187,7 +5284,21 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 			   the same, and a bot stood at its base wanting it all game.
 			   HALO_BOT_OFF=ctffar) */
 			real on_foot = bot_ctf_far() > 1.f && distance > 250.f && unit->object.parent_object_index == NONE ? 0.3f : 1.f;
+			real_point3d stage;
 			bot_consider(best, score * on_foot, _bot_goal_item, &theirs->object.position, their_flag, 40 * BOT_TICKS_PER_SECOND, TRUE);
+			/* (at their flag with one of them by it: that one first, the flag
+			   after. Taken up with them there, a carrier has only the flag in
+			   its hands and is shot down on the spot: Danger Canyon, most of the
+			   flags dropped within five units of their base.
+			   HALO_BOT_OFF=clearfirst: the flag first) */
+			{
+				real_point3d guard;
+				if (bot_ctf_flag_guarded(player, position, &theirs->object.position, &guard))
+					bot_consider(best, score * on_foot * 1.25f, _bot_goal_enemy, &guard, NONE, BOT_SECONDS(1.f), TRUE);
+			}
+			/* (in sight of their base, on foot, alone: a moment for company) */
+			if (bot_ctf_push_wait(bot, player, unit, position, &their_base, &my_base, &stage))
+				bot_consider(best, score * on_foot * 1.3f, _bot_goal_hold, &stage, NONE, BOT_SECONDS(1.f), TRUE);
 		}
 		if (distance > 50.f && unit->object.parent_object_index == NONE)
 		{
@@ -10238,6 +10349,154 @@ static void nav_update(void)
 	}
 	if (getenv("HALO_BOT_AREAAT") && aas_ready())
 		bots_test_area_at();
+	/* (testing, HALO_BOT_JUMPSCAN: the places where a jump would save a
+	   long way round and the navigation has none: pairs of reachable foot
+	   areas within three units across, the far one at most a unit higher,
+	   nothing in the way at a body's height, no way between them of their
+	   own, and the way round by the areas much longer than the jump;
+	   the most saved first) */
+	if (bot_env_set("HALO_BOT_JUMPSCAN") && aas_ready())
+	{
+		static int scanned;
+		if (!scanned)
+		{
+			struct jump_spot { long a, b; real save, rise, across; real_point3d from, to; } best[40];
+			long best_count = 0, a, b, count = aas_area_count(AAS_FOOT), pairs = 0, k;
+			unsigned long const flags = FLAG(_collision_test_structure_bit) | FLAG(_collision_test_front_facing_surfaces_bit) |
+				FLAG(_collision_test_back_facing_surfaces_bit) | FLAG(_collision_test_objects_scenery_bit);
+			scanned = TRUE;
+			for (a = 0; a < count; a++)
+			{
+				struct aas_area const *from = aas_area(AAS_FOOT, a);
+				if (!(from->flags & _aas_area_reachable) || (from->x1 - from->x0) * (from->y1 - from->y0) < 0.04f)
+					continue;
+				for (b = 0; b < count; b++)
+				{
+					struct aas_area const *to = aas_area(AAS_FOOT, b);
+					real dx, dy, across, rise, walk, jump, save;
+					real_point3d p, q, p2, q2;
+					long r;
+					if (b == a || !(to->flags & _aas_area_reachable) || (to->x1 - to->x0) * (to->y1 - to->y0) < 0.04f)
+						continue;
+					rise = to->center.z - from->center.z;
+					if (rise > 1.f || rise < -0.3f)
+						continue;
+					dx = MAX(0.f, MAX(from->x0 - to->x1, to->x0 - from->x1));
+					dy = MAX(0.f, MAX(from->y0 - to->y1, to->y0 - from->y1));
+					across = (real)sqrt(dx * dx + dy * dy);
+					if (across > 3.f || (across < 0.05f && rise < 0.4f))
+						continue;
+					for (r = from->first_reach; r < from->first_reach + from->reach_count; r++)
+						if (aas_reach(AAS_FOOT, r)->to == b)
+							break;
+					if (r < from->first_reach + from->reach_count)
+						continue;
+					/* (the nearest points of the two) */
+					p.x = PIN((to->x0 + to->x1) * 0.5f, from->x0, from->x1);
+					p.y = PIN((to->y0 + to->y1) * 0.5f, from->y0, from->y1);
+					q.x = PIN(p.x, to->x0, to->x1);
+					q.y = PIN(p.y, to->y0, to->y1);
+					p.x = PIN(q.x, from->x0, from->x1);
+					p.y = PIN(q.y, from->y0, from->y1);
+					p.z = from->center.z;
+					q.z = to->center.z;
+					/* (the floor where the jump would be, not the area's middle:
+					   an area on a slope is lower at one end) */
+					{
+						real_point3d over;
+						real ground;
+						over = p;
+						over.z = from->z1 + 0.5f;
+						if (bot_ground(&over, from->z1 - from->z0 + 1.f, NONE, &ground))
+							p.z = ground;
+						over = q;
+						over.z = to->z1 + 0.5f;
+						if (bot_ground(&over, to->z1 - to->z0 + 1.f, NONE, &ground))
+							q.z = ground;
+						rise = q.z - p.z;
+						if (rise > 0.85f || rise < -0.3f)
+							continue;
+					}
+					/* (... and one a running jump makes, the legs tucked) */
+					if (rise > 0.1f)
+					{
+						real tucked = MAX(rise - 0.12f, 0.f), t;
+						if (tucked >= 0.68f)
+							continue;
+						t = (2.1f + (real)sqrt(2.1f * 2.1f - 2.f * 3.21f * tucked)) / 3.21f;
+						if (across > 0.95f * 2.25f * t)
+							continue;
+					}
+					p2 = p;
+					q2 = q;
+					p2.z += 0.6f;
+					q2.z += 0.6f;
+					if (!bot_line_clear(flags, &p2, &q2, NONE))
+						continue;
+					p2.z += 0.6f;
+					q2.z += 0.6f;
+					if (!bot_line_clear(flags, &p2, &q2, NONE))
+						continue;
+					pairs++;
+					jump = across / 2.25f + 0.7f;
+					walk = aas_travel_time(AAS_FOOT, &p, &q);
+					save = walk < 0.f ? 30.f : walk - jump;
+					if (save < 3.f)
+						continue;
+					/* (one per neighbourhood: the best of those near each other) */
+					for (k = 0; k < best_count; k++)
+						if (distance3d(&best[k].from, &p) < 3.f && distance3d(&best[k].to, &q) < 3.f)
+							break;
+					if (k < best_count)
+					{
+						if (save > best[k].save)
+						{
+							best[k].a = a, best[k].b = b, best[k].save = save, best[k].rise = rise, best[k].across = across, best[k].from = p, best[k].to = q;
+						}
+						continue;
+					}
+					if (best_count < 40)
+						k = best_count++;
+					else
+					{
+						long worst = 0;
+						for (k = 1; k < best_count; k++)
+							if (best[k].save < best[worst].save)
+								worst = k;
+						if (best[worst].save >= save)
+							continue;
+						k = worst;
+					}
+					best[k].a = a, best[k].b = b, best[k].save = save, best[k].rise = rise, best[k].across = across, best[k].from = p, best[k].to = q;
+				}
+			}
+			for (a = 0; a < best_count; a++)
+				for (b = a + 1; b < best_count; b++)
+					if (best[b].save > best[a].save)
+					{
+						struct jump_spot swap = best[a];
+						best[a] = best[b];
+						best[b] = swap;
+					}
+			bot_log("jumpscan: %ld pairs looked at", pairs);
+			{
+				long by[NUMBER_OF_AAS_TRAVEL_TYPES] = { 0 }, r, high = 0;
+				for (r = 0; r < aas_reach_count(AAS_FOOT); r++)
+				{
+					struct aas_reach const *reach = aas_reach(AAS_FOOT, r);
+					if (reach->travel >= 0 && reach->travel < NUMBER_OF_AAS_TRAVEL_TYPES)
+						by[reach->travel]++;
+					if ((reach->travel == _aas_travel_jump || reach->travel == _aas_travel_gap) && reach->left.z - reach->edge.z > 0.5f)
+						high++;
+				}
+				bot_log("jumpscan: ways: %ld walks, %ld jumps up, %ld drops, %ld gaps, %ld ladders, %ld teleports; %ld jumps and gaps more than 0.5 up",
+					by[0], by[1], by[2], by[3], by[4], by[5], high);
+			}
+			for (a = 0; a < best_count; a++)
+				bot_log("jumpscan: %.1f s saved: area %ld (%.1f %.1f %.1f) to %ld (%.1f %.1f %.1f), %.2f across, %.2f up", best[a].save, best[a].a,
+					best[a].from.x, best[a].from.y, best[a].from.z, best[a].b, best[a].to.x, best[a].to.y, best[a].to.z, best[a].across, best[a].rise);
+		}
+	}
 	/* (testing, HALO_BOT_AREABOX=x0,y0,x1,y1: every foot area in a box, and
 	   its ways out that are more than a walk; once) */
 	if (getenv("HALO_BOT_AREABOX") && aas_ready())
@@ -12493,7 +12752,9 @@ static void bot_passenger_act(struct bot_think *t)
 	{
 		real_point3d errand;
 		int get_out = FALSE;
-		if (t->teams && bot_ctf_drive_target(bot, me, &errand, &get_out) && get_out && distance3d(&errand, position) < 7.f)
+		/* (pressed and let go: held, it is no press) */
+		if (t->teams && bot_ctf_drive_target(bot, me, &errand, &get_out) && get_out && distance3d(&errand, position) < 7.f &&
+			(game_time_get() % 6 < 3 || bot_env_off("giveuppress")))
 			action->control_flags |= FLAG(_unit_control_action_bit);
 	}
 }
@@ -13194,8 +13455,12 @@ static void bot_drive_country_give_up(struct bot_think *t, struct bot_country_re
 	real_point3d const *far_place = &t->far_place;
 
 	/* no way over the ground from here, or stuck time and again:
-	   out, and this one left be a while */
-	action->control_flags |= FLAG(_unit_control_action_bit);
+	   out, and this one left be a while. (The button pressed and let go,
+	   not held: held down every tick, the game took no press, and a bot
+	   sat in a Warthog in Coldsnap's blue base nine minutes, no way across
+	   from it, the button down the whole time) */
+	if (game_time_get() % 6 < 3 || bot_env_off("giveuppress"))
+		action->control_flags |= FLAG(_unit_control_action_bit);
 	bot_note_bail(bot, vehicle_index, _bot_stat_vehicle_bailout);
 	if (!bot_ignoring(bot, vehicle_index))
 	{
@@ -13354,7 +13619,8 @@ static void bot_drive_cross_country(struct bot_think *t)
 		bot_drive_country_give_up(t, &across);
 	}
 	if (bot_env_set("HALO_BOT_COUNTRYTRACE") && bot_logging() && game_time_get() % 10 == 0)
-		bot_log("drivetrace %ld t%ld at %.1f %.1f %.1f by %.1f %.1f %.1f: yaw %.2f throttle %.2f%s%s%s%s", me->unit_index & 0xffff, game_time_get(),
+		bot_log("drivetrace %ld t%ld (name %d, portals %ld) at %.1f %.1f %.1f by %.1f %.1f %.1f: yaw %.2f throttle %.2f%s%s%s%s", me->unit_index & 0xffff, game_time_get(),
+			(int)object_get(vehicle_index)->object.name_index, bot_country_portals_of(vehicle_index),
 			position->x, position->y, position->z, across.next.x, across.next.y, across.next.z, across.yaw, across.throttle,
 			across.off ? " off" : "", across.none ? " none" : "", across.held_up ? " held up" : "", across.soon ? " soon" : "");
 	t->driving_moved = TRUE;
@@ -13928,7 +14194,9 @@ static void bot_drive_no_way(struct bot_think *t, struct bot_area_drive *d)
 		   out and walk; otherwise somewhere else next time */
 		if (result->get_out || (bot->goal_objective && bot_distance2d(position, &bot->goal) < 30.f))
 		{
-			action->control_flags |= FLAG(_unit_control_action_bit);
+			/* (pressed and let go: held every tick, it is no press) */
+			if (game_time_get() % 6 < 3 || bot_env_off("giveuppress"))
+				action->control_flags |= FLAG(_unit_control_action_bit);
 			if (result->get_out)
 			{
 				bot_note_bail(bot, vehicle_index, _bot_stat_vehicle_bailout);
@@ -15360,10 +15628,35 @@ static void bot_travel_look(struct bot_think *t)
 static void bot_travel_route(struct bot_think *t)
 {
 	struct bot_move_result *result = &t->result;
+	struct bot_state *bot = t->bot;
 
 	bot_travel_via_and_go(t);
 	if (result->no_route)
 		bot_travel_no_route(t);
+	else if (t->vehicle_index == NONE && result->moving && !bot_env_off("footstrand"))
+	{
+		/* (on foot, going somewhere, and nowhere in a quarter of a minute:
+		   within two units of where it was, the goal still a way off, the
+		   walk failed at and stepped aside from again and again. A hollow
+		   it fell into, scenery the areas don't know: that goal given up,
+		   as for no way there, and the next somewhere else. Coldsnap's
+		   ravine: a bot that drove off the edge stood at its foot, stuck,
+		   the rest of the game. HALO_BOT_OFF=footstrand: kept at) */
+		long now = game_time_get();
+		if (bot->foot_strand_tick == 0 || now < bot->foot_strand_tick || distance3d(&t->position, &bot->foot_strand_at) > 2.f)
+		{
+			bot->foot_strand_tick = now;
+			bot->foot_strand_at = t->position;
+		}
+		else if (now - bot->foot_strand_tick > BOT_SECONDS(15.f) && distance3d(&t->position, &bot->goal) > 3.f && bot->goal_kind != _bot_goal_hold)
+		{
+			if (bot_logging())
+				bot_log("bot%ld t%ld stranded at %.1f %.1f %.1f on the way to %.1f %.1f %.1f: given up", t->player_absolute_index, now,
+					t->position.x, t->position.y, t->position.z, bot->goal.x, bot->goal.y, bot->goal.z);
+			bot_travel_no_route(t);
+			bot->foot_strand_tick = now;
+		}
+	}
 	t->move_yaw = result->yaw;
 	t->path_yaw = result->path_yaw;
 	t->moving = result->moving;

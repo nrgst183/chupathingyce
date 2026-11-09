@@ -3060,6 +3060,61 @@ and two kinds of walker); the wrecks of the others stayed.
   that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
   logs every nav area in a box and the ways out of them that are more
   than a walk, for looking at a spot like this one.
+- **More jumps on every map:** `HALO_BOT_JUMPSCAN` lists, for a map, the
+  places where a jump would save a long way round and the nav mesh has
+  none. It checks pairs of areas up to three units apart and up to a unit
+  higher, with nothing in the way, where a running jump with the legs
+  tucked could make it. The scan, and tracing the nav builder at each
+  spot (`HALO_BOT_LEDGEWHY=x,y,z,r` now also logs `gapwhy` lines: why a
+  floor across from an edge is no gap to it), turned up three rules that
+  left good jumps out:
+  - A gap needed its run-up straight behind the edge. On a ledge narrower
+    than a run is long, a person runs along it and turns into the jump.
+    The run-up can now be at a slant, up to a third of a right angle
+    either way, and the mover uses the same slant (`slantrun`; for
+    example Chill Out's half-unit walkway by the blue ramp).
+  - Across a dip whose floor is more than a step down, a level gap was
+    refused when the far side was too high to climb out to from the dip;
+    only gaps up were allowed (`gaplevel`; for example Beaver Creek's
+    walkway over the step by the west base, 1.5 units, thirteen seconds
+    the long way).
+  - Ledges and gap landings 0.76 to 0.84 up, which a crouch jump makes
+    about three times in four, were left out. They are in now, at a
+    second's extra cost in route planning, so they are taken only where
+    they save time (`crouchjump`; for example Beaver Creek, from the
+    slope by the west base onto the walkway, 0.78 up, eleven seconds the
+    long way).
+
+  With all of these, Beaver Creek has 340 jumps up and 1934 gaps against
+  290 and 1561, Blood Gulch 583 and 6206 against 468 and 5124, Damnation
+  51 and 806 against 24 and 749, and the jumps and gaps more than 0.5 up
+  on each map are two to three times as many. On tours between the flag
+  bases of six maps (12 games each way), legs given up fell from 1.4 to
+  0.25 a game, with fewer stalls, falls and bumps, at the same pace. The
+  nav cache version is bumped; caches are rebuilt once
+  (`HALO_BAKE_NAVIGATION=new` rebakes a data folder's).
+- **Jumps taken quicker at the higher levels:** the pause to line up a jump
+  that is come to at an angle is shorter the better the bot, down to a
+  quarter of it at the top level (`quickjump`).
+- **Stranded on foot:** a bot on foot that has been within two units of
+  one spot for 15 seconds, its goal still a way off, gives the goal up as
+  if there were no way there and goes for something else. On Coldsnap, a
+  bot that drove off the ravine's edge stood at its foot for the rest of
+  the game (`footstrand`).
+- **Getting out when giving up a drive:** a driver with no way across
+  country, or with no way to drive to its goal, held the exit button down
+  every tick, and the game takes no press from a held button. It now
+  presses and lets go, as the other ways out do. On Coldsnap a bot sat in
+  a Warthog in the blue base for nine minutes; with this, the blue team
+  took the red flag 26 times in a 47-minute game, against none before
+  (`giveuppress`).
+- **Tried for captures and left off:** two CTF changes did not make more
+  captures over 24 games on eight maps (three seeds each), so they are
+  off but for a switch to try them.
+  - A lone attacker waiting near the enemy base for company: 1.2 captures
+    in ten minutes against 1.6 (`HALO_BOT_PUSH`).
+  - Clearing a guard by the flag before taking it: 1.5 against 1.75
+    (`HALO_BOT_CLEARFIRST`).
 - **Drivers look further:** across country (Blood Gulch, the open maps)
   the point steered at is up to 21 units or 2.6 seconds ahead at speed,
   from 18 and 2.2. On the vehicle mesh the route is looked along over

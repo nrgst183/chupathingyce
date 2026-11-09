@@ -55,6 +55,9 @@ struct bot_move_state
 	long reach;
 	long reach_type;
 	long reach_ticks;
+	long reach_carry; /* the ticks spent on this same reachability just before, begun over again (counted against its time) */
+	long reach_seen, reach_seen_tick, reach_seen_ticks; /* the reachability last travelled, when, and how long it had been on it */
+	int reach_seen_started; /* (... and whether it had begun the move itself) */
 	int reach_started; /* the move itself (the jump, the climb) has begun */
 	int reach_phase; /* a gap: 0 the run-up, 1 the run */
 	long reach_runup_ticks; /* a gap: how long getting to the start of the run took */
@@ -332,6 +335,8 @@ struct bot_traveller
 	long stuck_last;
 	long stuck_count;
 	long stand_tick; /* when it last began from a stand (waited, was put down somewhere, got clear) */
+	real_point3d jostle_point; /* (where it has been within a few units of, since when: back and forth in one place) */
+	long jostle_tick;
 	long escape_until; /* getting clear of what holds it: until when, and which way */
 	real escape_yaw;
 	real_point3d escape_from; /* where getting clear of being held up began, and when */

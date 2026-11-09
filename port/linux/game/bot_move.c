@@ -1215,9 +1215,47 @@ static void bot_move_travel_jump(struct bot_mover *bot, struct bot_body const *b
 		beyond.z += 0.5f;
 		move->reach_pace = bot_ground(&beyond, 1.f, body->unit_index, &ground) ? 1.f : 0.5f;
 		move->reach_beyond = 0.15f;
+		/* (onto a pad a couple of units across that is jumped on from,
+		   higher, across a gap: brought down on it, not over it at a run
+		   and off its far side. Chill Out's pad by the blue flag, the way
+		   up to the ramp: the bots jumped up onto it at a run, came down
+		   past it, and never jumped from it. Brought down on it slow, they
+		   left it too slow for the jump across, half the time, and fell
+		   short. So at four fifths of a run (bot_move_pad_hop), a little short
+		   of a run's arc, down on it near its far edge, and the next jump
+		   taken the moment the feet are down, bot_move_travel_gap.
+		   HALO_BOT_OFF=padjump: at a run; HALO_BOT_PADSLOW: brought down) */
+		move->pad_hop = FALSE;
+		if (move->reach_pace >= 1.f && !bot_env_off("padjump"))
+		{
+			struct aas_area const *pad = aas_area(AAS_FOOT, reach->to);
+			if (pad->x1 - pad->x0 < 2.4f && pad->y1 - pad->y0 < 2.4f)
+			{
+				long r;
+				for (r = pad->first_reach; r < pad->first_reach + pad->reach_count; r++)
+				{
+					struct aas_reach const *next = aas_reach(AAS_FOOT, r);
+					if (next->travel == _aas_travel_gap && next->end.z > next->start.z + 0.3f)
+					{
+						if (bot_env_set("HALO_BOT_PADSLOW"))
+							move->reach_pace = 0.5f;
+						else
+							move->pad_hop = TRUE;
+						break;
+					}
+				}
+			}
+		}
 	}
+	/* (onto a pad that is jumped from: at four fifths of a run) */
+	if (move->pad_hop && !move->reach_started)
+		result->speed = MIN(result->speed, 0.8f);
 	if (bot_move_jump_at_run(bot, body, reach, result, face, to_landing, tuck))
+	{
+		if (move->pad_hop)
+			result->speed = MIN(result->speed, 0.8f);
 		return;
+	}
 	if (!move->reach_started && bot_distance2d(position, &reach->start) > 0.5f && to_landing > 1.2f)
 	{
 		result->yaw = bot_yaw_to(position, &reach->start);
@@ -1378,6 +1416,7 @@ static boolean bot_move_gap_runup(struct bot_mover *bot, struct bot_body const *
 {
 	struct bot_move_state *move = &bot->move;
 	real_point3d const *position = &body->position;
+	real_point3d const *landing = &reach->left;
 
 	/* a run-up: back from the edge, in line with the jump, as far as
 	   there's room (up to a second's run); then at it flat out */
@@ -1391,7 +1430,16 @@ static boolean bot_move_gap_runup(struct bot_mover *bot, struct bot_body const *
 		   speed enough for any of them) */
 		if (move->reach_pace <= 0.f)
 			bot_move_gap_takeoff(bot, body, reach);
-		for (back = bot_move_runup() * (move->reach_pace < 1.f || move->reach_no_jump ? MAX(0.5f, move->reach_pace) : 1.f); back > 0.3f; back -= 0.3f)
+		/* (a jump up across, higher than a running jump lands untucked:
+		   it wants all the speed there is, the whole of a run, and the
+		   run as long as the floor allows, to two units. From the pad by
+		   Chill Out's blue flag, off at two thirds of a run after the usual
+		   run-up, the bots fell short; at a run they made it.
+		   HALO_BOT_OFF=longrun: the usual run-up) */
+		real most = bot_move_runup() * (move->reach_pace < 1.f || move->reach_no_jump ? MAX(0.5f, move->reach_pace) : 1.f);
+		if (landing->z - reach->edge.z > 0.5f && !move->reach_no_jump && !bot_env_off("longrun"))
+			most = MAX(most, 2.f);
+		for (back = most; back > 0.3f; back -= 0.3f)
 		{
 			runup.x = reach->edge.x - (real)cos(run) * back;
 			runup.y = reach->edge.y - (real)sin(run) * back;
@@ -1412,6 +1460,19 @@ static boolean bot_move_gap_runup(struct bot_mover *bot, struct bot_body const *
 		   good player only; the rest are careful) */
 		if (bot->fluency > 0.25f && bot_move_fluent(1) && across < 0.25f && past < -0.4f &&
 			bot_move_speed_along(body, run) > 0.85f * BOT_RUN_SPEED * (move->reach_pace > 0.f ? move->reach_pace : 1.f))
+		{
+			move->reach_phase = 1;
+			return FALSE;
+		}
+		/* (... and anyone come onto the floor it is jumped from on the run,
+		   going the jump's way, with no more than a step or two of it left:
+		   too near the edge to turn round for a run-up, it would be carried
+		   off the edge turning. Up onto Chill Out's pad by the blue flag and
+		   straight on across to the ramp, as a person does; turning back for
+		   a run-up there, the bots went off the pad's far side.
+		   HALO_BOT_OFF=runon: as before) */
+		if (!bot_env_off("runon") && across < 0.35f && past < -0.1f && past > -1.4f &&
+			bot_move_speed_along(body, run) > 0.7f * BOT_RUN_SPEED * (move->reach_pace > 0.f ? move->reach_pace : 1.f))
 		{
 			move->reach_phase = 1;
 			return FALSE;
@@ -1574,6 +1635,21 @@ static void bot_move_travel_gap(struct bot_mover *bot, struct bot_body const *bo
 	{
 		real past = bot_move_line_past(position, &reach->edge, run);
 		real across = bot_move_line_across(position, &reach->edge, run);
+		/* (still in the air from a jump up onto where this one is taken
+		   from, coming down on it near its edge, at a run the jump's way:
+		   the button held, to go again the moment the feet are down, the
+		   speed kept. A run-up on a pad that small was too little: off at
+		   two thirds of a run, the jump fell short. HALO_BOT_OFF=jumpon:
+		   down first, as before) */
+		if (!body->can_jump && !bot_env_off("jumpon") && position->z > reach->edge.z - 0.05f && body->velocity.k < 0.f &&
+			across < 0.4f && past > -1.6f && past < 0.2f && bot_move_speed_along(body, run) > 0.75f * BOT_RUN_SPEED)
+		{
+			move->reach_phase = 1;
+			result->yaw = bot_yaw_to(position, landing);
+			result->jump = TRUE;
+			move->jump_hold = MAX(move->jump_hold, 2);
+			return;
+		}
 		if (bot_move_gap_runup(bot, body, reach, result, run, past, across))
 			return;
 		if (bot_move_gap_leap(bot, body, reach, result, run, past, across))
@@ -1824,6 +1900,7 @@ static void bot_move_reach_begin(struct bot_move_state *move, long reach, long t
 	move->reach_runup_ticks = 0;
 	move->reach_peak = z;
 	move->reach_pace = 0.f;
+	move->pad_hop = FALSE;
 	move->reach_no_jump = FALSE;
 	move->reach_hole = 0;
 	move->reach_no_room = FALSE;

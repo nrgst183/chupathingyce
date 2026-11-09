@@ -64,6 +64,7 @@ struct bot_move_state
 	real reach_beyond; /* ... and how far on from the near end of where it lands it is meant to come down */
 	int reach_hole; /* a gap that is walked over: 0 not looked at, 1 walked, 2 a hole a body goes down (jumped) */
 	int reach_no_room; /* a gap with nowhere behind its edge to take a run from */
+	int pad_hop; /* a jump up onto a pad that the next jump is taken from (bot_move_travel_jump) */
 	long reach_settle_ticks; /* held back from a jump it was going across the line of */
 	long slip_reach; /* a jump or a gap it fell off the start of before beginning (NONE none), */
 	long slip_tick; /* ... and when */

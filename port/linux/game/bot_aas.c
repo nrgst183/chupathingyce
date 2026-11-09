@@ -67,7 +67,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 39 /* (33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 40 /* (40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -1270,10 +1270,32 @@ struct aas_ledge_column
 
 /* whether a gap that far across, to a floor that much higher, can be cleared
    at a run */
+/* (a gap up: the legs tucked over the far side's lip, bot_move_gap_air,
+   lift the feet this much over where the jump has the body; a margin too) */
+#define AAS_GAP_TUCK 0.12f
+static boolean aas_gap_tall_off(void);
 static boolean aas_gap_jumpable(long d, long k, real rise)
 {
 	real distance = k * NAVM_CELL * navm_step_length[d];
-	real under = AAS_JUMP_VELOCITY * AAS_JUMP_VELOCITY - 2.f * AAS_GRAVITY * rise;
+	real under;
+	/* (higher than a running jump lands on its own: with the legs tucked,
+	   to as high as a ledge is jumped onto, and only across what the jump
+	   covers by the time it is that high, a little short of its top. Chill
+	   Out's blue base: from the pad by the flag up across to the ramp that
+	   curves round, 0.71 up, a unit and a half: a person's way, and none
+	   of the bots') */
+	if (rise > AAS_GAP_RISE)
+	{
+		real tucked = rise - AAS_GAP_TUCK;
+		real top = AAS_JUMP_VELOCITY * AAS_JUMP_VELOCITY / (2.f * AAS_GRAVITY);
+		real t;
+		if (aas_gap_tall_off() || tucked >= top)
+			return FALSE;
+		/* (the later of the two times the body is that high: falling, past the top) */
+		t = (AAS_JUMP_VELOCITY + (real)sqrt(AAS_JUMP_VELOCITY * AAS_JUMP_VELOCITY - 2.f * AAS_GRAVITY * tucked)) / AAS_GRAVITY;
+		return distance <= 0.85f * AAS_FOOT_SPEED * t;
+	}
+	under = AAS_JUMP_VELOCITY * AAS_JUMP_VELOCITY - 2.f * AAS_GRAVITY * rise;
 	real air = under >= 0.f ? (AAS_JUMP_VELOCITY + (real)sqrt(under)) / AAS_GRAVITY : 0.f;
 	return distance <= 0.9f * AAS_FOOT_SPEED * air;
 }
@@ -1288,6 +1310,19 @@ static boolean aas_gap_up_off(void)
 	{
 		asked = TRUE;
 		off = bot_env_off("gapup");
+	}
+	return off;
+}
+
+/* (HALO_BOT_OFF=gaptall: no gap up higher than a running jump lands
+   untucked, as before) */
+static boolean aas_gap_tall_off(void)
+{
+	static int asked, off;
+	if (!asked)
+	{
+		asked = TRUE;
+		off = bot_env_off("gaptall");
 	}
 	return off;
 }
@@ -1352,7 +1387,7 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 		    running jumps were each got to from nowhere. HALO_BOT_OFF=gapup:
 		    as it was) */
 		 (rise > NAVM_STEP && state->dropped && other->floor > state->dropped_floor + aas_jump_rise() && !aas_gap_up_off())) &&
-		rise <= AAS_GAP_RISE &&
+		(rise <= AAS_GAP_RISE || (!aas_gap_tall_off() && rise <= aas_jump_rise())) &&
 		rise >= -3.5f && (!state->dropped || rise >= -NAVM_JUMP || other->floor > state->dropped_floor + NAVM_JUMP) && column->found == NONE &&
 		other->wall >= 20)
 	{

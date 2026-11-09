@@ -10238,6 +10238,35 @@ static void nav_update(void)
 	}
 	if (getenv("HALO_BOT_AREAAT") && aas_ready())
 		bots_test_area_at();
+	/* (testing, HALO_BOT_AREABOX=x0,y0,x1,y1: every foot area in a box, and
+	   its ways out that are more than a walk; once) */
+	if (getenv("HALO_BOT_AREABOX") && aas_ready())
+	{
+		static int done;
+		if (!done)
+		{
+			real x0, y0, x1, y1;
+			long a, r;
+			done = TRUE;
+			sscanf(getenv("HALO_BOT_AREABOX"), "%f,%f,%f,%f", &x0, &y0, &x1, &y1);
+			for (a = 0; a < aas_area_count(AAS_FOOT); a++)
+			{
+				struct aas_area const *area = aas_area(AAS_FOOT, a);
+				if (area->x1 < x0 || area->x0 > x1 || area->y1 < y0 || area->y0 > y1)
+					continue;
+				bot_log("areabox area %ld %.1f %.1f - %.1f %.1f z %.2f (%.2f to %.2f) clearance %.1f flags %ld", a, area->x0, area->y0, area->x1, area->y1,
+					area->center.z, area->z0, area->z1, area->clearance, area->flags);
+			}
+			for (r = 0; r < aas_reach_count(AAS_FOOT); r++)
+			{
+				struct aas_reach const *reach = aas_reach(AAS_FOOT, r);
+				if (reach->travel == _aas_travel_walk || reach->start.x < x0 || reach->start.x > x1 || reach->start.y < y0 || reach->start.y > y1)
+					continue;
+				bot_log("areabox reach %ld travel %d careful %d from %ld (%.1f %.1f %.1f) to %ld (%.1f %.1f %.1f)", r, reach->travel, (int)reach->careful,
+					reach->from, reach->start.x, reach->start.y, reach->start.z, reach->to, reach->end.x, reach->end.y, reach->end.z);
+			}
+		}
+	}
 	/* (testing, HALO_BOT_WATERAT=x,y,z: the water over a floor there) */
 	if (getenv("HALO_BOT_WATERAT"))
 	{

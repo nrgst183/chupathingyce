@@ -3028,6 +3028,38 @@ and two kinds of walker); the wrecks of the others stayed.
   door is nearest. A bot that would be the vehicle's only rider still goes
   for the wheel. A seat the game offers that will do is taken at once,
   even when it isn't the one the bot was walking to (`anyseat`).
+- **Jumps up across a gap, and pads jumped from (Chill Out's blue base):**
+  next to the blue flag there is a pad 0.5 high, and from it a person
+  jumps up and across to the ramp that curves round. That is 0.71 up over
+  about a unit and a half, and it saves about 1.4 seconds from the flag up
+  the ramp (5.0 s against 6.4 s on the nav mesh). The bots never took it,
+  for four reasons:
+  - The nav mesh had no way there. A gap jump was only allowed where it
+    lands at most 0.5 higher, the height a running jump reaches without
+    tucking the legs. Gaps now go up to the height a ledge is jumped onto
+    (0.76), with the legs tucked over the far lip. That counts only over
+    as far as the jump carries by the time it is that high, at 85% of a
+    run (`gaptall`; the nav cache version is bumped, so caches are rebuilt
+    once).
+  - Jumping up onto the pad at a run, the bots came down past its far
+    side and never took the second jump. They now go up onto a small pad
+    that a jump is taken from at four fifths of a run (`padjump`).
+  - Coming down onto the pad at a run, going the jump's way, the jump
+    button is held so the second jump goes the moment the feet are down,
+    keeping the speed (`jumpon`). A bot that is already running the
+    jump's way near the edge goes straight into the jump instead of
+    turning back for a run-up it has no room for (`runon`).
+  - Speed decides whether the jump is made. Off the pad at two thirds of a
+    run they fell short; at a run they made it. A jump up across now gets
+    the longest run-up the floor allows, up to two units (`longrun`).
+
+  Bots sent back and forth between the blue flag and the ramp made the
+  jump 26 times in 35 tries, against about one in two before the run-up
+  change, and none of them took it at all before this. A failed try costs
+  that jump some time in route planning, as any failed jump does, so bots
+  that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
+  logs every nav area in a box and the ways out of them that are more
+  than a walk, for looking at a spot like this one.
 - **Drivers look further:** across country (Blood Gulch, the open maps)
   the point steered at is up to 21 units or 2.6 seconds ahead at speed,
   from 18 and 2.2. On the vehicle mesh the route is looked along over

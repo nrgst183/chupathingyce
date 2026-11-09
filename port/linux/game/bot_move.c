@@ -1908,6 +1908,16 @@ static void bot_move_reach_begin(struct bot_move_state *move, long reach, long t
 	if (bot_refined_is(32768))
 		move->unstick_ticks = 0; /* (nor is a step aside on the way to it kept for the far side of it) */
 	move->reach_ticks = 0;
+	/* (the same way begun again straight after it was left: its time goes
+	   on from where it was. On Sidewinder a drop off the red base's upper
+	   floor that a rail stands in the way of was begun again every second
+	   or so, as the bot jostled between two little areas at its edge, so it
+	   never ran out of time, and the bot stood there to the end of the game.
+	   Only once the move itself was begun: a way come at again on the way
+	   to it is still being come to, and counted, ways on Damnation failed
+	   three times as often) */
+	move->reach_carry = reach == move->reach_seen && move->reach_seen_started && game_time_get() - move->reach_seen_tick < BOT_SECONDS(1.5f) && !bot_env_off("reachcarry") ?
+		move->reach_seen_ticks : 0;
 	move->reach_started = FALSE;
 	move->reach_phase = phase;
 	move->reach_runup_ticks = 0;
@@ -2026,7 +2036,7 @@ static boolean bot_move_reach_lost(struct bot_mover *bot, struct bot_body const 
 	   edge for the run-up is up to three seconds more, and a bot that came
 	   to the edge at a walk used to be out of time in the air over the far
 	   side, the jump as good as made) */
-	if (move->reach_ticks - move->reach_runup_ticks > limit)
+	if (move->reach_carry + move->reach_ticks - move->reach_runup_ticks > limit)
 	{
 		bot_move_reach_failed(bot, "too long");
 		return TRUE;
@@ -2124,6 +2134,10 @@ static boolean bot_move_travel_on(struct bot_mover *bot, struct bot_body const *
 	area = move->type == AAS_FOOT && !body->airborne ? aas_standing_area(move->type, position) : aas_point_area(move->type, position);
 	result->travel = reach->travel;
 	move->reach_ticks++;
+	move->reach_seen = move->reach;
+	move->reach_seen_tick = game_time_get();
+	move->reach_seen_ticks = move->reach_carry + move->reach_ticks - move->reach_runup_ticks;
+	move->reach_seen_started = move->reach_started;
 	move->reach_peak = MAX(move->reach_peak, position->z);
 	bot_move_reach_track(move, body);
 	if (bot_move_reach_made_now(move, body, reach, area))
@@ -3357,7 +3371,8 @@ static long bot_move_goal_area(struct bot_move_state *move, long type, struct bo
 }
 
 /* off the map's areas altogether (on top of something, in the air): straight at it, round whatever's in the way */
-static void bot_move_off_areas(struct bot_body const *body, struct bot_goal const *goal, struct bot_move_result *result, long type, long area, long goal_area, real_point3d const *spot)
+static void bot_move_off_areas(struct bot_body const *body, struct bot_goal const *goal, struct bot_move_result *result, long type, long area, long goal_area, real_point3d const *spot,
+	long off_ticks)
 {
 	real_point3d const *position = &body->position;
 
@@ -3372,20 +3387,41 @@ static void bot_move_off_areas(struct bot_body const *body, struct bot_goal cons
 	   there is no ground to step onto.) */
 	if (type == AAS_FOOT && bot_nav_in_parts())
 	{
-		real reach;
-		for (reach = 1.2f; reach <= 2.5f; reach += 1.2f)
+		/* (... and where there is none that way, the nearest way round
+		   from it that has ground: a bot that got out of a Warthog on a
+		   shelf of Coldsnap's, no areas within 16 units and a drop the way
+		   to its goal, stood there for the rest of the game. When there is
+		   no way with ground, after a while it goes over the edge.
+		   HALO_BOT_OFF=offscan: it stands) */
+		real want = result->yaw;
+		long turn;
+		boolean scan = !bot_env_off("offscan");
+		for (turn = 0; turn < (scan ? 16 : 1); turn++)
 		{
-			real_point3d ahead = *position;
-			real ground;
-			ahead.x += (real)cos(result->yaw) * reach;
-			ahead.y += (real)sin(result->yaw) * reach;
-			ahead.z += 1.f;
-			if (!bot_ground(&ahead, 3.5f, NONE, &ground))
+			real yaw = want + (real)((turn + 1) / 2) * (turn & 1 ? 1.f : -1.f) * BOT_TWO_PI / 16.f;
+			real reach;
+			boolean ground_all = TRUE;
+			for (reach = 1.2f; reach <= 2.5f && ground_all; reach += 1.2f)
 			{
-				result->moving = FALSE;
-				result->no_route = TRUE;
-				break;
+				real_point3d ahead = *position;
+				real ground;
+				ahead.x += (real)cos(yaw) * reach;
+				ahead.y += (real)sin(yaw) * reach;
+				ahead.z += 1.f;
+				if (!bot_ground(&ahead, 3.5f, NONE, &ground))
+					ground_all = FALSE;
 			}
+			if (ground_all)
+			{
+				result->yaw = yaw;
+				return;
+			}
+		}
+		if (!scan || off_ticks < BOT_SECONDS(5.f))
+		{
+			result->yaw = want;
+			result->moving = FALSE;
+			result->no_route = TRUE;
 		}
 	}
 }
@@ -3661,6 +3697,9 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 		   HALO_BOT_OFF=farspot: 2 units only) */
 		if (area == NONE && type == AAS_FOOT && !bot_env_off("farspot"))
 			area = aas_nearest_area(type, position, move->off_mesh_ticks > BOT_SECONDS(1.f) ? 8.f : 4.f, &spot);
+		/* (and longer off them, further again, now and then) */
+		if (area == NONE && type == AAS_FOOT && move->off_mesh_ticks > BOT_SECONDS(3.f) && move->off_mesh_ticks % 10 == 0 && !bot_env_off("offscan"))
+			area = aas_nearest_area(type, position, 24.f, &spot);
 		move->off_mesh_ticks++;
 	}
 	else
@@ -3695,7 +3734,7 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 		goto finish;
 	if (area == NONE || goal_area == NONE)
 	{
-		bot_move_off_areas(body, goal, result, type, area, goal_area, &spot);
+		bot_move_off_areas(body, goal, result, type, area, goal_area, &spot, move->off_mesh_ticks);
 		if (type == AAS_VEHICLE)
 		{
 			/* (the spot on the areas; when that is where it is, the goal:

@@ -4898,9 +4898,22 @@ static void country_held_up(struct country_drive *drive)
 	   up, and taken for it it was sent off for two seconds the way with the
 	   most room, which from the row the Warthogs of Coldsnap stand in is
 	   over the edge of the base) */
+	boolean jostling;
 	if (now - traveller->stuck_tick >= 0 && now - traveller->stuck_tick <= 1)
 		traveller->stand_tick = now;
-	if (distance3d(position, &traveller->stuck_point) > 2.5f)
+	/* (back and forth in one place, never still long enough to be held up:
+	   three Warthogs on their way across Coldsnap jammed together against
+	   a rock in the middle, each of them going backward and forward a
+	   little, the slowest of them stood there for 80 seconds and more, two
+	   games in two. Ten seconds within 6 units, not waiting, not having
+	   just started: held up. HALO_BOT_OFF=jostle) */
+	if (distance3d(position, &traveller->jostle_point) > 6.f || now - traveller->stand_tick < BOT_SECONDS(1.f) || now < traveller->jostle_tick || traveller->jostle_tick == 0)
+	{
+		traveller->jostle_point = *position;
+		traveller->jostle_tick = now;
+	}
+	jostling = now - traveller->jostle_tick > BOT_SECONDS(10.f) && !bot_env_off("jostle");
+	if (distance3d(position, &traveller->stuck_point) > 2.5f && !jostling)
 	{
 		/* (carried somewhere by a portal: afresh) */
 		if (distance3d(position, &traveller->stuck_point) > 30.f)
@@ -4910,7 +4923,7 @@ static void country_held_up(struct country_drive *drive)
 		if (now - traveller->stuck_last > BOT_SECONDS(12.f))
 			traveller->stuck_count = 0;
 	}
-	else if (speed > (now - traveller->stand_tick < BOT_SECONDS(4.f) && now >= traveller->stand_tick ? 0.5f : 1.5f) && now >= traveller->escape_until)
+	else if (speed > (now - traveller->stand_tick < BOT_SECONDS(4.f) && now >= traveller->stand_tick ? 0.5f : 1.5f) && now >= traveller->escape_until && !jostling)
 	{
 		/* (moving, if it has not got far yet: pulling away from a stand) */
 		traveller->stuck_tick = MAX(traveller->stuck_tick, now - BOT_SECONDS(1.f));

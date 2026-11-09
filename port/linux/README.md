@@ -3108,6 +3108,26 @@ and two kinds of walker); the wrecks of the others stayed.
   a Warthog in the blue base for nine minutes; with this, the blue team
   took the red flag 26 times in a 47-minute game, against none before
   (`giveuppress`).
+- **A way begun over and over:** a jump, drop or gap whose move had begun,
+  then begun again within a second and a half of being left, keeps the
+  time it had already had, and so runs out of time and is given up. On
+  Sidewinder a drop off the red base's upper floor, a rail in the way, was
+  begun again every second or so as the bot jostled between two little
+  areas at its edge; it never ran out of time, and an attacker stood there
+  for most of a game (`reachcarry`).
+- **Off the nav areas on a very large map:** a bot on foot with no areas
+  near it, the way to its goal over an edge, looks round for a way with
+  ground under it, and after five seconds with none goes over the edge; and
+  after three seconds off the areas it looks for them up to 24 units off,
+  not 8. On Coldsnap a bot that got out of a stuck Warthog on a shelf with
+  no areas within 16 units stood there for the rest of the game
+  (`offscan`).
+- **Warthogs jammed together:** across country, a vehicle that has been
+  within 6 units of one spot for ten seconds, not waiting and not just
+  started, counts as held up even when it keeps moving a little. Three
+  Warthogs bound across Coldsnap jammed against a rock in the middle,
+  each going back and forth enough never to count as stuck, and stood
+  there 80 seconds and more (`jostle`).
 - **Tried for captures and left off:** two CTF changes did not make more
   captures over 24 games on eight maps (three seeds each), so they are
   off but for a switch to try them.

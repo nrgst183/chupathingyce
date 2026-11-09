@@ -7622,6 +7622,7 @@ static void bot_goal_meet(struct bot_goal_pass *g)
 	long i, hottest = NONE;
 	real best = 0.f, score, angle, dx, dy, length;
 	real_point3d spot;
+	int on_the_way = FALSE; /* (an attacker's: met on its way to their flag, and on) */
 	if (bot_env_off("meet") || side == NONE || side < 0 || side >= AAS_COST_SLOTS || bot->carrying_objective ||
 		g->unit->object.parent_object_index != NONE || g->held < 2.f || !aas_ready())
 	{
@@ -7645,9 +7646,11 @@ static void bot_goal_meet(struct bot_goal_pass *g)
 	if (hottest == NONE)
 		return;
 	spot = bot_ways[side][hottest].at;
-	/* (a game of flags: the flags come first. Only the defenders go to
-	   meet them, on the way to our flag, the near half of the map, and
-	   only while both flags are at home: one taken, everyone to it.
+	/* (a game of flags: the flags come first. The defenders go to meet
+	   them on the way to our flag, the near half of the map; the attackers
+	   only where they are on its way to theirs, a quarter longer at most,
+	   to clear the way and go on (HALO_BOT_OFF=meetway: defenders only);
+	   and only while both flags are at home: one taken, everyone to it.
 	   HALO_BOT_OFF=meetflags: as any game) */
 	if (game_engine == &ctf_engine && !bot_env_off("meetflags"))
 	{
@@ -7663,11 +7666,20 @@ static void bot_goal_meet(struct bot_goal_pass *g)
 				return;
 			}
 		}
-		if (team < 0 || team > 1 || !bot_ctf_defender(bot, g->player) ||
-			bot_distance2d(&spot, &base[team]) > 0.5f * bot_distance2d(&base[0], &base[1]))
-		{
+		if (team < 0 || team > 1)
 			return;
+		if (!bot_ctf_defender(bot, g->player))
+		{
+			real direct = bot_distance2d(position, &base[1 - team]);
+			if (bot_env_off("meetway") || direct < 15.f ||
+				bot_distance2d(position, &spot) + bot_distance2d(&spot, &base[1 - team]) > 1.25f * direct)
+			{
+				return;
+			}
+			on_the_way = TRUE;
 		}
+		else if (bot_distance2d(&spot, &base[team]) > 0.5f * bot_distance2d(&base[0], &base[1]))
+			return;
 	}
 	dx = position->x - spot.x;
 	dy = position->y - spot.y;
@@ -7686,7 +7698,9 @@ static void bot_goal_meet(struct bot_goal_pass *g)
 	/* (the hill, the ball: those first too, the meeting by the way) */
 	if (g->objective_game)
 		score *= game_engine == &ctf_engine ? 0.6f : 0.5f;
-	if (bot_consider(&g->best, score, _bot_goal_hold, &spot, NONE, (long)((8.f + 8.f * bot->personality.patience) * BOT_TICKS_PER_SECOND), FALSE))
+	/* (on the way: there, and on; not held) */
+	if (on_the_way ? bot_consider(&g->best, score, _bot_goal_roam, &spot, NONE, BOT_SECONDS(4.f), FALSE) :
+		bot_consider(&g->best, score, _bot_goal_hold, &spot, NONE, (long)((8.f + 8.f * bot->personality.patience) * BOT_TICKS_PER_SECOND), FALSE))
 	{
 		bot->meet_spot = spot;
 		if (bot_logging() && bot_env_set("HALO_BOT_MEETTRACE"))
@@ -19408,8 +19422,11 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		(bot_ffa_pro(BOT_G_ROUTES) > 0.5f && (unit->object.shield_vitality < 0.5f || unit->object.body_vitality < 0.5f)) ||
 		/* (the better, in a game of teams: round where they know the enemy is,
 		   on foot or driving) */
-		/* (not to a place to hold: a guard's post, where it meets them) */
-		(t->teams && bot_awareness() >= 0.5f && bot->goal_kind != _bot_goal_hold)) &&
+		/* (the better, hurt, in a game of teams: round where they know the
+		   enemy is; a sound one takes the fights on its way. HALO_BOT_OFF=
+		   awarefight: whole or hurt, as before) */
+		(t->teams && bot_awareness() >= 0.5f && bot->goal_kind != _bot_goal_hold &&
+			(bot_env_off("awarefight") || unit->object.shield_vitality < 0.5f || unit->object.body_vitality < 0.5f))) &&
 		bot->goal_kind != _bot_goal_enemy && bot->target_unit == NONE ? bot_side_of(me) : NONE;
 	t->committed = t->vehicle_index == NONE && bot_move_committed(&bot->mover);
 	bot_weapon_describe(unit->unit.current_weapon_index >= 0 ?

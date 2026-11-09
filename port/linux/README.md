@@ -2957,9 +2957,14 @@ and two kinds of walker); the wrecks of the others stayed.
   enemies it hasn't seen are. Once a second, each of them may be added to
   what the side knows, more likely at higher levels and when they are
   shooting or in a vehicle. The position is rougher at lower levels. Bots
-  of level 3.5 and up in team games route around what their side knows, on
-  foot and driving, except on the way to a place to hold (a guard's post,
-  a place to meet them). Lanes are drawn away from known enemies, and a bot
+  of level 3.5 and up in team games route around what their side knows,
+  on foot and driving, when they are hurt (shields or health under half).
+  Bots that aren't hurt take the fights on their way (`awarefight`: hurt
+  or not, as before). The flag carrier goes round them either way.
+  Neither applies on the way to a place to hold (a guard's post, a place
+  to meet them). Over two seeds per map, against the build before this:
+  Chill Out CTF went from 14.4 to 15.8 kills a minute (captures 4 to 7),
+  Blood Gulch CTF 10.4 to 10.7, team King of the Hill 20.6 to 21.7. Lanes are drawn away from known enemies, and a bot
   setting out on a lane with enemies along it may switch to another
   (`mapaware`).
 - **Driving around them:** the vehicle mesh now has its side's danger
@@ -2974,9 +2979,12 @@ and two kinds of walker); the wrecks of the others stayed.
   few units short of it, on their own side, to meet the enemy there. The
   patient and the higher levels do this more. A bot that dies doing it
   comes at that spot from another side next time (`meet`). In a game of
-  flags the flags come first: only defenders go to meet them, only on their
-  own half of the map, and only while both flags are at home. Once a flag
-  is taken, everyone goes for it (`meetflags`: as in any other game). With
+  flags the flags come first. Defenders go to meet them on their own half
+  of the map. Attackers meet them only where it is on their way to the
+  other flag (a quarter longer at most), going there and on rather than
+  holding (`meetway`: defenders only). Both only while both flags are at
+  home: once a flag is taken, everyone goes for it (`meetflags`: as in any
+  other game). With
   the hill or the ball, meeting counts for half as much. In test games of
   slayer there were more fights in the middle of the map (Wizard: 75 deaths
   against 45). In CTF, flag pickups stayed level with meeting off (Chill

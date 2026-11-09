@@ -67,7 +67,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 40 /* (40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 43 /* (43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -107,6 +107,27 @@ static real aas_jump_rise(void)
 		asked = TRUE;
 		if (getenv("HALO_BOT_JUMPRISE"))
 			rise = (real)atof(getenv("HALO_BOT_JUMPRISE"));
+	}
+	return rise;
+}
+
+/* A crouch jump's height: the legs tucked hard, a ledge or the far side of
+   a gap up to this, a few hundredths more than the jump made every time
+   (aas_jump_rise). Of jumps at ledges 0.76 to 0.85 up, three in four were
+   made. Such a way costs a second more than its going (aas_reach_new), so it
+   is taken only where it saves something: Beaver Creek's jump from the
+   slope by the west base onto the walkway, 0.78 up, eleven seconds round.
+   HALO_BOT_OFF=crouchjump: aas_jump_rise only */
+#define AAS_CROUCH_RISE 0.84f
+#define AAS_CROUCH_COST 1.f
+static real aas_crouch_rise(void)
+{
+	static int asked;
+	static real rise;
+	if (!asked)
+	{
+		asked = TRUE;
+		rise = bot_env_off("crouchjump") ? aas_jump_rise() : MAX(aas_jump_rise(), AAS_CROUCH_RISE);
 	}
 	return rise;
 }
@@ -1274,6 +1295,7 @@ struct aas_ledge_column
    lift the feet this much over where the jump has the body; a margin too) */
 #define AAS_GAP_TUCK 0.12f
 static boolean aas_gap_tall_off(void);
+static boolean aas_ledge_why_near(long s);
 static boolean aas_gap_jumpable(long d, long k, real rise)
 {
 	real distance = k * NAVM_CELL * navm_step_length[d];
@@ -1286,7 +1308,8 @@ static boolean aas_gap_jumpable(long d, long k, real rise)
 	   of the bots') */
 	if (rise > AAS_GAP_RISE)
 	{
-		real tucked = rise - AAS_GAP_TUCK;
+		/* (a crouch jump's, higher still: the legs tucked hard, a short one only) */
+		real tucked = rise - (rise > aas_jump_rise() ? 0.16f : AAS_GAP_TUCK);
 		real top = AAS_JUMP_VELOCITY * AAS_JUMP_VELOCITY / (2.f * AAS_GRAVITY);
 		real t;
 		if (aas_gap_tall_off() || tucked >= top)
@@ -1310,6 +1333,17 @@ static boolean aas_gap_up_off(void)
 	{
 		asked = TRUE;
 		off = bot_env_off("gapup");
+	}
+	return off;
+}
+
+static boolean aas_gap_level_off(void)
+{
+	static int asked, off;
+	if (!asked)
+	{
+		asked = TRUE;
+		off = bot_env_off("gaplevel");
 	}
 	return off;
 }
@@ -1363,7 +1397,7 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 	/* (cornerwise as well as square on: the way onto the west
 	   base of Battle Creek is off the end of a wall a body wide,
 	   onto a roof whose edge is a step to one side of it) */
-	if ((d < 4 ? k <= jump_cells : k * navm_step_length[d] <= jump_cells) && type == AAS_FOOT && rise > NAVM_STEP && rise <= aas_jump_rise() &&
+	if ((d < 4 ? k <= jump_cells : k * navm_step_length[d] <= jump_cells) && type == AAS_FOOT && rise > NAVM_STEP && rise <= aas_crouch_rise() &&
 		span->ceiling - span->floor >= rise + NAVM_HEIGHT)
 	{
 		column->found = u;
@@ -1386,8 +1420,15 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 		    the gap, then, or not at all: the blocks of a staircase of
 		    running jumps were each got to from nowhere. HALO_BOT_OFF=gapup:
 		    as it was) */
-		 (rise > NAVM_STEP && state->dropped && other->floor > state->dropped_floor + aas_jump_rise() && !aas_gap_up_off())) &&
-		(rise <= AAS_GAP_RISE || (!aas_gap_tall_off() && rise <= aas_jump_rise())) &&
+		 (rise > NAVM_STEP && state->dropped && other->floor > state->dropped_floor + aas_jump_rise() && !aas_gap_up_off()) ||
+		 /* (... and level across one, or a little up, when the floor of the
+		    dip is a drop of more than a step and its far side is more than
+		    a jump up from it: across it is the way, down into it is a way
+		    round. Beaver Creek's walkway over the step by the west base,
+		    a unit and a half: thirteen seconds round. HALO_BOT_OFF=gaplevel:
+		    up only, as it was) */
+		 (rise >= -NAVM_STEP && state->dropped && other->floor > state->dropped_floor + aas_jump_rise() && !aas_gap_level_off())) &&
+		(rise <= AAS_GAP_RISE || (!aas_gap_tall_off() && rise <= aas_crouch_rise())) &&
 		rise >= -3.5f && (!state->dropped || rise >= -NAVM_JUMP || other->floor > state->dropped_floor + NAVM_JUMP) && column->found == NONE &&
 		other->wall >= 20)
 	{
@@ -1399,6 +1440,18 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 			column->found = u;
 			column->travel = _aas_travel_gap;
 		}
+	}
+	/* (testing, HALO_BOT_LEDGEWHY=x,y,z,r: why a floor across from an edge
+	   there, a jump's height up or less, is no gap to it) */
+	if (type == AAS_FOOT && k >= gap_cells && rise > -0.5f && rise < 1.f && column->found != u && aas_ledge_why_near(s) && bot_logging() &&
+		(other->flags & _navm_span_walkable) && !(other->flags & _navm_span_blocked))
+	{
+		real_point3d e, f;
+		navm_span_point(s, &e);
+		navm_span_point(u, &f);
+		bot_log("gapwhy edge %.2f %.2f %.2f to %.2f %.2f %.2f (d %ld k %ld): rise %.2f wall %d jumpable %d below %d step_below %d dropped %d (%.2f) found %ld",
+			e.x, e.y, e.z, f.x, f.y, f.z, d, k, rise, (int)other->wall, (int)aas_gap_jumpable(d, k, rise), (int)state->below, (int)state->step_below,
+			(int)state->dropped, state->dropped_floor, column->found);
 	}
 }
 
@@ -1542,7 +1595,30 @@ static boolean aas_gap_has_runup(struct aas_candidate const *candidate)
 	back = edge;
 	back.x += dx / length * runup;
 	back.y += dy / length * runup;
-	return navm_line_walkable(&edge, &back, 0.f, 0.f);
+	if (navm_line_walkable(&edge, &back, 0.f, 0.f))
+		return TRUE;
+	/* (or at a slant, as a person runs at a gap from along a ledge narrower
+	   than a run is long and turns into the jump at its end: up to a third
+	   of a right angle either way, the mover's run-up the same,
+	   bot_move_gap_runup. Chill Out's walkway by the blue ramp, half a unit
+	   wide, onto the ledge across from it. HALO_BOT_OFF=slantrun: straight
+	   behind only) */
+	if (!bot_env_off("slantrun"))
+	{
+		static real const turns[4] = { 0.3f, -0.3f, 0.5f, -0.5f };
+		long t;
+		for (t = 0; t < 4; t++)
+		{
+			real c = (real)cos(turns[t]), s = (real)sin(turns[t]);
+			real rx = (dx * c - dy * s) / length, ry = (dx * s + dy * c) / length;
+			back = edge;
+			back.x += rx * runup;
+			back.y += ry * runup;
+			if (navm_line_walkable(&edge, &back, 0.f, 0.f))
+				return TRUE;
+		}
+	}
+	return FALSE;
 }
 
 /* a gap's jump: whether it is clear of anything in the way (and, in *barrier,
@@ -1779,6 +1855,9 @@ static boolean aas_ledge_add_reach(long type, struct aas_reaches *reaches, struc
 	reach->time = run / aas_speed(type);
 	if (hop)
 		reach->time += 0.4f; /* (the hop over the lip; the drop's own cost, below, as well) */
+	/* (a crouch jump's: the risk of it) */
+	if ((candidate->travel == _aas_travel_jump || candidate->travel == _aas_travel_gap) && reach->left.z - reach->edge.z > aas_jump_rise() + 0.01f)
+		reach->time += AAS_CROUCH_COST;
 	switch (candidate->travel)
 	{
 	case _aas_travel_jump:

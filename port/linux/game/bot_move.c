@@ -1564,6 +1564,22 @@ static void bot_move_gap_walkover(struct bot_mover *bot, struct bot_body const *
 		{
 			result->jump = TRUE;
 		}
+		/* (held up on the way over, on its feet: a hop over what holds
+		   it. The floor goes all the way, the areas say, but past
+		   something a hand from the line, thinner than a body: the
+		   lights in Carousel's lower floor, where nine in ten of these
+		   were given up stalled, the bot walking into the same spot;
+		   a person steps up over it. HALO_BOT_OFF=walkhop: walked into) */
+		if (!bot_env_off("walkhop") && !body->airborne && bot_move_ground_speed(body) < 0.5f)
+		{
+			if (++move->reach_settle_ticks >= 6 && body->can_jump && move->jump_cooldown <= 0)
+			{
+				result->jump = TRUE;
+				move->reach_settle_ticks = 0;
+			}
+		}
+		else
+			move->reach_settle_ticks = 0;
 	}
 }
 

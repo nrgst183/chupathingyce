@@ -3124,6 +3124,14 @@ and two kinds of walker); the wrecks of the others stayed.
   above or below. Now a goal whose floor is more than 0.4 off the floor the
   bot stands on is not reached until the bot is up (or down) there
   (`arrivelevel`).
+- **A hop over what holds a bot up on a walk-over:** a "gap" the areas
+  say has floor all the way across (a squeeze past a rock, a crack) is
+  walked; where something thinner than a body stands a hand off the line,
+  as the lights in Carousel's lower floor, the bot walked into the same spot
+  till the way was given up, and nine in ten of Carousel's were. Held up on
+  its feet a fifth of a second, it now hops over: Carousel's gaps went from
+  31 in 100 made to 84, in tours of three games, and the other maps were as
+  before (`walkhop`).
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

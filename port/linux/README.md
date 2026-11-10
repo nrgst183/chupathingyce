@@ -3102,7 +3102,9 @@ and two kinds of walker); the wrecks of the others stayed.
   against the tick it left, how high the feet went and how much the crouch
   lifted them, where it came down and how far across, and how fast it was
   going on landing, in the air at the slowest, and half a second and a
-  second after. Where the logs folder cannot be written, the files go in the
+  second after. Every map is logged, each line naming it, and the files are
+  added to each time the game starts (delete them to begin again). Where the
+  logs folder cannot be written, the files go in the
   folder the game was started in. (`HALO_MOVE_LOG_PLAYER=n`: the player of
   that index as well, a bot's, for testing.)
 - **More jumps on every map:** `HALO_BOT_JUMPSCAN` lists, for a map, the

@@ -67,7 +67,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 44 /* (44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 47 /* (47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -119,6 +119,13 @@ static real aas_jump_rise(void)
    slope by the west base onto the walkway, 0.78 up, eleven seconds round.
    HALO_BOT_OFF=crouchjump: aas_jump_rise only */
 #define AAS_CROUCH_RISE 0.84f
+/* (... and higher, people's way, when asked: a person's running crouch
+   jumps came down on floor as much as a unit above where they left, 0.95 up
+   five times onto Beaver Creek's walkways, from a slope or onto a rounded
+   lip; the bots taken that way up the crates of Hang 'em High got their feet
+   0.84 up at the most, and failed one in two: HALO_BOT_HIGHRISE=0.97 to try) */
+#define AAS_HIGH_RISE (bot_env_set("HALO_BOT_HIGHRISE") ? (real)atof(getenv("HALO_BOT_HIGHRISE")) : AAS_CROUCH_RISE)
+#define AAS_JUMP_FAR_CELLS NAVM_CELLS(1.f)
 /* (what a crouch jump costs over a jump: the run it loses in the air, a
    short tuck let go over the top, and the half a second back up to a run.
    A person's tucked jumps up came down a fifth to a third of a run slower,
@@ -132,7 +139,7 @@ static real aas_crouch_rise(void)
 	if (!asked)
 	{
 		asked = TRUE;
-		rise = bot_env_off("crouchjump") ? aas_jump_rise() : MAX(aas_jump_rise(), AAS_CROUCH_RISE);
+		rise = bot_env_off("crouchjump") ? aas_jump_rise() : MAX(aas_jump_rise(), bot_env_off("highjump") ? AAS_CROUCH_RISE : AAS_HIGH_RISE);
 	}
 	return rise;
 }
@@ -372,6 +379,63 @@ static long aas_cell_x(long s)
 static long aas_cell_y(long s)
 {
 	return navm.spans[s].column / navm.width;
+}
+
+/* The ways out from a ledge looked along: the eight of the grid (0..7:
+   navm_dx, navm_dy), and on foot eight more between them (8..15, at 22.5
+   degrees off each), stepped a cell's length at a time along the line. Along
+   the grid's eight alone, a jump across at a slant to them was looked for
+   only along the nearest of them, and found longer than it is or not at all:
+   Prisoner's jump across the upper floor, three units at 157 degrees, a
+   person's in 1.3 seconds and the navigation's way round five (a movement
+   log). HALO_BOT_OFF=slantscan: the eight */
+#define AAS_SCAN_DIRECTIONS 16
+static real const aas_slant_angle[8] = { 0.3926991f, 1.1780972f, 1.9634954f, 2.7488936f, 3.5342917f, 4.3196899f, 5.1050881f, 5.8904862f };
+/* (the two of the grid's each lies between: the edge looked out from is one with no floor on at least one of them) */
+static long const aas_slant_sides[8][2] = { { 0, 4 }, { 2, 4 }, { 2, 6 }, { 1, 6 }, { 1, 7 }, { 3, 7 }, { 3, 5 }, { 0, 5 } };
+
+static long aas_scan_directions(long type)
+{
+	static int asked, off;
+	if (!asked)
+	{
+		asked = TRUE;
+		off = bot_env_off("slantscan");
+	}
+	return type == AAS_FOOT && !off ? AAS_SCAN_DIRECTIONS : 8;
+}
+
+/* the cell k steps out from span s the way d, and w steps across it (to the left) */
+static void aas_scan_cell(long s, long d, long k, long w, long *x, long *y)
+{
+	if (d < 8)
+	{
+		*x = aas_cell_x(s) + navm_dx[d] * k - navm_dy[d] * w;
+		*y = aas_cell_y(s) + navm_dy[d] * k + navm_dx[d] * w;
+	}
+	else
+	{
+		real ux = (real)cos(aas_slant_angle[d - 8]), uy = (real)sin(aas_slant_angle[d - 8]);
+		*x = aas_cell_x(s) + (long)floor(ux * k - uy * w + 0.5f);
+		*y = aas_cell_y(s) + (long)floor(uy * k + ux * w + 0.5f);
+	}
+}
+
+/* how long a step the way d is, in cells */
+static real aas_scan_step(long d)
+{
+	return d < 8 ? navm_step_length[d] : 1.f;
+}
+
+/* whether there is floor on from span s the way d (no edge to look out from) */
+static long aas_scan_neighbor(long type, long s, long d)
+{
+	long a, b;
+	if (d < 8)
+		return aas_neighbor(type, s, d);
+	a = aas_neighbor(type, s, aas_slant_sides[d - 8][0]);
+	b = aas_neighbor(type, s, aas_slant_sides[d - 8][1]);
+	return a != NONE && b != NONE ? a : NONE;
 }
 
 static void aas_new_search(void)
@@ -1229,9 +1293,9 @@ static boolean aas_edge_opening(long s, long d)
 		long across = j >= NAVM_CELLS(0.3f) ? side_cells : 0;
 		for (w = -across; w <= across && opening; w++)
 		{
-			long bx = aas_cell_x(s) + navm_dx[d] * j - navm_dy[d] * w;
-			long by = aas_cell_y(s) + navm_dy[d] * j + navm_dx[d] * w;
+			long bx, by;
 			long v;
+			aas_scan_cell(s, d, j, w, &bx, &by);
 			if (bx < 0 || by < 0 || bx >= navm.width || by >= navm.height)
 				continue;
 			for (v = navm_first_span_at(bx, by); v != NONE; v = navm.spans[v].next)
@@ -1253,10 +1317,10 @@ static boolean aas_drop_falls_beyond(long s, long d, long k, long found)
 	long j;
 	for (j = k + 1; j <= k + NAVM_CELLS(1.2f) && !careful; j++)
 	{
-		long bx = aas_cell_x(s) + navm_dx[d] * j;
-		long by = aas_cell_y(s) + navm_dy[d] * j;
+		long bx, by;
 		long v;
 		boolean floor_there = FALSE;
+		aas_scan_cell(s, d, j, 0, &bx, &by);
 		if (bx < 0 || by < 0 || bx >= navm.width || by >= navm.height)
 			break;
 		for (v = navm_first_span_at(bx, by); v != NONE; v = navm.spans[v].next)
@@ -1303,7 +1367,7 @@ static boolean aas_gap_tall_off(void);
 static boolean aas_ledge_why_near(long s);
 static boolean aas_gap_jumpable(long d, long k, real rise)
 {
-	real distance = k * NAVM_CELL * navm_step_length[d];
+	real distance = k * NAVM_CELL * aas_scan_step(d);
 	real under;
 	/* (higher than a running jump lands on its own: with the legs tucked,
 	   to as high as a ledge is jumped onto, and only across what the jump
@@ -1402,13 +1466,19 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 	/* (cornerwise as well as square on: the way onto the west
 	   base of Battle Creek is off the end of a wall a body wide,
 	   onto a roof whose edge is a step to one side of it) */
-	if ((d < 4 ? k <= jump_cells : k * navm_step_length[d] <= jump_cells) && type == AAS_FOOT && rise > NAVM_STEP && rise <= aas_crouch_rise() &&
+	/* (and, people's way, from further off: a person's jumps up 0.7 and more
+	   came down a unit and a half to nearly two from where they left, over
+	   the foot of a bank or a dip before the ledge as often as not; the
+	   bots take those as people do, bot_move_people_style.
+	   HALO_BOT_OFF=highjump: from 0.6 off only) */
+	if ((d < 4 ? k : k * aas_scan_step(d)) <= (rise > 0.5f && type == AAS_FOOT && !bot_env_off("highjump") ? AAS_JUMP_FAR_CELLS : jump_cells) &&
+		type == AAS_FOOT && rise > NAVM_STEP && rise <= aas_crouch_rise() &&
 		span->ceiling - span->floor >= rise + NAVM_HEIGHT)
 	{
 		column->found = u;
 		column->travel = _aas_travel_jump;
 	}
-	else if (!state->dropped && k <= NAVM_CELLS(d < 4 ? 1.f : 0.6f) && rise < -(type == AAS_VEHICLE ? NAVM_VEHICLE_STEP : NAVM_STEP) &&
+	else if (!state->dropped && k <= NAVM_CELLS(d < 4 ? 1.f : d < 8 ? 0.6f : 0.8f) && rise < -(type == AAS_VEHICLE ? NAVM_VEHICLE_STEP : NAVM_STEP) &&
 		-rise <= maximum_drop && other->ceiling >= span->floor + NAVM_HEIGHT && column->found == NONE && state->opening &&
 		(type != AAS_FOOT || (other->wall >= 14 && other->edge >= 14)))
 	{
@@ -1510,17 +1580,22 @@ static void aas_ledge_scan(long type, struct aas_candidates *list, long s, long 
 	long k;
 	long a = NONE;
 	long a_span = NONE;
-	if (aas_neighbor(type, s, d) != NONE)
+	if (aas_scan_neighbor(type, s, d) != NONE)
+		return;
+	/* (nor from floor by a wall: a body is not there to jump from at a slant,
+	   and a sliver at the top of Chill Out's middle, a hand from the wall,
+	   had two such ways off it that bots stood against the wall trying) */
+	if (d >= 8 && aas_room(type, s) < 25)
 		return;
 	if (type == AAS_FOOT)
 		state.opening = aas_edge_opening(s, d);
 	for (k = 1; k <= reach_cells; k++)
 	{
-		long x = aas_cell_x(s) + navm_dx[d] * k;
-		long y = aas_cell_y(s) + navm_dy[d] * k;
+		long x, y;
 		struct aas_ledge_column column = { NONE, NONE, FALSE, FALSE, NONE, FALSE, FALSE };
 		boolean walkover = FALSE;
 		long u;
+		aas_scan_cell(s, d, k, 0, &x, &y);
 		if (x < 0 || y < 0 || x >= navm.width || y >= navm.height)
 			break;
 		for (u = navm_first_span_at(x, y); u != NONE; u = navm.spans[u].next)
@@ -1539,6 +1614,22 @@ static void aas_ledge_scan(long type, struct aas_candidates *list, long s, long 
 		}
 		if (column.level)
 			state.crossed_floor = TRUE;
+		/* (the ways between the grid's: for the long ways across only. Near
+		   at hand, a cell's step along a slant comes round to the same cells
+		   as its neighbours', and found slots a hand across between two areas
+		   of one floor, gone over and given up on at the top of Chill Out's
+		   middle ten times a game) */
+		if (column.found != NONE && d >= 8 && k * NAVM_CELL < 1.f)
+		{
+			/* (down into a pit near at hand: on over it, for the far side) */
+			if (column.travel == _aas_travel_drop && type == AAS_FOOT)
+			{
+				state.dropped = TRUE;
+				state.dropped_floor = navm.spans[column.found].floor;
+				continue;
+			}
+			break;
+		}
 		if (column.found != NONE)
 		{
 			aas_ledge_candidate(type, list, s, d, k, column.found, column.travel, walkover, &a, &a_span);
@@ -1856,6 +1947,10 @@ static boolean aas_ledge_add_reach(long type, struct aas_reaches *reaches, struc
 		navm_span_point(candidate->low_span, &landing);
 		reach->left = landing;
 	}
+	/* (higher than the bots' own crouch jump: taken as people take it) */
+	if (candidate->travel == _aas_travel_jump && (reach->left.z - reach->edge.z > AAS_CROUCH_RISE + 0.005f ||
+		aas_distance2d(&reach->edge, &reach->left) > 0.65f))
+		reach->people = -1;
 	run = aas_distance2d(&reach->start, &reach->edge) + aas_distance2d(&reach->edge, &reach->end);
 	reach->time = run / aas_speed(type);
 	if (hop)
@@ -2065,7 +2160,7 @@ static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 			continue;
 		if (!(span->flags & (_navm_span_wall_border | _navm_span_edge_border | _navm_span_vehicle_border)))
 			continue;
-		for (d = 0; d < 8; d++)
+		for (d = 0; d < aas_scan_directions(type); d++)
 			aas_ledge_scan(type, &list, s, d);
 	}
 	bot_sort_stable(list.items, list.count, sizeof(struct aas_candidate), aas_candidate_compare);

@@ -3092,6 +3092,29 @@ and two kinds of walker); the wrecks of the others stayed.
   that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
   logs every nav area in a box and the ways out of them that are more
   than a walk, for looking at a spot like this one.
+- **Jumps like people's, found everywhere:** what the movement logs showed
+  about how people jump, made rules the navigation finds jumps by on every
+  map, not only where someone was seen to jump:
+  - Ledges are looked out from at sixteen ways, not the grid's eight, for
+    the long jumps across (a unit and more): a jump at a slant to the grid's
+    ways was looked for only along the nearest of them, and found too long
+    or not at all. Prisoner's jump across the upper floor, a person's in 1.3
+    seconds, came out the navigation's own; a bot's tour across it went from
+    16.7 seconds a leg to 1.7 (`slantscan`). Not from floor by a wall, nor for
+    anything nearer than a unit.
+  - Jumps up from 0.5 are found from as far as a unit off the ledge, not 0.6
+    (a person's came down a unit and a half to nearly two across from where
+    they left), and those, with any higher than the bots' own crouch jump if
+    asked for (`HALO_BOT_HIGHRISE=0.97`: people reached 0.95, the bots 0.84),
+    are taken the way people take them: at a run, facing the ledge, off the
+    ground a unit and two fifths short of where the feet come down, tucked from
+    the sixth tick and let down over the top (`highjump`). Beaver Creek's jump
+    up onto the walkway by the blue base: 0.8 seconds a leg against 13.
+  - On Beaver Creek the jumps up and across the navigation has went from 340
+    and 1934 to 741 and 3491; in 15 games on five maps against the rules as
+    they were, the captures and kills were no fewer (3.1 and 170 in ten
+    minutes, against 2.4 and 165) and the ways given up no more.
+
 - **The ways people take:** the bots now take the shortcuts people were
   seen to take that their navigation had no way for, and take them as the
   person did. `tools/bot_people_ways.py logs/move_routes.txt
@@ -3102,7 +3125,8 @@ and two kinds of walker); the wrecks of the others stayed.
   down at the end of it (not a slide down a bank, nor one jump into another).
   For each it keeps where the feet left the ground and came down, the way
   and speed it was going, when the crouch went down and came up, and the
-  person's time. The navigation adds each as a way between the two areas at
+  person's time. These are for what the rules above do not find (a jump up
+  onto a bank whose slope carries the feet higher). The navigation adds each as a way between the two areas at
   the person's time and a little (`bot_aas.c`; a map's navigation cache is
   made afresh when its ways change), and a bot takes it as the person did
   (`bot_move.c`): a run along the person's way, facing it, off the ground at

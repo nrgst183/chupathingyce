@@ -4825,6 +4825,28 @@ void aas_reach_failed(long type, long reach)
 	}
 }
 
+void aas_reach_failed_alike(long type, long reach)
+{
+	struct aas_world *world = &aas_worlds[type];
+	struct aas_reach const *failed;
+	long r, alike = 0;
+	if (!aas_is_ready || reach < 0 || reach >= world->reach_count)
+		return;
+	failed = &world->reaches[reach];
+	for (r = 0; r < world->reach_count && alike < 8; r++)
+	{
+		struct aas_reach const *other = &world->reaches[r];
+		if (r == reach || other->travel != failed->travel || other->people)
+			continue;
+		if (aas_distance(&other->edge, &failed->edge) < 0.8f && aas_distance(&other->end, &failed->end) < 1.f &&
+			aas_distance(&other->start, &failed->start) < 1.f)
+		{
+			aas_reach_failed(type, r);
+			alike++;
+		}
+	}
+}
+
 /* What a way costs over what it is reckoned at, as it is found: a gap that
    is a run-up and a jump of four seconds for a step saved, somewhere to land
    that nothing stands on. Not a failure (those are counted, kept from game

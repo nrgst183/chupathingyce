@@ -3092,6 +3092,14 @@ and two kinds of walker); the wrecks of the others stayed.
   that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
   logs every nav area in a box and the ways out of them that are more
   than a walk, for looking at a spot like this one.
+- **The time to a place, not to its area's middle:** the navigation's time
+  from one place to another was to the middle of the area the other is in,
+  as its route search works it out; now the way is followed to its last
+  link and the time taken from the end of that to the place itself. For two
+  hundred of a person's jumps between areas (a movement log), the
+  navigation's time against theirs went from 1.30 times on the median (1.76
+  on the whole, 74 of them more than half as long again) to 1.16 (1.38; 36)
+  (`pointtime`).
 - **Jumps like people's, found everywhere:** what the movement logs showed
   about how people jump, made rules the navigation finds jumps by on every
   map, not only where someone was seen to jump:

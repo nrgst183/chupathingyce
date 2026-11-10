@@ -3124,6 +3124,16 @@ and two kinds of walker); the wrecks of the others stayed.
   above or below. Now a goal whose floor is more than 0.4 off the floor the
   bot stands on is not reached until the bot is up (or down) there
   (`arrivelevel`).
+- **A hop over what holds a bot up on a walk-over:** a "gap" the areas
+  say has floor all the way across (a squeeze past a rock, a crack) is
+  walked; where something thinner than a body stands a hand off the line,
+  as the lights in Carousel's lower floor, the bot walked into the same spot
+  till the way was given up, and most of Carousel's were. Held up on its
+  feet, all but still, a third of a second, it now hops over: Carousel's
+  gaps went from about a quarter made to two thirds, in tours, and the other
+  maps were as before. Let hop sooner (`HALO_BOT_WALKHOP_SLOW=0.5`,
+  `HALO_BOT_WALKHOP_TICKS=6`), more were made, but Chill Out's walk-overs
+  were then taken more and its tours went a tenth slower (`walkhop`).
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

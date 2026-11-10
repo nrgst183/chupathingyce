@@ -3134,6 +3134,14 @@ and two kinds of walker); the wrecks of the others stayed.
   maps were as before. Let hop sooner (`HALO_BOT_WALKHOP_SLOW=0.5`,
   `HALO_BOT_WALKHOP_TICKS=6`), more were made, but Chill Out's walk-overs
   were then taken more and its tours went a tenth slower (`walkhop`).
+- **A fall at a jump counts against the same jump beside it:** a gap or
+  ledge is often a row of ways side by side, one from each span of the rock
+  it is jumped from; fallen at from one, the next was offered, and fallen at
+  the same way (three side by side over the gap by Beaver Creek's blue-base
+  rocks, in one game). A way begun and lost by a fall now counts as failed
+  for the ways of its kind that start, leave and land within a unit of it
+  too. In tours of six maps, 1.5 in 100 more legs in the time, and an eighth
+  fewer gaps failed (`failalike`).
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

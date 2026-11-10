@@ -855,7 +855,21 @@ static void bot_move_reach_failed(struct bot_mover *bot, char const *why)
 	/* in a crowd (someone in the way on the ladder, at the edge): not the
 	   way's fault; this bot tries another way a while, nobody learns from it */
 	if (!bot_move_crowded(bot))
+	{
 		aas_reach_failed(move->reach_type, move->reach);
+		/* (and the same jump beside it: a gap fallen at off a rock is
+		   offered again from the next span of the same rock, the same
+		   run, the same fall. Three of Beaver Creek's, side by side over
+		   the gap by the blue base's rocks, were fallen at in a game, one
+		   after another. Over a gap or up a ledge, begun and lost by
+		   falling: HALO_BOT_OFF=failalike) */
+		if (move->reach_started && move->reach_type == AAS_FOOT && !bot_env_off("failalike") &&
+			(aas_reach(move->reach_type, move->reach)->travel == _aas_travel_gap || aas_reach(move->reach_type, move->reach)->travel == _aas_travel_jump) &&
+			(!strcmp(why, "fell") || !strcmp(why, "landed below")))
+		{
+			aas_reach_failed_alike(move->reach_type, move->reach);
+		}
+	}
 	bot_move_avoid(move, move->reach, BOT_SECONDS(bot_move_crowded(bot) ? 8 : 25));
 	move->reach = NONE;
 }

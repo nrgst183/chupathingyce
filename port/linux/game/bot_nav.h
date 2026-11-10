@@ -156,6 +156,8 @@ long aas_route_reach(long type, long area, real_point3d const *from, long goal_a
 float aas_travel_time(long type, real_point3d const *from, real_point3d const *to); /* seconds; <0 no way */
 float aas_travel_time_soon(long type, real_point3d const *from, real_point3d const *to, boolean *soon); /* ... or *soon: not worked out yet, ask again */
 void aas_reach_failed(long type, long reach);
+/* ... and the ways of the same kind beside it, from and to the same places within a unit */
+void aas_reach_failed_alike(long type, long reach);
 /* seconds a way takes over what it is reckoned at, as found (not a failure:
    for as long as the map is up) */
 void aas_reach_handicap(long type, long reach, float seconds);

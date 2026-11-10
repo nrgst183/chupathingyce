@@ -3142,6 +3142,19 @@ and two kinds of walker); the wrecks of the others stayed.
   for the ways of its kind that start, leave and land within a unit of it
   too. In tours of six maps, 1.5 in 100 more legs in the time, and an eighth
   fewer gaps failed (`failalike`).
+- **Through slots too narrow for an area:** floor at a step's height all
+  the way, a hand or more from the walls, but under the two fifths of a unit
+  an area keeps from them, was no way at all: Beaver Creek's creek goes
+  under the bridge through one, by a post, which a person walked in two
+  thirds of a second and the navigation went round in nine. The floor of
+  an area facing such a sliver is looked along up to a unit, and where it
+  comes out on another area's floor the slot is a way, walked as any
+  walk-over (its clearance tested at a walking body's knee and chest, not a
+  jump's arc, which under the bridge was in the bridge), at a second more
+  than its walk. Beaver Creek's walk-overs went from 433 to 1127; in tours,
+  its legs a tenth quicker, Hang 'em High's too, Wizard's and Damnation's as
+  before, and the slots made 97 in 100 times (`sliverway`; the navigation
+  cache's version is 48).
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

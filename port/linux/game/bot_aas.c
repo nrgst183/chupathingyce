@@ -60,6 +60,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
    column out: on the coarsest grid (0.2) that's the second column from
    the wall (0.3), on the finest (0.1) the third (0.25) */
 #define AAS_FOOT_CLEARANCE 22
+#define AAS_SLIVER_CLEARANCE 14 /* (hundredths) a slot between two areas walked through: so far from the walls all the way */
 #define AAS_VEHICLE_CLEARANCE 60 /* a warthog's half width and a little */
 #define AAS_MAXIMUM_SIDE NAVM_CELLS(8.f) /* cells: areas no bigger than 8x8 units */
 #define AAS_FOOT_DROP 4.5f /* further down hurts */
@@ -67,7 +68,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 47 /* (47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 48 /* (48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -866,6 +867,7 @@ struct aas_candidate
 	long low_span, high_span; /* walk: the two spans either side of the edge */
 	long careful; /* drop: a fall beyond where it lands */
 	long walkover; /* floor a step up or down just over a slot: walked */
+	long sliver; /* ... and through a slot too narrow for an area, aas_sliver_scan */
 };
 
 /* Sorted, and what compares equal left in the order it was in. (The C
@@ -1552,6 +1554,7 @@ static void aas_ledge_candidate(long type, struct aas_candidates *list, long s, 
 	if (*a != NONE && b != NONE && *a != b && (candidate = aas_candidate_new(list)) != NULL)
 	{
 		real_point3d p0, p1;
+		candidate->sliver = FALSE;
 		candidate->from = *a;
 		candidate->to = b;
 		candidate->travel = travel;
@@ -1573,6 +1576,53 @@ static void aas_ledge_candidate(long type, struct aas_candidates *list, long s, 
 
 /* one direction off one edge span: the ledges to jump up to, the drops, and
    the gaps, each as a candidate (aas_ledge_reaches picks among them) */
+/* A way through a slot between two areas narrower than an area's room: floor
+   at our height all the way, a hand or more from the walls (a body gets
+   through), but under the two fifths an area wants. Beaver Creek's creek
+   goes under the bridge through one, by a post; a person walked it in two
+   thirds of a second where the navigation, with no way through, went round
+   in nine. Looked along from the floor of an area facing a sliver, up to a
+   unit; walked, as any walk-over (HALO_BOT_OFF=sliverway) */
+static void aas_sliver_scan(long type, struct aas_candidates *list, long s, long d)
+{
+	long k;
+	long a = NONE, a_span = NONE;
+	long slivers = 0;
+	unsigned short narrowest = 0xffff;
+	for (k = 1; k <= NAVM_CELLS(1.f); k++)
+	{
+		long x, y, u, level = NONE;
+		aas_scan_cell(s, d, k, 0, &x, &y);
+		if (x < 0 || y < 0 || x >= navm.width || y >= navm.height)
+			return;
+		for (u = navm_first_span_at(x, y); u != NONE; u = navm.spans[u].next)
+		{
+			real rise = navm.spans[u].floor - navm.spans[s].floor;
+			if (rise > -NAVM_STEP && rise <= NAVM_STEP && (navm.spans[u].flags & _navm_span_walkable) && !(navm.spans[u].flags & _navm_span_blocked) &&
+				navm.spans[u].ceiling - navm.spans[u].floor >= NAVM_HEIGHT)
+			{
+				level = u;
+				break;
+			}
+		}
+		if (level == NONE)
+			return;
+		if (navm.spans[level].wall >= AAS_FOOT_CLEARANCE)
+		{
+			if (slivers > 0 && narrowest >= AAS_SLIVER_CLEARANCE)
+			{
+				long before = list->count;
+				aas_ledge_candidate(type, list, s, d, k, level, _aas_travel_gap, TRUE, &a, &a_span);
+				if (list->count > before)
+					list->items[list->count - 1].sliver = TRUE;
+			}
+			return;
+		}
+		slivers++;
+		narrowest = MIN(narrowest, navm.spans[level].wall);
+	}
+}
+
 static void aas_ledge_scan(long type, struct aas_candidates *list, long s, long d)
 {
 	long const reach_cells = NAVM_CELLS(3.2f); /* how far out from a ledge to look */
@@ -1728,10 +1778,54 @@ static boolean aas_gap_clear(struct aas_candidate const *candidate, boolean *bar
 	struct collision_result collision;
 	real_point3d from, to;
 	real heights[3] = { 0.75f, 1.0f, 1.3f }; /* (in the air: over a railing, a knee-high lip) */
+	/* (a slot walked through, too narrow for an area, aas_sliver_scan: at
+	   a walking body's knee and chest, under whatever is over it, not a
+	   jump's arc. Under Beaver Creek's bridge the arc's heights were in
+	   the bridge) */
+	real const walked[3] = { 0.3f, 0.5f, 0.62f };
+	boolean walk = candidate->walkover && candidate->sliver;
 	long h;
 	boolean clear = TRUE;
 	navm_span_point(candidate->edge_span, &from);
 	navm_span_point(candidate->low_span, &to);
+	if (walk)
+	{
+		for (h = 0; h < 3 && clear; h++)
+		{
+			real_point3d a = from, b = to;
+			a.z += walked[h];
+			b.z += walked[h];
+			if (aas_ray_blocked(flags, &a, &b, &collision))
+			{
+				clear = FALSE;
+				if (getenv("HALO_BOT_GAPLOG"))
+					bot_log("slot %ld->%ld blocked at h %.2f: %.2f %.2f %.2f -> %.2f %.2f %.2f hit %.2f %.2f %.2f", candidate->from, candidate->to,
+						walked[h], a.x, a.y, a.z, b.x, b.y, b.z, collision.point.x, collision.point.y, collision.point.z);
+			}
+		}
+		if (clear)
+		{
+			real dx = to.x - from.x, dy = to.y - from.y;
+			real length = (real)sqrt(dx * dx + dy * dy);
+			long side;
+			for (side = -1; side <= 1 && clear && length > 0.01f; side += 2)
+			{
+				/* (a tenth either side of the middle: the slot is narrower
+				   than a body is wide, at the floor's distances) */
+				real_point3d a = from, b = to;
+				a.x += -dy / length * 0.1f * side;
+				a.y += dx / length * 0.1f * side;
+				b.x += -dy / length * 0.1f * side;
+				b.y += dx / length * 0.1f * side;
+				a.z += 0.5f;
+				b.z += 0.5f;
+				if (aas_ray_blocked(flags, &a, &b, &collision))
+					clear = FALSE;
+			}
+		}
+		*barrier = FALSE;
+		return clear;
+	}
 	for (h = 0; h < 3 && clear; h++)
 	{
 		real_point3d a = from, b = to;
@@ -1981,6 +2075,12 @@ static boolean aas_ledge_add_reach(long type, struct aas_reaches *reaches, struc
 		   failing still costs what it has cost: aas_reach_failed) */
 		if (reach->careful == AAS_WALKOVER)
 			reach->time += 0.3f; /* (slow going, by the wall) */
+		/* (and through a slot, a second more: taken at their walk's time,
+		   Hang 'em High's tours were slower with them than without; at a
+		   second more, quicker, and Beaver Creek's as quick as at none.
+		   HALO_BOT_SLIVERCOST: another) */
+		if (candidate->sliver)
+			reach->time += getenv("HALO_BOT_SLIVERCOST") ? (float)atof(getenv("HALO_BOT_SLIVERCOST")) : 1.f;
 		break;
 	}
 	return TRUE;
@@ -2162,6 +2262,22 @@ static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 			continue;
 		for (d = 0; d < aas_scan_directions(type); d++)
 			aas_ledge_scan(type, &list, s, d);
+	}
+	/* (and the slots through to the next area too narrow to be one) */
+	if (type == AAS_FOOT && !bot_env_off("sliverway"))
+	{
+		for (s = 0; s < navm.span_count; s++)
+		{
+			long d;
+			if (!aas_eligible(type, s))
+				continue;
+			for (d = 0; d < 8; d++)
+			{
+				long t = navm_walk_neighbor(s, d);
+				if (t != NONE && navm.spans[t].wall < AAS_FOOT_CLEARANCE && navm.spans[t].wall >= AAS_SLIVER_CLEARANCE)
+					aas_sliver_scan(type, &list, s, d);
+			}
+		}
 	}
 	bot_sort_stable(list.items, list.count, sizeof(struct aas_candidate), aas_candidate_compare);
 	for (i = 0; i < list.count;)

@@ -88,6 +88,8 @@ struct aas_reach
 {
 	long from, to;
 	short travel; /* _aas_travel_* */
+	short people; /* one of the ways people take (bot_people_ways.c): its index + 1; 0 none */
+	short people_spare;
 	short careful; /* a drop onto something narrow with a fall beyond it: off the edge at a walk, not a run;
 	                  a gap with floor all the way across (AAS_WALKOVER): walked, not jumped */
 	real_point3d start; /* where to be to take it (in the area it leaves) */
@@ -170,6 +172,26 @@ long aas_random_area(long type, unsigned long seed); /* a playable area, bigger 
 int bot_logging(void); /* HALO_BOT_LOG */
 int bot_env_set(char const *name);
 int bot_env_off(char const *part);
+
+/* ---------- the ways people take (bot_people_ways.c, written from movement
+   logs by tools/bot_people_ways.py; the navigation adds them, bot_aas.c, and
+   the bots take them as the person did, bot_move.c) */
+
+struct bot_people_way
+{
+	char const *map; /* the map's name, the last part of its path ("beavercreek") */
+	float from[3]; /* where the feet left the ground */
+	float to[3]; /* ... and came down */
+	float heading; /* the way it was going (radians) */
+	float speed; /* how fast, leaving the ground (units a second) */
+	short crouch_on, crouch_off; /* the ticks after leaving the ground the crouch went down and came up (-1: none; 999: held) */
+	float time; /* the person's time for it (seconds) */
+	float navigation_time; /* the navigation's, by its own ways, when it was taken */
+	short seen; /* how many times it was taken */
+};
+extern struct bot_people_way const bot_people_ways[];
+extern long const bot_people_way_count;
+
 int bot_name_in_list(char const *list, char const *name); /* (a whole name of a list, commas or spaces between) */
 
 #endif

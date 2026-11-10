@@ -61,6 +61,9 @@ struct bot_move_state
 	int reach_started; /* the move itself (the jump, the climb) has begun */
 	int reach_phase; /* a gap: 0 the run-up, 1 the run */
 	long reach_runup_ticks; /* a gap: how long getting to the start of the run took */
+	long people_air_ticks; /* a way people take: ticks since the feet left the ground (bot_move_travel_people) */
+	int people_runup; /* ... gone back for a run at it */
+	int tuck_high; /* a jump up high enough to want the legs tucked from the third tick (bot_move_jump_off) */
 	real reach_peak;
 	real reach_pace; /* a gap: how fast it is run at (0: not worked out yet; 1: flat out) */
 	int reach_no_jump; /* ... and run off the edge of, not jumped from (it lands near, and well below) */

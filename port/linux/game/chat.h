@@ -21,6 +21,13 @@ every Chupathingy machine of the game, and this machine's own player; 0 if
 no machine could take it */
 int chat_server_say(char const *text);
 
+/* the host's: a line of one of its bots (bots.c), under the name of its
+player (player_index: the player's absolute index, or its datum index), to
+the bot's team alone when team_only in a game of teams; the number of
+machines that heard it (0 when this copy hosts no game, chat is off, or no
+build of chat) */
+int chat_bot_say(long player_index, int team_only, char const *text);
+
 /* the host's notice to one OpenCE machine, over OpenCE's chat (as its
 welcome is sent): 0 if it could not be sent (not hosting a game in
 progress, a Chupathingy machine, or OpenCE's chat off here) */

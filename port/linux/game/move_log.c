@@ -22,8 +22,9 @@ lower than it left, how far across), how fast it was going when it came down
 and the slowest it went in the air, and how fast half a second and a second
 after. Also in debug.txt, as "move:" lines.
 
-Nothing is written unless it is asked for, and the files are begun afresh
-each time the game starts.
+Nothing is written unless it is asked for. The files are added to, every map
+and every time the game starts, and each line has the map's name: delete
+them to begin again.
 */
 
 #include "cseries.h"
@@ -109,16 +110,21 @@ static void move_log_open(void)
 	   the folder the game was started in) */
 	snprintf(folder, sizeof(folder), "%s", platform_folder(_port_folder_logs));
 	snprintf(path, sizeof(path), "%s/move_log.csv", folder);
-	move_log.ticks = fopen(path, "w");
+	move_log.ticks = fopen(path, "a");
 	if (!move_log.ticks)
 	{
 		snprintf(folder, sizeof(folder), ".");
 		snprintf(path, sizeof(path), "%s/move_log.csv", folder);
-		move_log.ticks = fopen(path, "w");
+		move_log.ticks = fopen(path, "a");
 	}
 	snprintf(path, sizeof(path), "%s/move_jumps.txt", folder);
-	move_log.jumps = fopen(path, "w");
+	move_log.jumps = fopen(path, "a");
+	/* (added to, not begun afresh: a game started again, for another map,
+	   keeps what the last one wrote. The heading once, at the top of a new
+	   file) */
 	if (move_log.ticks)
+		fseek(move_log.ticks, 0, SEEK_END);
+	if (move_log.ticks && ftell(move_log.ticks) == 0)
 		fprintf(move_log.ticks, "tick,player,x,y,z,vx,vy,vz,ground_speed,yaw,stick_forward,stick_left,jump,crouch_held,crouch,airborne,airborne_ticks,map\n");
 	platform_log("move: logging the movement of this copy's players to %s/move_log.csv and move_jumps.txt%s", folder,
 		move_log.ticks && move_log.jumps ? "" : " (could not open them)");

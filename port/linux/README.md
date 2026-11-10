@@ -3092,6 +3092,38 @@ and two kinds of walker); the wrecks of the others stayed.
   that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
   logs every nav area in a box and the ways out of them that are more
   than a walk, for looking at a spot like this one.
+- **The ways people take:** the bots now take the shortcuts people were
+  seen to take that their navigation had no way for, and take them as the
+  person did. `tools/bot_people_ways.py logs/move_routes.txt
+  logs/move_jumps.txt` reads movement logs (`debug.move_log`) and writes
+  `port/linux/game/bot_people_ways.c`: each jump or drop between two areas
+  the navigation had no way between, that the person made in under three
+  fifths of the navigation's time and half a second less, where the feet came
+  down at the end of it (not a slide down a bank, nor one jump into another).
+  For each it keeps where the feet left the ground and came down, the way
+  and speed it was going, when the crouch went down and came up, and the
+  person's time. The navigation adds each as a way between the two areas at
+  the person's time and a little (`bot_aas.c`; a map's navigation cache is
+  made afresh when its ways change), and a bot takes it as the person did
+  (`bot_move.c`): a run along the person's way, facing it, off the ground at
+  the place where theirs left it, at their speed or back for a longer run if
+  it is not, the crouch at their ticks, and on to where they came down. The
+  first log, of one person on seven maps, gave 37. In tours between the two
+  ends, one bot at a time: Prisoner's jump across the upper floor 2.9 s a
+  leg against 16.7 by the navigation's own ways, Beaver Creek's jump up onto
+  the walkway by the blue base 1.1 s against 18, and up onto the rocks 2.1 s
+  against 7. More logs, more ways: run the tool with all of them
+  (`peopleways`).
+- **Crouch jumps let go over the top:** a bot's tucked jump up lets its legs
+  down once its whole body is over the floor it jumps onto, not held to the
+  landing; a crouched body in the air slows by about a unit a second every
+  second (`tuckrelease`). Ledges from 0.45 up get a short tuck too, as a
+  person does (`tucktap`). And a crouch jump costs a third of a second in the
+  navigation's reckoning, not a second: a person's came down a fifth to a
+  third slower than a run and were back at a run half a second on
+  (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
+  jump from nearer the ledge, and tucked that late made fewer of the highest
+  ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
 - **A log of how a person moves:** `debug.move_log = true` in config.toml
   (or `HALO_MOVE_LOG=1`) writes this copy's own players' movement down, for
   teaching the bots to move as people do; the bots' navigation is built for

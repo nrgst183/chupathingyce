@@ -67,7 +67,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 43 /* (43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 44 /* (44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -119,7 +119,12 @@ static real aas_jump_rise(void)
    slope by the west base onto the walkway, 0.78 up, eleven seconds round.
    HALO_BOT_OFF=crouchjump: aas_jump_rise only */
 #define AAS_CROUCH_RISE 0.84f
-#define AAS_CROUCH_COST 1.f
+/* (what a crouch jump costs over a jump: the run it loses in the air, a
+   short tuck let go over the top, and the half a second back up to a run.
+   A person's tucked jumps up came down a fifth to a third of a run slower,
+   and were back at a run half a second on (move_log.c). A second before,
+   for the risk of it; HALO_BOT_OFF=crouchcost: as before) */
+#define AAS_CROUCH_COST (bot_env_off("crouchcost") ? 1.f : 0.35f)
 static real aas_crouch_rise(void)
 {
 	static int asked;
@@ -1965,6 +1970,84 @@ static void aas_ledge_why(long type, struct aas_candidate const *c, char const *
 }
 
 /* the ledges: up with a jump, down off them, and across gaps (on foot) */
+/* The ways people take that the navigation finds none of: a jump up onto a
+   bank that a slope carries the feet higher on, a jump across between two
+   floors at a slant to the ways it looks along, a drop off a walkway onto
+   one below (bot_people_ways.c, from movement logs; tools/bot_people_ways.py).
+   Each is a way from the area where the person's feet left the ground to the
+   one they came down in, taken as the person took it (bot_move.c,
+   bot_move_travel_people), at the person's time and a little. On Beaver
+   Creek the navigation's way up onto the rocks by the bases, the person's
+   in a second, took seventeen. HALO_BOT_OFF=peopleways: none */
+/* the area for an end of a way people take: the floor at the place, or the
+   nearest a little round it at about its height (a bank too steep for an
+   area of its own, come down on: the area at its foot or its top) */
+static long aas_people_attach(real_point3d const *at)
+{
+	static real const rings[] = { 0.f, 0.3f, 0.6f, 0.9f };
+	long ring;
+	for (ring = 0; ring < (long)(sizeof(rings) / sizeof(rings[0])); ring++)
+	{
+		long k;
+		long count = ring == 0 ? 1 : 12;
+		for (k = 0; k < count; k++)
+		{
+			real_point3d p = *at;
+			long area;
+			p.x += rings[ring] * (real)cos(k * 0.5235988f);
+			p.y += rings[ring] * (real)sin(k * 0.5235988f);
+			area = aas_attach(AAS_FOOT, navm_span_at(&p, 0.4f, 0.6f), NAVM_CELLS(0.6f), NULL);
+			if (area != NONE)
+				return area;
+		}
+	}
+	return NONE;
+}
+
+static void aas_people_reaches(struct aas_reaches *reaches)
+{
+	extern char const *game_options_map_name(void);
+	char const *played = game_options_map_name();
+	char const *map = played ? strrchr(played, '\\') : NULL;
+	long i, added = 0;
+	if (bot_env_off("peopleways") || !played)
+		return;
+	map = map ? map + 1 : played;
+	for (i = 0; i < bot_people_way_count; i++)
+	{
+		struct bot_people_way const *way = &bot_people_ways[i];
+		real_point3d from, to;
+		long a, b;
+		struct aas_reach *reach;
+		if (strcmp(way->map, map))
+			continue;
+		from.x = way->from[0], from.y = way->from[1], from.z = way->from[2];
+		to.x = way->to[0], to.y = way->to[1], to.z = way->to[2];
+		a = aas_people_attach(&from);
+		b = aas_people_attach(&to);
+		if (a == NONE || b == NONE || a == b)
+		{
+			if (bot_logging())
+				bot_log("aas: a way people take on %s, %.1f %.1f %.1f to %.1f %.1f %.1f: no areas (%ld, %ld)", map, from.x, from.y, from.z,
+					to.x, to.y, to.z, a, b);
+			continue;
+		}
+		reach = aas_reach_new(reaches, a, b, _aas_travel_gap);
+		if (!reach)
+			break;
+		reach->people = (short)(i + 1);
+		reach->start = from;
+		reach->edge = from;
+		reach->end = to;
+		reach->left = to;
+		reach->right = to;
+		reach->time = way->time + 0.3f;
+		added++;
+	}
+	if (bot_logging() && added)
+		bot_log("aas: %ld ways people take on %s", added, map);
+}
+
 static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 {
 	struct aas_candidates list;
@@ -2043,6 +2126,8 @@ static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 		i = j;
 	}
 	free(list.items);
+	if (type == AAS_FOOT)
+		aas_people_reaches(reaches);
 }
 
 /* the floor at the top of a ladder to get off at, or NONE */
@@ -2486,9 +2571,41 @@ static unsigned long aas_span_hash(void)
 }
 
 /* whether a header is of this build's kind of cache file */
+/* the cache's version, and the ways people take on this map in it (a file
+   made before they were added to, or with them off, is made afresh) */
+static unsigned long aas_people_hash(void)
+{
+	extern char const *game_options_map_name(void);
+	char const *played = game_options_map_name();
+	char const *map = played ? strrchr(played, '\\') : NULL;
+	unsigned long hash = 2166136261UL;
+	long i;
+	if (!played || bot_env_off("peopleways"))
+		return 0;
+	map = map ? map + 1 : played;
+	for (i = 0; i < bot_people_way_count; i++)
+	{
+		struct bot_people_way const *way = &bot_people_ways[i];
+		long k;
+		if (strcmp(way->map, map))
+			continue;
+		for (k = 0; k < 3; k++)
+		{
+			hash = (hash ^ (unsigned long)(long)(way->from[k] * 100.f)) * 16777619UL;
+			hash = (hash ^ (unsigned long)(long)(way->to[k] * 100.f)) * 16777619UL;
+		}
+	}
+	return hash & 0xffffUL;
+}
+
+static unsigned long aas_cache_version(void)
+{
+	return AAS_CACHE_VERSION + (aas_people_hash() << 16);
+}
+
 static boolean aas_cache_header_current(struct aas_cache_header const *header)
 {
-	return header->magic == AAS_CACHE_MAGIC && header->version == AAS_CACHE_VERSION && header->sizes[0] == sizeof(struct aas_area) &&
+	return header->magic == AAS_CACHE_MAGIC && header->version == aas_cache_version() && header->sizes[0] == sizeof(struct aas_area) &&
 		header->sizes[1] == sizeof(struct aas_reach);
 }
 
@@ -2645,7 +2762,7 @@ static void aas_cache_save(void)
 	boolean whole;
 	memset(&header, 0, sizeof(header));
 	header.magic = AAS_CACHE_MAGIC;
-	header.version = AAS_CACHE_VERSION;
+	header.version = aas_cache_version();
 	header.sizes[0] = sizeof(struct aas_area);
 	header.sizes[1] = sizeof(struct aas_reach);
 	navm_signature(header.map, header.signature);

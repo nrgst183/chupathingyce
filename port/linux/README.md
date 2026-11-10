@@ -3188,7 +3188,14 @@ and two kinds of walker); the wrecks of the others stayed.
   ends, one bot at a time: Prisoner's jump across the upper floor 2.9 s a
   leg against 16.7 by the navigation's own ways, Beaver Creek's jump up onto
   the walkway by the blue base 1.1 s against 18, and up onto the rocks 2.1 s
-  against 7. More logs, more ways: run the tool with all of them
+  against 7. More logs, more ways: run the tool with all of them. The
+  second log (eight maps, 309 such moves) gave 72; for 36 of them the
+  navigation's general rules for jumps (below) now find a way within two
+  fifths of the person's time on their own (the navigation's times measured
+  with `HALO_BOT_PAIRS`, the table's ways off), so the table keeps only the
+  other 36. With it, of the 292 moves people made between areas with no
+  way of the navigation's then, 49 are still more than half as long again
+  by the navigation, against 58 with the first log's table and 70 with none
   (`peopleways`).
 - **Crouch jumps let go over the top:** a bot's tucked jump up lets its legs
   down once its whole body is over the floor it jumps onto, not held to the

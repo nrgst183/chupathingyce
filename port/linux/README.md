@@ -3217,6 +3217,57 @@ and two kinds of walker); the wrecks of the others stayed.
   Bots seldom have a grenade at the moment they go for a power item, so
   this is occasional (`nadeitem`; `HALO_BOT_NADEGIVE` gives grenades, for
   testing).
+- **Callouts to the team:** the bots say short things to their own side
+  in the text chat, as a person would: the flag taken, dropped or back
+  ("they have our flag", "got it, cover me", "their flag's down mid"), one
+  of the other side seen with a sniper rifle, rockets, a shotgun or a fuel
+  rod, a power weapon or powerup coming back in 10 or 15 seconds (only from
+  a bot good enough to keep the times), a call for help when outnumbered
+  with nobody of its own near, and now and then a word after a kill or a
+  death ("he's low!" when whoever did it is nearly done). The line is said
+  under the bot's name, as its player's (`chat_bot_say` in chat.c, from no
+  machine), to its team alone in a game of teams, so a person on the other
+  side never sees it; a rare boast after a kill goes to everyone. A place
+  is put to a line only when it is sure: in capture the flag, near either
+  base ("at our base", "at their base") or about halfway between ("mid").
+  It is kept to a few lines a minute a side, a few seconds apart, each bot
+  with a while of its own between lines (shorter the more of a team player
+  or a show-off it is), the same sort of thing not said again soon and the
+  same line not for two minutes. In a 24-minute Blood Gulch capture the
+  flag game, each side said two to four lines a minute. What is said is in
+  the bot log, heard or not. Bots said nothing before, so a person playing
+  with them had no idea what their side knew (`callouts`;
+  `HALO_BOT_CHAT=0` turns the bots' chat off).
+- **Driver and gunner together:** a Warthog driver with someone of its
+  side on the gun goes round its target side-on, at the range the gun is
+  good at, from a place the gun has a clear line from: a few places round
+  the target either way are tried every fifth of a second and the first
+  with nothing in the way is kept. Before, it went round at a fixed
+  distance whether a rock or a ridge was between the gun and the target
+  or not. The better the driver, the further out it keeps and the more
+  places it tries; the lowest levels drive as before (`gunnerline`).
+- **Running people down on purpose:** with nobody on the gun a Warthog
+  already ran its target down. Now one with a gunner aboard also, now and
+  then, runs over someone on foot who is close, out in the open and on
+  the same level, for a second or two, aimed where they will be; the
+  better and bolder the driver, the likelier (`splatter`).
+- **A moment's distraction:** a bot of the lower levels with nobody to
+  fight now and then glances for a moment at something that does not
+  matter (a vehicle going by, a grenade or rocket in the air, one of its
+  own side, or nothing at all), sometimes stopping where it stands, and
+  is slower to notice someone new while it does and for a second after.
+  The lower the level, the more often and the longer; from level 8 up,
+  never. Never in a fight, hit, at the wheel or with the flag. People
+  who are not much good at the game do this, and the bottom levels were
+  too steadily watchful (`distract`).
+- **Chasing a kill too far:** a bot that lost sight of someone hurt and
+  running away, with a grudge against them or on a run of kills, now and
+  then keeps after them for several seconds more than is sensible, off
+  the objective and into their side of the map. Weighed once each time
+  someone gets away; likelier at the lower levels, seldom at the top, and
+  in capture the flag, king of the hill and oddball the less the more the
+  bot minds the objective; never with the flag or the ball in hand. It is
+  a mistake people make, and the bots never made it (`overchase`).
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

@@ -43,6 +43,10 @@ Text goes to OpenCE as printable ASCII (delta_chat_bridge_to_ascii), at
 most 63 characters. A message of the wrong size is dropped, said in the log
 once.
 
+The host's own bots talk too (chat_bot_say, from bots.c): a short line to
+their team now and then, routed as a player's, named after the bot and said
+from no machine.
+
 debug.chat_test runs a script of lines, for the automated tests.
 
 A console with Delta Peer as a client (HALO_CONSOLE_DELTA) has the client's
@@ -680,8 +684,19 @@ static void bridge_host_frame(void)
 
 /* ---------- the host's */
 
+int bot_player_is_bot(long player_index); /* bots.c */
+
+/* (the host) whether a player of the game's list is one of its bots: the
+bots' machines are no connection's, and hear nothing */
+static boolean bot_listener(long list_index)
+{
+	short player = bridge_player(list_index);
+
+	return player != NONE && bot_player_is_bot(player);
+}
+
 /* every machine of the game that may hear a line, sent it (over Delta, or
-as OpenCE's); the host's own player shown it */
+as OpenCE's); the host's own player shown it (never a bot's machine) */
 static int route(struct delta_wire_chat_line const *line, short speaker_team, boolean teams)
 {
 	struct network_game *game = chat_game();
@@ -706,6 +721,8 @@ static int route(struct delta_wire_chat_line const *line, short speaker_team, bo
 		}
 		seen[machine] = TRUE;
 		if (!server && !delta_chat_hears(line->scope, teams, speaker_team, player_team(game, index)))
+			continue;
+		if (machine != local && bot_listener(index))
 			continue;
 		if (machine == local)
 		{
@@ -921,6 +938,64 @@ int chat_server_say(char const *text)
 	return route(&line, NO_TEAM, FALSE);
 }
 
+/* A line said by one of the host's own bots (bots.c), as a player's line
+under the bot's name. A bot has a machine of its own that no connection
+owns, so the line is said from no machine (nothing to mute it by, and no
+machine of a person's to be taken for), and named by its player's place in
+the game's list (game->players[], the network_player_data's
+player_list_index). Team only, in a game of teams, to its own side. The
+host's mode still has its say (chat off, or team only); its filter does not,
+since what a bot says is the bots' own few lines. Only while this copy hosts
+a game (Delta's, or the game's own network game: a local test game too); 0
+if nobody heard it. */
+int chat_bot_say(long player_index, int team_only, char const *text)
+{
+	struct network_game *game = chat_game();
+	struct data_iterator iterator;
+	struct player_datum *player, *speaker = NULL;
+	struct delta_wire_chat_line line;
+	boolean teams;
+	long list;
+	int length, scope;
+
+	if (!text || chat_role() != 2 || !game || !player_data)
+		return 0;
+	data_iterator_new(&iterator, player_data);
+	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		if ((iterator.datum_index & 0xFFFF) == (player_index & 0xFFFF))
+		{
+			speaker = player;
+			break;
+		}
+	}
+	if (!speaker)
+		return 0;
+	list = speaker->network_player_data.player_list_index;
+	if (list < 0 || list >= HALO_PORT_MAXIMUM_NETWORK_PLAYERS ||
+		!network_player_is_valid((struct network_player *)&game->players[list]))
+	{
+		return 0;
+	}
+	teams = game_teams(game);
+	scope = team_only && teams ? _delta_chat_scope_team : _delta_chat_scope_all;
+	if (delta_chat_host_decide(chat.host_mode, scope, teams, FALSE, FALSE))
+		return 0;
+	csmemset(&line, 0, sizeof(line));
+	line.kind = _delta_chat_kind_player;
+	line.scope = (unsigned char)scope;
+	line.speaker_machine = DELTA_WIRE_NO_MACHINE;
+	line.speaker_player = (unsigned char)list;
+	line.name_length = wide_to_utf8(game->players[list].name, NUMBEROF(game->players[list].name), line.name,
+		(int)sizeof(line.name));
+	length = (int)strlen(text);
+	line.length = MIN(length, DELTA_WIRE_CHAT_TEXT_SIZE);
+	csmemcpy(line.text, text, line.length);
+	if (delta_wire_chat_text_valid(line.text, line.length, 0) < 0)
+		return 0;
+	return route(&line, player_team(game, list), teams);
+}
+
 int chat_host_notice_to_machine(short machine, char const *text)
 {
 	if (!bridge_hosting() || !bridge_machine(machine) || !(bridge_host_flags() & DELTA_CHAT_BRIDGE_ALLOWED))
@@ -968,6 +1043,14 @@ int chat_host_notice(int machine_index, char const *text)
 dedicated server's settings are not its) */
 int chat_server_say(char const *text)
 {
+	(void)text;
+	return 0;
+}
+
+int chat_bot_say(long player_index, int team_only, char const *text)
+{
+	(void)player_index;
+	(void)team_only;
 	(void)text;
 	return 0;
 }
@@ -2319,4 +2402,15 @@ void chat_draw(short local_player_index)
 	rasterizer_text_set_scale(1.0f, 0.0f, 0.0f);
 }
 
+#endif
+
+#ifndef HALO_PORT_CHAT
+/* (no chat in this build: a bot's line is heard by nobody) */
+int chat_bot_say(long player_index, int team_only, char const *text)
+{
+	(void)player_index;
+	(void)team_only;
+	(void)text;
+	return 0;
+}
 #endif

@@ -3217,6 +3217,70 @@ and two kinds of walker); the wrecks of the others stayed.
   Bots seldom have a grenade at the moment they go for a power item, so
   this is occasional (`nadeitem`; `HALO_BOT_NADEGIVE` gives grenades, for
   testing).
+- **Camping crouched:** a bot lying in wait for someone coming its way
+  now waits crouched at its spot instead of standing. Every few seconds
+  it crouch-walks a step or two to another place still out of their
+  sight. The better bots also crouch-walk out for a look round the corner
+  when they have lost track of who they are waiting for, then step back.
+  Crouch-walking is slow, which in Halo CE keeps it off the other side's
+  motion tracker. It stands up to fight when it springs the ambush, is
+  shot at, or a grenade comes. Snipers, lurkers and the patient or
+  camping kind holding a spot decide once per spot whether to keep low
+  there, the better the bot the likelier, and stay crouched while nobody
+  is near or they are sniping at someone far off who isn't shooting
+  back. Standing waits had been chosen because a bot crouched stock-still
+  looked like a bot gone wrong. Crouched, shifting about and peeking, it
+  looks like someone camping on purpose. Once down, a bot stays down for
+  at least a second or two, and once up, up for most of a second, so it
+  doesn't bob up and down. In a 90-second Chill Out test the median
+  crouch in wait lasted 54 ticks, and most short ones ended because the
+  ambush was sprung or the bot was shot at (`crouchcamp`; `standup`
+  still covers the old standing wait's own crouch).
+- **Sneaking up at a crouch walk:** a bot on foot with someone 2.5 to 14
+  units off on its motion tracker, or heard, who has not seen it (a wall
+  between them, or their back turned once the creep has begun) creeps
+  the last stretch at a crouch walk to get the first shot. It stands to
+  fight the moment they are in sight. It does this only when it is not
+  shot at, has its shields up and has nobody in its sights, and never
+  while carrying a flag, on its way to the game's objective, going for a
+  gun or a vehicle, or in the first seconds after spawning. Bots from
+  about level 4 up do it, the patient and lurkers most and rushers
+  least. The choice is made once per enemy, and a creep lasts a few
+  seconds at most. While creeping, the bot is not taken for stuck at
+  crouch-walk speed. Early tests had bots creeping to the guns at the
+  start of a game, and standing for every drop down Chill Out's steps,
+  and both were fixed (`sneak`).
+- **Breaking off a lost fight in team games:** free-for-all already had
+  a good player's retreat (`BOT_G_DISENGAGE`) and a few seconds out of
+  sight after a costly kill (`BOT_G_RESET`). Team games only had the
+  cover taken when a bot was nearly dead, and once round the corner it
+  went straight back with its shields still down. Now, in a team game,
+  a bot whose shields are gone, whose health is under 85%, which is
+  behind in the trade and being hit, with nobody of its side fighting
+  within 9 units and no flag in hand, breaks line of sight. It waits
+  there crouched, watching where the enemy would come from, until its
+  shields are mostly back (4 to 9 seconds at most), or goes to a health
+  pack near by when its body is hurt, then goes back in. It doesn't do
+  this when the enemy is nearly dead too. After a kill that cost it its
+  shields, it also spends a few seconds out of sight before the next
+  fight. Bots from about level 3 do it, and all of the time from level
+  7 or 8. The bolder ones do it less (`teamreset`).
+- **Watching where a killed enemy will respawn (level 5 and up, team
+  games):** when someone on the other side dies, bots rate the starting
+  places for them the way the game does when it respawns them
+  (`game_engine_get_starting_location_rating`, without the game's dice
+  roll), again each second while the player is dead. A guess counts only
+  when most of the rating is about one place. In a Chill Out test, 59 of
+  62 such guesses were within 9 units of where the player came back. An
+  armed bot in good health 8 to 45 units off, with the respawn due
+  within 6 seconds, may go to a spot 8 to 20 units from that place that
+  can see it, and watch it until the player is back. The better and
+  bolder the bot, the likelier. A hurt bot avoids it instead: goals
+  within 10 units of a respawn due within 4 seconds are worth a quarter
+  as much. The game won't respawn anyone within 5 units of an enemy, so
+  the watching spot is kept further off than that. In a 2-minute Chill
+  Out test, 33 bots went to watch a spawn, and 9 had the player in their
+  sights as they came back (`spawnwatch`).
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

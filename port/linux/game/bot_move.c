@@ -1570,9 +1570,9 @@ static void bot_move_gap_walkover(struct bot_mover *bot, struct bot_body const *
 		   lights in Carousel's lower floor, where nine in ten of these
 		   were given up stalled, the bot walking into the same spot;
 		   a person steps up over it. HALO_BOT_OFF=walkhop: walked into) */
-		if (!bot_env_off("walkhop") && !body->airborne && bot_move_ground_speed(body) < 0.5f)
+		if (!bot_env_off("walkhop") && !body->airborne && bot_move_ground_speed(body) < bot_move_jt("HALO_BOT_WALKHOP_SLOW", 0.3f))
 		{
-			if (++move->reach_settle_ticks >= 6 && body->can_jump && move->jump_cooldown <= 0)
+			if (++move->reach_settle_ticks >= (long)bot_move_jt("HALO_BOT_WALKHOP_TICKS", 10.f) && body->can_jump && move->jump_cooldown <= 0)
 			{
 				result->jump = TRUE;
 				move->reach_settle_ticks = 0;
@@ -2461,7 +2461,7 @@ static boolean bot_move_tuck_over(struct bot_body const *body, struct aas_reach 
 	real ground;
 	if (mode < 0)
 		mode = bot_env_off("jumptech") ? 0 : (long)bot_move_jt("HALO_BOT_JT_RELEASE", 0.f);
-	if (mode == 0 || body->position.z < reach->left.z + (mode == 1 ? 0.1f : 0.04f))
+	if (mode == 0 || body->position.z < reach->left.z + (mode == 1 ? bot_move_jt("HALO_BOT_JT_RELEASE_UP", 0.1f) : 0.04f))
 		return FALSE;
 	at.z += 0.1f;
 	return bot_ground(&at, 0.5f, body->unit_index, &ground) && fabs(ground - reach->left.z) < 0.12f;

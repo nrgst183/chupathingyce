@@ -3167,6 +3167,20 @@ and two kinds of walker); the wrecks of the others stayed.
     air, half a second and a second on), and the areas it left and came down
     in, whether the navigation has a way between them, and its time against
     the jump's.
+  - The ticks also have the nearest enemy (how far, which way against the
+    way faced, whether in sight, how fast it goes, its shields and health),
+    the damage taken that tick, and, riding, the vehicle's heading, its
+    speed along and across its nose (the slide) and how upright it is.
+  - `logs/move_fights.txt`, a line a fight on foot (an enemy in sight
+    within 35 units, till none has been for a second and a half): how long,
+    how far off, how it moved (turns from one way across the line to the
+    other a second; the share of time going at them, away, across, still;
+    jumps and crouches a second), the trigger's presses a second, damage
+    taken and dealt to the first enemy, the gun, and how it ended.
+  - `logs/move_drives.txt`, a line each time at a vehicle's wheel: the
+    vehicle, from and to, how long and far, the mean and top speed, the
+    share of the time flat out, sliding and in the air, and whether it
+    turned over.
   - `logs/move_routes.txt`: each move between areas the navigation has no
     way for (a jump, a fall or a walk, with the navigation's time by the ways
     it has), each teleport, and every three seconds on foot the distance

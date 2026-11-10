@@ -31,6 +31,14 @@ players_update_after_game), from the game's state after the tick:
     chest (3: none within 3)
   area: the navigation's area the feet are in (-1 none)
   health, shield, weapon, zoom
+  enemy_dist, enemy_bearing, enemy_seen, enemy_speed, enemy_vitality: the
+    nearest enemy (empty: none), how far, which way against the way faced
+    (radians, + to the left), whether in sight of the eyes, how fast it
+    goes, its shields and health (0 .. 2)
+  damage: the shields and health lost this tick
+  veh_yaw, veh_forward, veh_side, veh_up: riding, the way the vehicle's
+    nose points, its speed along and across it (units a second, + to the
+    left), and how upright it is (1 on its wheels, <0 on its roof)
 
 logs/move_jumps.txt, a line for each time the feet leave the ground and come
 down again: where and how fast it left, the ledge before it then (how far off
@@ -48,6 +56,22 @@ the navigation's time for it by the ways it knows; every three seconds on
 foot, "pace": how far it went and the navigation's time for the same, the two
 to set the navigation's reckoning by; and "teleport".
 
+logs/move_fights.txt, a line for each fight on foot (from an enemy first in
+sight within 35 units till none has been for a second and a half, or it
+died): how long, how far off the enemy was, how it moved (each way across
+the line to them, the turns from one way to the other a second, the share
+of the time going at them, away, across and stood still, jumps, crouches),
+the trigger's presses, the damage taken and how much of the first enemy's
+shields and health went, the gun, and how it ended (died, they died, or
+broke off). For teaching the bots to fight as people move in a fight.
+
+logs/move_drives.txt, a line for each time at a vehicle's wheel: the
+vehicle, where from and to, how long, how far, the speed (the mean, the
+most), the share of the time with the stick flat out, sliding sideways
+(more than a unit a second across its nose) and in the air, and whether it
+turned over. With the ticks' vehicle columns (move_log.csv), for teaching
+the bots to drive as people do.
+
 Also in debug.txt, as "move:" lines (the jumps and the unknown ways).
 Nothing is written unless it is asked for. The files are added to, every map
 and every time the game starts, and each line names the map: delete them to
@@ -58,7 +82,9 @@ begin again.
 #include "game/game.h"
 #include "game/players.h"
 #include "main/main.h"
+#include "game/game_engine.h"
 #include "objects/objects.h"
+#include "physics/collisions.h"
 #include "tag_files/tag_files.h"
 #include "units/bipeds.h"
 #include "units/units.h"
@@ -70,6 +96,13 @@ begin again.
 
 #include "../src/port_folders.h"
 #include "bot_internal.h"
+
+/* (the logs folder is a path on this machine's disk, not an Xbox one: on
+   Linux the game's fopen takes every path for one under the data root, and
+   the files went there, one set for every copy of the game running) */
+#if !defined(_WIN32)
+#undef fopen
+#endif
 
 int config_boolean(char const *name);
 const char *platform_folder(enum port_folder folder);
@@ -125,6 +158,34 @@ struct move_player
 	real_point3d pace_at;
 	long pace_tick;
 	struct move_jump jump;
+	real was_vitality;
+	int was_trigger;
+	struct move_fight
+	{
+		int on;
+		long began, seen_tick;
+		long enemy_unit; /* the first enemy of it */
+		real enemy_start; /* its shields and health then */
+		real enemy_last;
+		long ticks, distance_ticks;
+		real distance_sum;
+		long side, side_changes; /* the last way across the line to them (-1, 1), and how often it changed */
+		long toward, away, across, still;
+		long jumps, crouches, shots;
+		real damage;
+		long weapon;
+	} fight;
+	struct move_drive
+	{
+		int on;
+		long began;
+		long vehicle_definition;
+		real_point3d from, last;
+		real distance, speed_sum, fastest;
+		long ticks, flat_out, sliding, in_air;
+		int flipped;
+		real rest; /* the least the floor under its middle has been: how high it sits on its wheels */
+	} drive;
 };
 
 static struct
@@ -135,6 +196,8 @@ static struct
 	FILE *ticks;
 	FILE *jumps;
 	FILE *routes;
+	FILE *fights;
+	FILE *drives;
 	long jump_count;
 	struct move_player players[MOVE_LOG_PLAYERS];
 } move_log;
@@ -191,6 +254,8 @@ static void move_log_open(void)
 	}
 	move_log.jumps = move_log_file(folder, "move_jumps.txt");
 	move_log.routes = move_log_file(folder, "move_routes.txt");
+	move_log.fights = move_log_file(folder, "move_fights.txt");
+	move_log.drives = move_log_file(folder, "move_drives.txt");
 	/* (added to, not begun afresh: a game started again, for another map,
 	   keeps what the last one wrote. The heading once, at the top of a new
 	   file) */
@@ -199,7 +264,8 @@ static void move_log_open(void)
 	if (move_log.ticks && ftell(move_log.ticks) == 0)
 		fprintf(move_log.ticks, "tick,player,map,vehicle,seat,x,y,z,vx,vy,vz,ground_speed,yaw,aim_yaw,aim_pitch,move_yaw,strafe,"
 			"stick_forward,stick_left,buttons,jump,crouch_held,crouch,airborne,airborne_ticks,slope,floor,"
-			"ahead_05,ahead_10,ahead_15,ahead_20,wall_knee,wall_chest,area,health,shield,weapon,zoom\n");
+			"ahead_05,ahead_10,ahead_15,ahead_20,wall_knee,wall_chest,area,health,shield,weapon,zoom,"
+			"enemy_dist,enemy_bearing,enemy_seen,enemy_speed,enemy_vitality,damage,veh_yaw,veh_forward,veh_side,veh_up\n");
 	platform_log("move: logging the movement of this copy's players to %s/move_log.csv, move_jumps.txt and move_routes.txt%s", folder,
 		move_log.ticks && move_log.jumps && move_log.routes ? "" : " (could not open them all)");
 }
@@ -333,6 +399,88 @@ static void move_log_unknown(short local, char const *how, long from_area, real_
 	platform_log("move: %s", line);
 }
 
+/* the nearest enemy of a player, alive and in the game (NONE: none); whether
+   it is in sight of the eyes */
+static long move_log_enemy(struct player_datum const *me, real_point3d const *eye, long ignore, real *distance, boolean *seen)
+{
+	struct data_iterator iterator;
+	struct player_datum *other;
+	boolean teams = game_engine_has_teams();
+	long best = NONE;
+	real best_distance = 1.0e9f;
+	data_iterator_new(&iterator, player_data);
+	while ((other = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		struct object_datum *object;
+		real d;
+		if (other == me || other->unit_index == NONE || (teams && other->team_index == me->team_index))
+			continue;
+		object = object_try_and_get(other->unit_index);
+		if (!object || object->object.body_vitality <= 0.f)
+			continue;
+		d = distance3d(eye, &object->object.bounding_sphere_center);
+		if (d < best_distance)
+		{
+			best_distance = d;
+			best = other->unit_index;
+		}
+	}
+	*distance = best_distance;
+	*seen = FALSE;
+	if (best != NONE)
+	{
+		struct collision_result collision;
+		real_point3d const *to = &object_get(best)->object.bounding_sphere_center;
+		real_vector3d vector;
+		vector.i = to->x - eye->x;
+		vector.j = to->y - eye->y;
+		vector.k = to->z - eye->z;
+		*seen = !collision_test_vector(FLAG(_collision_test_structure_bit) | FLAG(_collision_test_front_facing_surfaces_bit), eye, &vector, ignore,
+			&collision);
+	}
+	return best;
+}
+
+static void move_log_fight_end(short local, struct move_player *mp, char const *how)
+{
+	struct move_fight *f = &mp->fight;
+	char line[600];
+	real seconds = f->ticks / (real)TICKS_PER_SECOND;
+	real moving = (real)MAX(1, f->ticks);
+	if (!f->on)
+		return;
+	f->on = FALSE;
+	if (f->ticks < 15)
+		return;
+	snprintf(line, sizeof(line), "fight t%ld player %d on %s: %.1f s, the enemy %.1f off on the whole; across the line to them %.2f turns a second, "
+		"at them %.0f%%, away %.0f%%, across %.0f%%, still %.0f%%; %.2f jumps a second, %.2f crouches a second, %.2f trigger presses a second; "
+		"took %.2f, the first enemy lost %.2f of 2; %s; %s",
+		f->began, local, move_log_map(), seconds, f->distance_ticks ? f->distance_sum / f->distance_ticks : 0.f, f->side_changes / MAX(seconds, 0.1f),
+		100.f * f->toward / moving, 100.f * f->away / moving, 100.f * f->across / moving, 100.f * f->still / moving, f->jumps / MAX(seconds, 0.1f),
+		f->crouches / MAX(seconds, 0.1f), f->shots / MAX(seconds, 0.1f), f->damage, MAX(0.f, f->enemy_start - f->enemy_last),
+		f->weapon != NONE ? move_log_short_name(f->weapon) : "-", how);
+	move_log_line(move_log.fights, line);
+}
+
+static void move_log_drive_end(short local, struct move_player *mp)
+{
+	struct move_drive *dr = &mp->drive;
+	char line[512];
+	real seconds = dr->ticks / (real)TICKS_PER_SECOND;
+	real ticks = (real)MAX(1, dr->ticks);
+	if (!dr->on)
+		return;
+	dr->on = FALSE;
+	if (dr->ticks < 30)
+		return;
+	snprintf(line, sizeof(line), "drive t%ld player %d on %s: %s from %.1f %.1f %.1f to %.1f %.1f %.1f, %.1f s, %.1f units, %.2f u/s on the whole, %.2f at the most; "
+		"flat out %.0f%%, sliding %.0f%%, in the air %.0f%%%s",
+		dr->began, local, move_log_map(), move_log_short_name(dr->vehicle_definition), dr->from.x, dr->from.y, dr->from.z, dr->last.x, dr->last.y,
+		dr->last.z, seconds, dr->distance, dr->speed_sum / ticks, dr->fastest, 100.f * dr->flat_out / ticks, 100.f * dr->sliding / ticks,
+		100.f * dr->in_air / ticks, dr->flipped ? "; turned over" : "");
+	move_log_line(move_log.drives, line);
+}
+
 void move_log_tick(void)
 {
 	struct data_iterator iterator;
@@ -359,18 +507,31 @@ void move_log_tick(void)
 		long area, k;
 		char seat = '-';
 		char const *vehicle = "-";
+		long enemy;
+		real enemy_distance = 0.f, enemy_bearing = 0.f, enemy_speed = 0.f, enemy_vitality = 0.f, damage;
+		boolean enemy_seen = FALSE;
+		real veh_yaw = 0.f, veh_forward = 0.f, veh_side = 0.f, veh_up = 0.f;
 
 		/* (testing: HALO_MOVE_LOG_PLAYER=n, the player of that index in the
 		   game as well, a bot's, as the last of the slots) */
 		if (local == NONE && move_log.watched >= 0 && DATUM_INDEX_TO_ABSOLUTE_INDEX(iterator.datum_index) == move_log.watched)
 			local = MOVE_LOG_PLAYERS - 1;
-		if (local < 0 || local >= MOVE_LOG_PLAYERS || player->unit_index == NONE)
+		if (local < 0 || local >= MOVE_LOG_PLAYERS)
 			continue;
 		mp = &move_log.players[local];
+		if (player->unit_index == NONE)
+		{
+			move_log_fight_end(local, mp, "died");
+			move_log_drive_end(local, mp);
+			mp->unit_index = NONE;
+			continue;
+		}
 		unit = (struct unit_datum *)object_try_and_get(player->unit_index);
 		biped = biped_try_and_get(player->unit_index);
-		if (!unit || !biped)
+		if (!unit || !biped || unit->object.body_vitality <= 0.f)
 		{
+			move_log_fight_end(local, mp, "died");
+			move_log_drive_end(local, mp);
 			mp->unit_index = NONE;
 			continue;
 		}
@@ -416,6 +577,32 @@ void move_log_tick(void)
 			wall_chest = bot_probe(&chest, look, 3.f, root_index);
 		}
 		area = riding ? NONE : move_log_area(at, airborne);
+		{
+			real_point3d eye = *at;
+			eye.z += riding ? 1.f : 0.62f - 0.2f * biped->biped.crouch;
+			enemy = move_log_enemy(player, &eye, root_index, &enemy_distance, &enemy_seen);
+			if (enemy != NONE)
+			{
+				struct object_datum *e = object_get(enemy);
+				struct object_datum *eroot = object_get(object_get_ultimate_parent(enemy));
+				enemy_bearing = bot_angle_difference(bot_yaw_to(at, &e->object.position), yaw);
+				enemy_speed = move_log_ground_speed(&eroot->object.translational_velocity);
+				enemy_vitality = e->object.body_vitality + e->object.shield_vitality;
+			}
+		}
+		damage = mp->unit_index == player->unit_index ? MAX(0.f, mp->was_vitality - (unit->object.body_vitality + unit->object.shield_vitality)) : 0.f;
+		if (riding)
+		{
+			real fi = root->object.forward.i, fj = root->object.forward.j;
+			real length = (real)sqrt(fi * fi + fj * fj);
+			veh_yaw = (real)atan2(fj, fi);
+			if (length > 0.01f)
+			{
+				veh_forward = (velocity->i * fi + velocity->j * fj) / length * TICKS_PER_SECOND;
+				veh_side = (velocity->j * fi - velocity->i * fj) / length * TICKS_PER_SECOND;
+			}
+			veh_up = root->object.up.k;
+		}
 		if (move_log.ticks)
 		{
 			char ahead_text[4][16], floor_text[16];
@@ -432,14 +619,20 @@ void move_log_tick(void)
 				floor_text[0] = 0;
 			else
 				snprintf(floor_text, sizeof(floor_text), "%.3f", floor);
+			char enemy_text[96];
+			if (enemy != NONE)
+				snprintf(enemy_text, sizeof(enemy_text), "%.2f,%.3f,%d,%.2f,%.2f", enemy_distance, enemy_bearing, (int)enemy_seen, enemy_speed, enemy_vitality);
+			else
+				snprintf(enemy_text, sizeof(enemy_text), ",,,,");
 			fprintf(move_log.ticks, "%ld,%d,%s,%s,%c,%.4f,%.4f,%.4f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%lx,%d,%d,%.2f,%d,%d,%.3f,%s,"
-				"%s,%s,%s,%s,%.2f,%.2f,%ld,%.2f,%.2f,%s,%d\n",
+				"%s,%s,%s,%s,%.2f,%.2f,%ld,%.2f,%.2f,%s,%d,%s,%.3f,%.3f,%.2f,%.2f,%.2f\n",
 				now, local, move_log_map(), vehicle, seat, at->x, at->y, at->z, velocity->i * TICKS_PER_SECOND, velocity->j * TICKS_PER_SECOND,
 				velocity->k * TICKS_PER_SECOND, speed, yaw, aim_yaw, aim_pitch, move_yaw, strafe, biped->unit.throttle.i, biped->unit.throttle.j,
 				(unsigned long)biped->unit.control_flags, jump_held, crouch_held, biped->biped.crouch, airborne, (int)biped->biped.airborne_ticks,
 				slope, floor_text, ahead_text[0], ahead_text[1], ahead_text[2], ahead_text[3], wall_knee, wall_chest, area,
 				unit->object.body_vitality, unit->object.shield_vitality, held != NONE && object_try_and_get(held) ?
-				move_log_short_name(object_get(held)->definition_index) : "-", (int)unit->unit.current_zoom_level);
+				move_log_short_name(object_get(held)->definition_index) : "-", (int)unit->unit.current_zoom_level, enemy_text, damage,
+				veh_yaw, veh_forward, veh_side, veh_up);
 			if (now % 30 == 0)
 				fflush(move_log.ticks);
 		}
@@ -591,6 +784,110 @@ void move_log_tick(void)
 				mp->pace_at = *at;
 			}
 		}
+		/* (a fight on foot: an enemy in sight near, till none has been for
+		   a second and a half) */
+		{
+			struct move_fight *f = &mp->fight;
+			boolean near = enemy != NONE && enemy_seen && enemy_distance < 35.f && !riding;
+			if (near && !f->on)
+			{
+				csmemset(f, 0, sizeof(*f));
+				f->on = TRUE;
+				f->began = now;
+				f->enemy_unit = enemy;
+				f->enemy_start = enemy_vitality;
+				f->enemy_last = enemy_vitality;
+				f->weapon = NONE;
+			}
+			if (f->on)
+			{
+				struct object_datum *first = object_try_and_get(f->enemy_unit);
+				if (near)
+					f->seen_tick = now;
+				if (riding || now - f->seen_tick > 45)
+					move_log_fight_end(local, mp, "broke off");
+				else if (!first || first->object.body_vitality <= 0.f)
+				{
+					f->enemy_last = 0.f;
+					move_log_fight_end(local, mp, "they died");
+				}
+				else
+				{
+					long held = unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT ?
+						unit->unit.weapon_object_indices[unit->unit.current_weapon_index] : NONE;
+					f->enemy_last = first->object.body_vitality + first->object.shield_vitality;
+					f->ticks++;
+					f->damage += damage;
+					if (held != NONE && object_try_and_get(held))
+						f->weapon = object_get(held)->definition_index;
+					if (enemy != NONE)
+					{
+						real to_enemy = bot_yaw_to(at, &object_get(enemy)->object.position);
+						real along = (velocity->i * (real)cos(to_enemy) + velocity->j * (real)sin(to_enemy)) * TICKS_PER_SECOND;
+						real across = (velocity->j * (real)cos(to_enemy) - velocity->i * (real)sin(to_enemy)) * TICKS_PER_SECOND;
+						long side = across > 0.4f ? 1 : across < -0.4f ? -1 : 0;
+						f->distance_sum += enemy_distance;
+						f->distance_ticks++;
+						if (side && f->side && side != f->side)
+							f->side_changes++;
+						if (side)
+							f->side = side;
+						if (speed < 0.3f)
+							f->still++;
+						else if (fabs(along) >= fabs(across))
+						{
+							if (along > 0.f)
+								f->toward++;
+							else
+								f->away++;
+						}
+						else
+							f->across++;
+					}
+					if (jump_held && !mp->was_jump_held)
+						f->jumps++;
+					if (crouch_held && !mp->was_crouch_held)
+						f->crouches++;
+					if (TEST_FLAG(biped->unit.control_flags, _unit_control_weapon_primary_trigger_bit) && !mp->was_trigger)
+						f->shots++;
+				}
+			}
+		}
+		/* (at a vehicle's wheel) */
+		{
+			struct move_drive *dr = &mp->drive;
+			if (seat == 'd' && !dr->on)
+			{
+				csmemset(dr, 0, sizeof(*dr));
+				dr->on = TRUE;
+				dr->began = now;
+				dr->vehicle_definition = root->definition_index;
+				dr->from = *at;
+				dr->last = *at;
+				dr->rest = floor;
+			}
+			if (dr->on && seat != 'd')
+				move_log_drive_end(local, mp);
+			else if (dr->on)
+			{
+				dr->ticks++;
+				dr->distance += distance3d(at, &dr->last);
+				dr->last = *at;
+				dr->speed_sum += speed;
+				dr->fastest = MAX(dr->fastest, speed);
+				if (fabs(biped->unit.throttle.i) > 0.9f)
+					dr->flat_out++;
+				if (fabs(veh_side) > 1.f)
+					dr->sliding++;
+				dr->rest = MIN(dr->rest, floor);
+				if (floor > dr->rest + 0.3f)
+					dr->in_air++;
+				if (veh_up < 0.3f)
+					dr->flipped = TRUE;
+			}
+		}
+		mp->was_vitality = unit->object.body_vitality + unit->object.shield_vitality;
+		mp->was_trigger = TEST_FLAG(biped->unit.control_flags, _unit_control_weapon_primary_trigger_bit) != 0;
 		mp->was_airborne = airborne;
 		mp->was_z = at->z;
 		mp->was_at = *at;

@@ -3092,6 +3092,40 @@ and two kinds of walker); the wrecks of the others stayed.
   that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
   logs every nav area in a box and the ways out of them that are more
   than a walk, for looking at a spot like this one.
+- **The time to a place, not to its area's middle:** the navigation's time
+  from one place to another was to the middle of the area the other is in,
+  as its route search works it out; now the way is followed to its last
+  link and the time taken from the end of that to the place itself. For two
+  hundred of a person's jumps between areas (a movement log), the
+  navigation's time against theirs went from 1.30 times on the median (1.76
+  on the whole, 74 of them more than half as long again) to 1.16 (1.38; 36)
+  (`pointtime`).
+- **Jumps up taken the way a person takes them:** from a movement log of
+  a hundred and twenty of one person's jumps up, what they do rather than
+  where: at a full run square to the ledge, off the ground about a unit and
+  a half to two from where they come down, so that they reach the face at
+  the top of the jump; the tuck eight to ten ticks in, its lift done just
+  before the face, and none for ledges under about half a unit. A bot that
+  comes at a ledge so, at a run, onto a floor that goes on past it (not a
+  crate's top, gone over and off the far side), now jumps it that way, from
+  where it is, rather than taking the jump up only at the foot of the face,
+  a step off, where there is no run left (`jumptech`). On a course of
+  eighteen ledges on six maps, one bot up and down each for a minute, the
+  same times and as few missed (the bots' own jump up was as quick on all
+  but a couple); in tours of seven maps it is seldom come at so. Going back for a run-up first, as for a gap, cost a second
+  a ledge (`HALO_BOT_JT_BACK`); letting the legs down at the top, over the
+  ledge, as the person does, missed more of them (`HALO_BOT_JT_RELEASE=1`).
+  For tests like these, `HALO_MOVE_LOG_PLAYER=n` logs a bot's own
+  jumps in the same log, and `HALO_BOT_TOUR_NEAR=across,up` for how near a
+  tour's places must be got to (1.5, 1.2).
+- **Not "there" under a ledge:** a bot sent somewhere on top of a ledge
+  stopped under it, for good, once it was within the goal's reach across
+  (a unit or so): the goal was taken as reached at up to a unit and a half
+  above or below. Now a goal whose floor is more than 0.4 off the floor the
+  bot stands on is not reached until the bot is up (or down) there
+  (`arrivelevel`).
+- **The movement log on Linux** goes to the logs folder (it went into the
+  data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed
   about how people jump, made rules the navigation finds jumps by on every
   map, not only where someone was seen to jump:
@@ -3167,6 +3201,20 @@ and two kinds of walker); the wrecks of the others stayed.
     air, half a second and a second on), and the areas it left and came down
     in, whether the navigation has a way between them, and its time against
     the jump's.
+  - The ticks also have the nearest enemy (how far, which way against the
+    way faced, whether in sight, how fast it goes, its shields and health),
+    the damage taken that tick, and, riding, the vehicle's heading, its
+    speed along and across its nose (the slide) and how upright it is.
+  - `logs/move_fights.txt`, a line a fight on foot (an enemy in sight
+    within 35 units, till none has been for a second and a half): how long,
+    how far off, how it moved (turns from one way across the line to the
+    other a second; the share of time going at them, away, across, still;
+    jumps and crouches a second), the trigger's presses a second, damage
+    taken and dealt to the first enemy, the gun, and how it ended.
+  - `logs/move_drives.txt`, a line each time at a vehicle's wheel: the
+    vehicle, from and to, how long and far, the mean and top speed, the
+    share of the time flat out, sliding and in the air, and whether it
+    turned over.
   - `logs/move_routes.txt`: each move between areas the navigation has no
     way for (a jump, a fall or a walk, with the navigation's time by the ways
     it has), each teleport, and every three seconds on foot the distance

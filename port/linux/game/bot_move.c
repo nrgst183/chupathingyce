@@ -1201,6 +1201,143 @@ static boolean bot_move_jump_at_run(struct bot_mover *bot, struct bot_body const
 	return FALSE;
 }
 
+/* (testing: a tuning of the jump up taken as a person takes one, from the environment, or its default) */
+static real bot_move_jt(char const *name, real otherwise)
+{
+	char const *value = getenv(name);
+	return value ? (real)atof(value) : otherwise;
+}
+
+/* A jump up taken the way a person takes it. In a movement log of a
+   hundred and twenty of his jumps up (move_log.c), a person came at the
+   ledge at a full run, square to it, and left the ground a unit and a
+   half to two from where he landed, so that he got to the face at about
+   the top of the jump, when the feet are at their highest; folded the
+   legs up eight to ten ticks into it, the lift (a fifth of a unit, over
+   six ticks) done a little before the face; and let them down at the top,
+   over the ledge. The bots walked to the face, slowed, and jumped from
+   two thirds of a unit off it, at a unit and a third a second: half way
+   up the jump they were at the face and went up beside it, their middle
+   a fifth of a unit short of the top all the way, and came down tucked
+   at half a run, or back down. Not his jumps copied but the way he takes
+   them: off when the face is reached at the top of the arc, as fast as it
+   is going, square to it and not turning; the tuck so that its lift is
+   done that long before the face, and only when the jump wants it. Taken
+   so when the bot comes at the ledge that way already, at a run, onto a
+   floor that goes on (bot_move_jump_run_on): going back for a run-up, as
+   for a gap, cost a second a jump up and made none more of them (a
+   course of eighteen ledges on six maps, one bot up and down each a
+   minute). HALO_BOT_OFF=jumptech: as before. To try: HALO_BOT_JT_BACK (a
+   run-up gone back for, so long; none), HALO_BOT_JT_AT (when in the arc
+   the face is got to, of the top's time: 0.95), HALO_BOT_JT_LEAD (ticks
+   the lift is done before the face: 4), HALO_BOT_JT_UNTUCKED (the
+   highest jumped without the tuck: 0.52). TRUE when it has the tick */
+static boolean bot_move_jump_technique(struct bot_mover *bot, struct bot_body const *body, struct aas_reach const *reach, struct bot_move_result *result, real face, boolean *tuck)
+{
+	struct bot_move_state *move = &bot->move;
+	real_point3d const *position = &body->position;
+	real_point3d const *landing = &reach->left;
+	real rise = landing->z - reach->edge.z;
+	real c = (real)cos(face), s = (real)sin(face);
+	/* (how far the body's middle is from the face along the way it is
+	   jumped, and to one side of the line through the edge) */
+	real off_face = (reach->edge.x - position->x) * c + (reach->edge.y - position->y) * s - BOT_BODY_RADIUS;
+	/* (... the line through where it lands, the way it is jumped) */
+	real aside = -(landing->x - position->x) * s + (landing->y - position->y) * c;
+	real top = BOT_JUMP_VELOCITY / BOT_JUMP_GRAVITY;
+	real at = bot_move_jt("HALO_BOT_JT_AT", 0.95f) * top;
+	real heading = (real)atan2(body->velocity.j, body->velocity.i);
+	real untucked = bot_move_jt("HALO_BOT_JT_UNTUCKED", 0.52f);
+
+	if (bot_env_off("jumptech") || move->reach_started || move->pad_hop || move->reach_pace < 1.f || rise < 0.25f ||
+		fabs(position->z - reach->edge.z) > 0.25f || move->reach_ticks > BOT_SECONDS(4.f))
+		return FALSE;
+	/* the run-up: back from the face, square to it, as far as the floor
+	   allows, when the bot is not coming at it so already */
+	if (move->reach_phase == 0)
+	{
+		real most = bot_move_jt("HALO_BOT_JT_BACK", 0.f), back;
+		real need = BOT_RUN_SPEED * at * 0.8f;
+		real_point3d runup = reach->edge, inside = reach->edge;
+		/* (from a little back from the foot of the face: the edge is
+		   against it) */
+		inside.x -= c * 0.3f;
+		inside.y -= s * 0.3f;
+		inside.z += 0.2f;
+		for (back = most; back >= 0.9f; back -= 0.3f)
+		{
+			runup.x = reach->edge.x - c * (back + BOT_BODY_RADIUS);
+			runup.y = reach->edge.y - s * (back + BOT_BODY_RADIUS);
+			runup.z = reach->edge.z + 0.2f;
+			if (navm_line_walkable(&inside, &runup, 0.15f, 0.f) && bot_move_rise_between(body, &runup, &inside) < BOT_RUNUP_RISE)
+				break;
+		}
+		if (back < 0.9f)
+			return FALSE; /* (no room for one: as before) */
+		/* (already coming at it square and fast enough, from far enough
+		   off: on at it) */
+		if (fabs(aside) < 0.25f && off_face > need && bot_move_speed_along(body, face) > 0.8f * BOT_RUN_SPEED)
+			move->reach_phase = 1;
+		else if (bot_distance2d(position, &runup) > 0.25f && move->reach_ticks < BOT_SECONDS(2.5f) &&
+			(off_face < back - 0.1f || fabs(aside) > 0.25f))
+		{
+			result->yaw = bot_yaw_to(position, &runup);
+			result->speed = bot_distance2d(position, &runup) < 0.5f ? 0.6f : 1.f;
+			move->reach_runup_ticks = move->reach_ticks;
+			return TRUE;
+		}
+		else
+			move->reach_phase = 1;
+	}
+	/* at it, flat out, square to the face; off when it is got to at the top */
+	boolean want = rise > untucked;
+	{
+		real closing = bot_move_speed_along(body, face);
+		/* (steered onto the line through the edge, square to it) */
+		result->yaw = face - PIN(aside * 1.5f, -0.5f, 0.5f);
+		result->speed = 1.f;
+		if (off_face < 0.15f)
+			return FALSE; /* (at the face already: as before) */
+		/* (and going the way it is jumped, not turning onto it still:
+		   jumped turning, the body goes on round in the air and comes
+		   down beside the ledge, or on the lip of it) */
+		if (body->can_jump && closing > 1.f && (!want || (move->crouch_ticks <= 0 && move->stand_ticks >= BOT_STAND_TICKS)) &&
+			fabs(bot_angle_difference(heading, face)) < 0.15f && fabs(aside) < 0.2f)
+		{
+			real when = off_face / closing; /* (seconds to the face, as it is going) */
+			/* (the feet's height at the face, jumped now, and with the lift) */
+			real height = BOT_JUMP_VELOCITY * MIN(when, top) - 0.5f * BOT_JUMP_GRAVITY * MIN(when, top) * MIN(when, top);
+			real lift = want ? 0.2f : 0.f;
+			if (when <= at + 0.5f / BOT_TICKS_PER_SECOND)
+			{
+				/* (too near the face for the feet to be over the top at
+				   it: as before, from where it is) */
+				if (height + lift < rise + 0.04f)
+					return FALSE;
+				bot_move_jump_off(move, result, FALSE);
+				if (want)
+				{
+					/* (the lift begun so that it is done the lead's ticks
+					   before the face) */
+					long face_tick = (long)(when * BOT_TICKS_PER_SECOND);
+					long tuck_at = MAX(1, face_tick - 6 - (long)bot_move_jt("HALO_BOT_JT_LEAD", 4.f));
+					move->crouch_ticks = BOT_TUCK_TICKS - 3 + tuck_at;
+				}
+				if (bot_logging() && getenv("HALO_BOT_REACHLOG"))
+					bot_log("bot%ld: a jump up %.2f as a person takes it, %.2f from the face at %.2f a second (at it in %.2f s, the top at %.2f), the tuck %s", bot->index, rise,
+						off_face, closing, when, top, want ? "on" : "off");
+				*tuck = want;
+				return TRUE;
+			}
+		}
+		/* (not lined up in time: as before) */
+		if (off_face / MAX(closing, 0.5f) < at - 0.15f)
+			return FALSE;
+		*tuck = want;
+		return TRUE;
+	}
+}
+
 /* a jump up: at the ledge's foot, run at it and jump when close; up in the air, tuck the legs up to clear the lip */
 static void bot_move_travel_jump(struct bot_mover *bot, struct bot_body const *body, struct aas_reach const *reach, struct bot_move_result *result)
 {
@@ -1264,6 +1401,8 @@ static void bot_move_travel_jump(struct bot_mover *bot, struct bot_body const *b
 	/* (onto a pad that is jumped from: at four fifths of a run) */
 	if (move->pad_hop && !move->reach_started)
 		result->speed = MIN(result->speed, 0.8f);
+	if (bot_move_jump_technique(bot, body, reach, result, face, &tuck))
+		return;
 	if (bot_move_jump_at_run(bot, body, reach, result, face, to_landing, tuck))
 	{
 		if (move->pad_hop)
@@ -1656,11 +1795,12 @@ static void bot_move_people_style(struct aas_reach const *reach, struct bot_peop
 	real heading = bot_yaw_to(bot_distance2d(&reach->start, &reach->left) > 0.3f ? &reach->start : &reach->edge, &reach->left);
 	memset(way, 0, sizeof(*way));
 	way->heading = heading;
-	way->speed = 2.2f;
-	way->crouch_on = 6;
+	/* (testing: HALO_BOT_PS_SPEED, _CROUCH, _ACROSS another) */
+	way->speed = bot_move_jt("HALO_BOT_PS_SPEED", 2.2f);
+	way->crouch_on = (short)bot_move_jt("HALO_BOT_PS_CROUCH", 6.f);
 	way->crouch_off = 999;
-	takeoff->x = reach->left.x - (real)cos(heading) * BOT_PEOPLE_HIGH_ACROSS;
-	takeoff->y = reach->left.y - (real)sin(heading) * BOT_PEOPLE_HIGH_ACROSS;
+	takeoff->x = reach->left.x - (real)cos(heading) * bot_move_jt("HALO_BOT_PS_ACROSS", BOT_PEOPLE_HIGH_ACROSS);
+	takeoff->y = reach->left.y - (real)sin(heading) * bot_move_jt("HALO_BOT_PS_ACROSS", BOT_PEOPLE_HIGH_ACROSS);
 	takeoff->z = reach->edge.z;
 }
 
@@ -2291,6 +2431,26 @@ static boolean bot_move_over_floor(struct bot_body const *body, real z)
 	return bot_ground(&back, 0.5f, body->unit_index, &ground) && fabs(ground - z) < 0.12f;
 }
 
+/* (testing, HALO_BOT_JT_RELEASE=1: the legs let down once the middle of
+   the body is over the floor it jumps up onto and the feet a tenth of a
+   unit over it, as a person lets his down, at the top, over the ledge
+   (move_log.c), not once the whole of it is, which is mostly at the
+   landing: the body's back half is over the face till then. Let down so,
+   more of the jumps up failed, on Beaver Creek and Chill Out (six in a
+   hundred against four), so not by default; =2 the middle over at all) */
+static boolean bot_move_tuck_over(struct bot_body const *body, struct aas_reach const *reach)
+{
+	static long mode = -1;
+	real_point3d at = body->position;
+	real ground;
+	if (mode < 0)
+		mode = bot_env_off("jumptech") ? 0 : (long)bot_move_jt("HALO_BOT_JT_RELEASE", 0.f);
+	if (mode == 0 || body->position.z < reach->left.z + (mode == 1 ? 0.1f : 0.04f))
+		return FALSE;
+	at.z += 0.1f;
+	return bot_ground(&at, 0.5f, body->unit_index, &ground) && fabs(ground - reach->left.z) < 0.12f;
+}
+
 /* travelling a reachability: TRUE while it's still under way */
 static boolean bot_move_travel_on(struct bot_mover *bot, struct bot_body const *body, struct bot_move_result *result)
 {
@@ -2319,7 +2479,7 @@ static boolean bot_move_travel_on(struct bot_mover *bot, struct bot_body const *
 	if (move->crouch_ticks > 0 && body->airborne && move->reach_started &&
 		(reach->travel == _aas_travel_jump || reach->travel == _aas_travel_gap) && position->z > reach->left.z + 0.04f &&
 		(area == reach->to || bot_distance2d(position, &reach->left) < 0.3f) && !bot_env_off("tuckrelease") &&
-		bot_move_over_floor(body, reach->left.z))
+		(bot_move_over_floor(body, reach->left.z) || bot_move_tuck_over(body, reach)))
 	{
 		if (bot_logging())
 			bot_log("bot%ld: tuck let go over the top of reachability %ld, %.2f above it, %ld ticks into it", bot->index, move->reach,
@@ -3165,6 +3325,57 @@ static boolean bot_move_gap_lineup(struct bot_mover const *bot, struct bot_body 
 		aas_line_in_areas(AAS_FOOT, position, runup) && aas_line_in_areas(AAS_FOOT, runup, &reach->edge);
 }
 
+/* a jump up ahead, run at square already, near enough to be jumped as a
+   person jumps it (bot_move_jump_technique) */
+static boolean bot_move_jump_run_on(struct bot_mover *bot, struct bot_body const *body, struct aas_reach const *reach)
+{
+	real_point3d const *position = &body->position;
+	real_point3d const *landing = &reach->left;
+	real face, c, s, off_face, aside, top;
+	if (bot_env_off("jumptech") || reach->travel != _aas_travel_jump || reach->people || landing->z - reach->edge.z < 0.25f ||
+		fabs(position->z - reach->edge.z) > 0.25f || body->airborne)
+		return FALSE;
+	face = bot_yaw_to(bot_distance2d(&reach->start, landing) > 0.12f ? &reach->start : &reach->edge, landing);
+	c = (real)cos(face);
+	s = (real)sin(face);
+	off_face = (reach->edge.x - position->x) * c + (reach->edge.y - position->y) * s - BOT_BODY_RADIUS;
+	aside = -(landing->x - position->x) * s + (landing->y - position->y) * c;
+	top = BOT_JUMP_VELOCITY / BOT_JUMP_GRAVITY;
+	if (fabs(bot_angle_difference((real)atan2(body->velocity.j, body->velocity.i), face)) > 0.25f)
+		return FALSE;
+	/* (from no nearer than the jump, as fast as it is going, is taken
+	   from, and no further than a little before that) */
+	{
+		real along = bot_move_speed_along(body, face);
+		real at = bot_move_jt("HALO_BOT_JT_AT", 0.95f) * top;
+		real_point3d inside = reach->edge;
+		inside.x -= c * 0.3f;
+		inside.y -= s * 0.3f;
+		inside.z += 0.2f;
+		real_point3d beyond = *landing, far_beyond = *landing;
+		real ground;
+		struct aas_area const *top_area = aas_area(AAS_FOOT, reach->to);
+		(void)bot;
+		if (!(along > 0.75f * BOT_RUN_SPEED && fabs(aside) < 0.3f && off_face > along * at - 0.05f && off_face < along * at + 0.6f &&
+			navm_line_walkable(position, &inside, 0.15f, 0.f) && bot_move_rise_between(body, position, &inside) < BOT_RUNUP_RISE))
+		{
+			return FALSE;
+		}
+		/* (onto a floor that goes on, a run's landing past where it lands:
+		   not the top of a crate, gone over at a run and off the far side,
+		   nor a pad jumped on from, bot_move_travel_jump) */
+		beyond.x += c * 0.7f;
+		beyond.y += s * 0.7f;
+		beyond.z += 0.5f;
+		far_beyond.x += c * 1.2f;
+		far_beyond.y += s * 1.2f;
+		far_beyond.z += 0.5f;
+		return bot_ground(&beyond, 1.f, body->unit_index, &ground) && fabs(ground - landing->z) < 0.15f &&
+			bot_ground(&far_beyond, 1.f, body->unit_index, &ground) && fabs(ground - landing->z) < 0.15f &&
+			!(top_area->x1 - top_area->x0 < 2.4f && top_area->y1 - top_area->y0 < 2.4f);
+	}
+}
+
 /* a reachability that's more than a walk, next: at its start, take it */
 static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body, struct bot_move_result *result, long area, real_point3d const *corners, long corner_count)
 {
@@ -3183,6 +3394,18 @@ static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body
 		bot_move_reach_begin(move, r, AAS_FOOT, 1, position->z);
 		if (getenv("HALO_BOT_REACHLOG"))
 			bot_log("bot%ld takes reach %ld travel %d at %.1f %.1f %.1f (at a run)", bot->index, r, reach->travel, reach->edge.x, reach->edge.y, reach->edge.z);
+		if (bot_move_travel(bot, body, result))
+			return BOT_TAKE_FINISH;
+	}
+	/* (a jump up we're running at already, square to its face, from as
+	   far off as a person jumps it: taken from here, at the run we have,
+	   bot_move_jump_technique; begun at the start of it, a step off the
+	   face, there is no run left for it) */
+	else if (move->corridor_count <= 3 && bot_move_jump_run_on(bot, body, reach))
+	{
+		bot_move_reach_begin(move, r, AAS_FOOT, 1, position->z);
+		if (getenv("HALO_BOT_REACHLOG"))
+			bot_log("bot%ld takes reach %ld travel %d at %.1f %.1f %.1f (a jump up at a run)", bot->index, r, reach->travel, reach->edge.x, reach->edge.y, reach->edge.z);
 		if (bot_move_travel(bot, body, result))
 			return BOT_TAKE_FINISH;
 	}
@@ -3842,6 +4065,17 @@ static void bot_move_foot_finish(struct bot_mover *bot, struct bot_body const *b
 	bot_move_jump_hold(move, body, result);
 }
 
+/* (whether a goal near across is on another level from here: its area not
+   this one, and a floor between them a ledge's height off) */
+static boolean bot_move_goal_above_ledge(struct bot_body const *body, real_point3d const *goal)
+{
+	real_point3d at = *goal;
+	real ground;
+	/* (the floor under the goal, against the feet's: a ledge between) */
+	at.z += 0.3f;
+	return bot_ground(&at, 0.8f, body->unit_index, &ground) && fabs(ground - body->position.z) > 0.4f;
+}
+
 void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct bot_goal *goal, struct bot_move_result *result)
 {
 	struct bot_move_state *move = &bot->move;
@@ -3864,8 +4098,14 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 	bot_move_tick_start(move, type, result);
 
 	/* there */
+	/* (and on its level: under a ledge with the goal on top of it, a step
+	   or so across, is not there. A bot sent to a place up a ledge from it
+	   stood still under the ledge for good, its goal a unit off and half a
+	   unit up, "there") */
 	if (to_goal < goal->radius && fabs(position->z - goal->origin.z) < 1.5f &&
-		!(type == AAS_FOOT && move->reach != NONE && move->reach_type == AAS_FOOT && move->reach_started)) /* (not halfway up a ladder) */
+		!(type == AAS_FOOT && move->reach != NONE && move->reach_type == AAS_FOOT && move->reach_started) && /* (not halfway up a ladder) */
+		!(type == AAS_FOOT && !body->airborne && fabs(goal->origin.z - position->z) > 0.45f && to_goal > 0.3f && !bot_env_off("arrivelevel") &&
+			bot_move_goal_above_ledge(body, &goal->origin)))
 	{
 		result->arrived = TRUE;
 		result->moving = FALSE;

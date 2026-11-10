@@ -4745,9 +4745,39 @@ float aas_travel_time(long type, real_point3d const *from, real_point3d const *t
 		return -1.f;
 	if (a == b)
 		return aas_distance(from, to) / aas_speed(type);
-	if (aas_route_reach(type, a, from, b, NULL, NULL, NONE, &time) == NONE)
-		return -1.f;
-	return time;
+	{
+		long r = aas_route_reach(type, a, from, b, NULL, NULL, NONE, &time);
+		if (r == NONE)
+			return -1.f;
+		/* The search's times are to the middle of the goal's area, not to the
+		   place in it: along the way to its last link, and from the end of
+		   that to the place, not to the middle. A person's jumps and drops
+		   the navigation had ways for were reckoned at three fifths again as
+		   long as they took (a movement log; move_log.c), much of it the walk
+		   on from where they came down to the middle of a big area beyond.
+		   HALO_BOT_OFF=pointtime: to the middle */
+		if (!bot_env_off("pointtime"))
+		{
+			struct aas_world const *world = &aas_worlds[type];
+			real_point3d at = *from;
+			long area = a, steps;
+			for (steps = 0; steps < 96 && r != NONE; steps++)
+			{
+				struct aas_reach const *reach = &world->reaches[r];
+				float ignored;
+				if (reach->to == b)
+				{
+					real speed = aas_speed(type);
+					time += (aas_distance(&reach->end, to) - aas_distance(&reach->end, &world->areas[b].center)) / speed;
+					break;
+				}
+				at = reach->end;
+				area = reach->to;
+				r = aas_route_reach(type, area, &at, b, NULL, NULL, NONE, &ignored);
+			}
+		}
+	}
+	return MAX(time, 0.f);
 }
 
 /* the same for something only being weighed: with this tick's new routes

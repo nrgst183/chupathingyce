@@ -1169,6 +1169,11 @@ static const struct config_setting config_settings[] =
 		_platform_all | _platform_server,
 		"Write full internet addresses in debug.txt and the console. Don't\n"
 		"post a debug.txt written with this on." },
+	{ "debug.move_log", _config_boolean, "false", "HALO_MOVE_LOG", _environment_set_is_true,
+		_platform_all,
+		"Write this copy's players' movement down, a line a tick, in logs/move_log.csv,\n"
+		"and each jump worked out (how high, what the crouch did, the speed it\n"
+		"cost) in logs/move_jumps.txt: for teaching the bots to jump as people do." },
 	{ "debug.random_seed", _config_integer, "0", "HALO_RANDOM_SEED", _environment_value,
 		_platform_all | _platform_server,
 		"A hosted game's random seed, and its bots': the same game every time\n"

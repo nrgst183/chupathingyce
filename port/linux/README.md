@@ -3094,19 +3094,33 @@ and two kinds of walker); the wrecks of the others stayed.
   than a walk, for looking at a spot like this one.
 - **A log of how a person moves:** `debug.move_log = true` in config.toml
   (or `HALO_MOVE_LOG=1`) writes this copy's own players' movement down, for
-  working out how people jump so the bots can be taught it. `logs/move_log.csv`
-  has a line a tick: the feet, the velocity, the speed across the ground,
-  the stick, whether jump and crouch are held, how far crouched the body is
-  and whether it is in the air. `logs/move_jumps.txt` has a line for each
-  jump: how fast it left the ground, the tick crouch went down and came up
-  against the tick it left, how high the feet went and how much the crouch
-  lifted them, where it came down and how far across, and how fast it was
-  going on landing, in the air at the slowest, and half a second and a
-  second after. Every map is logged, each line naming it, and the files are
-  added to each time the game starts (delete them to begin again). Where the
-  logs folder cannot be written, the files go in the
-  folder the game was started in. (`HALO_MOVE_LOG_PLAYER=n`: the player of
-  that index as well, a bot's, for testing.)
+  teaching the bots to move as people do; the bots' navigation is built for
+  the map while it is on, bots or none, so its areas can be named.
+  - `logs/move_log.csv`, a line a tick: the feet (or the vehicle and seat),
+    the velocity and speed across the ground, the way faced, looked and gone
+    (and the strafe between them), the stick and every button, how far
+    crouched, in the air and for how long, the floor's slope, how far down
+    the floor is under the feet, the floor half a unit to two units ahead,
+    how far off the walls ahead are at the knee and the chest, the
+    navigation's area, health, shield, the gun and its zoom.
+  - `logs/move_jumps.txt`, a line a jump: where and how fast it left, the
+    ledge ahead (how far, how high), when crouch went down and came up and
+    how long the body was crouched in the air, how high the feet went and
+    what the crouch lifted, how close the feet passed over the ledge's top,
+    where it came down and on what slope, the speeds (landing, slowest in the
+    air, half a second and a second on), and the areas it left and came down
+    in, whether the navigation has a way between them, and its time against
+    the jump's.
+  - `logs/move_routes.txt`: each move between areas the navigation has no
+    way for (a jump, a fall or a walk, with the navigation's time by the ways
+    it has), each teleport, and every three seconds on foot the distance
+    gone against the navigation's time for it.
+
+  Every map is logged, each line naming it, and the files are added to each
+  time the game starts (delete them to begin again). Where the logs folder
+  cannot be written, the files go in the folder the game was started in.
+  (`HALO_MOVE_LOG_PLAYER=n`: the player of that index as well, a bot's, for
+  testing.)
 - **More jumps on every map:** `HALO_BOT_JUMPSCAN` lists, for a map, the
   places where a jump would save a long way round and the nav mesh has
   none. It checks pairs of areas up to three units apart and up to a unit

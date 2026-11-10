@@ -22867,6 +22867,8 @@ long bots_get_skill_spread(void)
    game with bots does it here, when the map has loaded and its objects are
    placed: the other machines are loading too, and wait for the host as
    they wait for one another. */
+boolean move_log_wanted(void); /* (move_log.c: the movement log names the navigation's areas) */
+
 void bots_map_loaded(void)
 {
 	struct scenario *scenario = global_scenario_get();
@@ -22882,7 +22884,7 @@ void bots_map_loaded(void)
 
 	/* (and when the navigation is being baked, bot_bake.c: whoever plays) */
 	if (game_connection() != _game_connection_network_server || !scenario ||
-		scenario->type != _scenario_type_multiplayer || (bots_configured() <= 0 && bots_fill() <= 0 && !bot_bake_enabled()))
+		scenario->type != _scenario_type_multiplayer || (bots_configured() <= 0 && bots_fill() <= 0 && !bot_bake_enabled() && !move_log_wanted()))
 	{
 		return;
 	}

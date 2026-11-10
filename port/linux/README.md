@@ -3092,6 +3092,19 @@ and two kinds of walker); the wrecks of the others stayed.
   that keep missing go the long way round. `HALO_BOT_AREABOX=x0,y0,x1,y1`
   logs every nav area in a box and the ways out of them that are more
   than a walk, for looking at a spot like this one.
+- **A log of how a person moves:** `debug.move_log = true` in config.toml
+  (or `HALO_MOVE_LOG=1`) writes this copy's own players' movement down, for
+  working out how people jump so the bots can be taught it. `logs/move_log.csv`
+  has a line a tick: the feet, the velocity, the speed across the ground,
+  the stick, whether jump and crouch are held, how far crouched the body is
+  and whether it is in the air. `logs/move_jumps.txt` has a line for each
+  jump: how fast it left the ground, the tick crouch went down and came up
+  against the tick it left, how high the feet went and how much the crouch
+  lifted them, where it came down and how far across, and how fast it was
+  going on landing, in the air at the slowest, and half a second and a
+  second after. Where the logs folder cannot be written, the files go in the
+  folder the game was started in. (`HALO_MOVE_LOG_PLAYER=n`: the player of
+  that index as well, a bot's, for testing.)
 - **More jumps on every map:** `HALO_BOT_JUMPSCAN` lists, for a map, the
   places where a jump would save a long way round and the nav mesh has
   none. It checks pairs of areas up to three units apart and up to a unit

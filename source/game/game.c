@@ -323,6 +323,7 @@ void game_initialize(
 }
 
 void determinism_check_game_load(unsigned long *random_seed);
+void move_log_tick(void);
 
 void game_tick(
 	void)
@@ -398,6 +399,9 @@ void game_tick(
 	HALO_PERF_END(_halo_perf_tick_objects);
 	HALO_PERF_BEGIN(_halo_perf_tick_units);
 	players_update_after_game();
+	/* port: this copy's players' movement written down, when asked
+	(debug.move_log: move_log.c) */
+	move_log_tick();
 	HALO_PERF_END(_halo_perf_tick_units);
 	hud_update();
 	player_effect_update();

@@ -1770,6 +1770,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\moderation_screen.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\move_log.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\msvc_comdat.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>

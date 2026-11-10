@@ -3539,9 +3539,11 @@ boolean ui_widget_event_handler_function_invoke(
 		widget != NULL && widget_deleted != NULL,
 		"(widget != NULL) && (widget_deleted != NULL)");
 	/* port: a map's own widgets (not the menus' tags the port adds) may not
-	run what changes the player's files or settings: ui_widget_function_denied */
+	run what changes the player's files or settings: ui_widget_function_denied
+	(failed, as an invalid function is, so the handler opens and closes no
+	screens after it) */
 	if (ui_widget_function_denied(widget, function_index))
-		return TRUE;
+		return FALSE;
 	/* port: the menus' own functions (port/linux/game/menu_functions.c) */
 	if (function_index >= PC_MENU_FUNCTION_BASE && function_index < 0x8000)
 	{
@@ -5883,7 +5885,13 @@ static boolean multiplayer_level_select(
 		"invalid multiplayer level specified from 'multiplayer level list' list widget");
 	map_name = event_handler_functions.multiplayer_levels[level_list->parameters.list.selected_index];
 #endif
+	/* port: the developers' automation file, which a console reads only
+	with its developer tools (a failed open at each map's start) */
+#ifndef HALO_CONSOLE_NO_DEBUG_TOOLS
 	file = fopen("d:\\map_automation.txt", "r");
+#else
+	file = NULL;
+#endif
 	if (file)
 	{
 		fgets(automation_map_name, sizeof(automation_map_name), file);
@@ -5989,7 +5997,12 @@ static boolean multiplayer_profile_set_for_game(
 		server = global_network_game_server_get();
 		if (saved_game_file_get_path_to_enclosing_directory(profile_index, directory_path))
 			saved_game_file_remember_last_used_multiplayer_variant_directory(directory_path);
+		/* port: as map_automation.txt */
+#ifndef HALO_CONSOLE_NO_DEBUG_TOOLS
 		file = fopen("d:\\variant_automation.txt", "r");
+#else
+		file = NULL;
+#endif
 		if (file)
 		{
 			fgets(variant_name, sizeof(variant_name), file);

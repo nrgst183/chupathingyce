@@ -10587,6 +10587,23 @@ static void bots_log_route(void)
 	(void)total;
 }
 
+/* (testing, HALO_BOT_PAIRS=x,y,z,x2,y2,z2;...: the navigation's time on
+   foot between each pair of points) */
+static void bots_log_pairs(void)
+{
+	char const *text = getenv("HALO_BOT_PAIRS");
+	while (text && *text)
+	{
+		real_point3d from, to;
+		if (sscanf(text, "%f,%f,%f,%f,%f,%f", &from.x, &from.y, &from.z, &to.x, &to.y, &to.z) == 6)
+			bot_log("pairtime %.2f %.2f %.2f -> %.2f %.2f %.2f: %.2f s (areas %ld -> %ld)", from.x, from.y, from.z, to.x, to.y, to.z,
+				aas_travel_time(AAS_FOOT, &from, &to), aas_point_area(AAS_FOOT, &from), aas_point_area(AAS_FOOT, &to));
+		text = strchr(text, ';');
+		if (text)
+			text++;
+	}
+}
+
 static void bots_log_reaches(void)
 {
 	long counts[NUMBER_OF_AAS_TRAVEL_TYPES] = { 0 };
@@ -10903,6 +10920,7 @@ static void nav_update(void)
 	{
 		bots_log_reaches();
 		bots_log_route();
+	bots_log_pairs();
 	}
 	/* Where a jump or a gap comes down: on something a body stands on, or
 	   on a bank it slides down. The areas take a slope of rock just short

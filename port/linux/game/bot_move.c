@@ -1643,20 +1643,41 @@ static boolean bot_move_gap_air(struct bot_mover *bot, struct bot_body const *bo
 	return steered;
 }
 
+/* How people take a jump up onto a ledge 0.84 to 0.98 up, from movement
+   logs of them (move_log.c): at a run, facing the ledge, off the ground a
+   unit and two fifths short of where the feet come down, the legs tucked from
+   the sixth tick and let down over the top. (A person's from 0.84 to a unit
+   came down 1.31 to 1.43 across from where they left, crouched from the
+   sixth tick in the median, at a run of 2.25 a second.) */
+static boolean bot_move_over_floor(struct bot_body const *body, real z);
+#define BOT_PEOPLE_HIGH_ACROSS 1.4f
+static void bot_move_people_style(struct aas_reach const *reach, struct bot_people_way *way, real_point3d *takeoff)
+{
+	real heading = bot_yaw_to(bot_distance2d(&reach->start, &reach->left) > 0.3f ? &reach->start : &reach->edge, &reach->left);
+	memset(way, 0, sizeof(*way));
+	way->heading = heading;
+	way->speed = 2.2f;
+	way->crouch_on = 6;
+	way->crouch_off = 999;
+	takeoff->x = reach->left.x - (real)cos(heading) * BOT_PEOPLE_HIGH_ACROSS;
+	takeoff->y = reach->left.y - (real)sin(heading) * BOT_PEOPLE_HIGH_ACROSS;
+	takeoff->z = reach->edge.z;
+}
+
 /* A way people take (bot_people_ways.c), taken as the person took it: at a
    run along the way they were going, off the ground where their feet left
    it, the crouch down and up at the ticks theirs went, and on at the place
    they came down. Come at from a step or so back along the way first, for
    the run (the person was at a run, two and a quarter units a second, when
    they left the ground), if there is floor there; else from where it is. */
-static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const *body, struct aas_reach const *reach, struct bot_move_result *result)
+static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const *body, struct aas_reach const *reach,
+	struct bot_people_way const *way, real_point3d const *takeoff, struct bot_move_result *result)
 {
 	struct bot_move_state *move = &bot->move;
-	struct bot_people_way const *way = &bot_people_ways[reach->people - 1];
 	real_point3d const *position = &body->position;
 	real ci = (real)cos(way->heading), cj = (real)sin(way->heading);
-	real along = (position->x - reach->edge.x) * ci + (position->y - reach->edge.y) * cj; /* (<0 short of the place) */
-	real aside = -(position->x - reach->edge.x) * cj + (position->y - reach->edge.y) * ci;
+	real along = (position->x - takeoff->x) * ci + (position->y - takeoff->y) * cj; /* (<0 short of the place) */
+	real aside = -(position->x - takeoff->x) * cj + (position->y - takeoff->y) * ci;
 	real going = bot_move_ground_speed(body);
 	/* (facing the way, as the person was: a body going sideways to the way it
 	   faces goes slower, and a bot looking about as it ran left the ground a
@@ -1666,7 +1687,7 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 	result->look_pitch = 0.f;
 	if (!move->reach_started)
 	{
-		real_point3d back = reach->edge;
+		real_point3d back = *takeoff;
 		real ground;
 		real runup = move->people_air_ticks < 0 ? 2.f : MIN(1.4f, MAX(0.6f, way->speed * 0.6f));
 		back.x -= ci * runup;
@@ -1677,7 +1698,7 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 		{
 			real_point3d above = back;
 			above.z += 0.5f;
-			if (bot_ground(&above, 1.f, body->unit_index, &ground) && fabs(ground - reach->edge.z) < 0.3f &&
+			if (bot_ground(&above, 1.f, body->unit_index, &ground) && fabs(ground - takeoff->z) < 0.3f &&
 				navm_line_walkable(position, &back, 0.1f, 0.f))
 			{
 				move->reach_runup_ticks++;
@@ -1692,7 +1713,7 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 		}
 		/* (along the line to the place, at a run, held on the line) */
 		{
-			real_point3d ahead = reach->edge;
+			real_point3d ahead = *takeoff;
 			ahead.x += ci * 0.6f;
 			ahead.y += cj * 0.6f;
 			result->yaw = along < -0.4f ? bot_yaw_to(position, &ahead) : way->heading;
@@ -1745,7 +1766,7 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 	result->yaw = bot_yaw_to(position, &reach->left);
 	result->speed = bot_distance2d(position, &reach->left) < 0.3f && body->airborne ? 0.3f : 1.f;
 	if (way->crouch_on >= 0 && move->people_air_ticks >= way->crouch_on && (way->crouch_off < 0 || move->people_air_ticks < way->crouch_off) &&
-		body->airborne)
+		body->airborne && !(way->crouch_off >= 999 && position->z > reach->left.z + 0.04f && bot_move_over_floor(body, reach->left.z)))
 		result->crouch = TRUE;
 	/* (bounced off and back on the ground short of it: again) */
 	if (!body->airborne && move->people_air_ticks > 6 && bot_distance2d(position, &reach->left) > 0.6f)
@@ -2324,7 +2345,17 @@ static boolean bot_move_travel_on(struct bot_mover *bot, struct bot_body const *
 	result->speed = 1.f;
 	if (reach->people > 0 && reach->people <= bot_people_way_count)
 	{
-		bot_move_travel_people(bot, body, reach, result);
+		bot_move_travel_people(bot, body, reach, &bot_people_ways[reach->people - 1], &reach->edge, result);
+		return TRUE;
+	}
+	/* (a jump up higher than the bots' own jumps make: taken as people take
+	   them, bot_move_people_style) */
+	if (reach->people < 0)
+	{
+		struct bot_people_way way;
+		real_point3d takeoff;
+		bot_move_people_style(reach, &way, &takeoff);
+		bot_move_travel_people(bot, body, reach, &way, &takeoff, result);
 		return TRUE;
 	}
 	switch (reach->travel)

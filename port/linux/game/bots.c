@@ -17275,7 +17275,17 @@ static void bot_test_goto(long player_absolute_index, struct bot_state *bot, str
 			tour_estimate[player_absolute_index] = aas_ready() ? aas_travel_time(AAS_FOOT, position, &tour[*leg % tour_count]) : -1.f;
 		}
 		there = tour[*leg % tour_count];
-		if ((bot_distance2d(position, &there) < 1.5f && fabs(position->z - there.z) < 1.2f) ||
+		/* (HALO_BOT_TOUR_NEAR: how near is there, across and up; 1.5, 1.2) */
+		static real near_across = -1.f, near_up;
+		if (near_across < 0.f)
+		{
+			char const *near = getenv("HALO_BOT_TOUR_NEAR");
+			near_across = 1.5f;
+			near_up = 1.2f;
+			if (near)
+				sscanf(near, "%f,%f", &near_across, &near_up);
+		}
+		if ((bot_distance2d(position, &there) < near_across && fabs(position->z - there.z) < near_up) ||
 			game_time_get() - tour_since[player_absolute_index] > 60 * BOT_TICKS_PER_SECOND)
 		{
 			int there_now = game_time_get() - tour_since[player_absolute_index] <= 60 * BOT_TICKS_PER_SECOND;

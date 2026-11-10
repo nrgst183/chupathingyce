@@ -97,6 +97,13 @@ begin again.
 #include "../src/port_folders.h"
 #include "bot_internal.h"
 
+/* (the logs folder is a path on this machine's disk, not an Xbox one: on
+   Linux the game's fopen takes every path for one under the data root, and
+   the files went there, one set for every copy of the game running) */
+#if !defined(_WIN32)
+#undef fopen
+#endif
+
 int config_boolean(char const *name);
 const char *platform_folder(enum port_folder folder);
 void platform_log(char const *format, ...);

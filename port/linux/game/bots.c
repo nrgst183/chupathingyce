@@ -1739,6 +1739,36 @@ struct bot_state
 	int in_cover; /* going there, or there waiting */
 	long cover_until; /* give up waiting (a push, or it's taking too long) */
 	long cover_check_ticks;
+	/* fighting as a person does: the swing past someone turned onto
+	   (bot_aim_overshoot), losing them in a hard strafe
+	   (bot_aim_strafe_loss), the plasma pistol and the pistol one after the
+	   other (bot_noob_combo), a reload in the quiet (bot_safe_reload), the
+	   peek out of cover (bot_peek_move) and the aim held where they went
+	   (bot_preaim) */
+	long overshoot_target; /* who the last swing was onto, */
+	long overshoot_seen; /* ... the last tick it aimed at them, */
+	long overshoot_tick; /* ... and when the swing began */
+	real overshoot_yaw, overshoot_pitch; /* how far past them it goes, still to settle back */
+	long strafeloss_logged;
+	long noob_unit; /* the overcharged shot: at whom, */
+	long noob_tick; /* ... when it went, */
+	long noob_stripped; /* ... when their shields were seen gone (0: not yet), */
+	long noob_delay; /* ... how long this one takes to see it and switch (NONE: it won't), */
+	long noob_head_until; /* ... and the pistol at the head until then */
+	long safe_reload_tick;
+	long peek_phase; /* 0 not peeking; 1 back in cover; 2 out at the edge; 3 not one to peek, this time in cover */
+	long peek_next; /* phase 1: when to step out; phase 2: when to step back */
+	long peek_count, peek_most;
+	long peek_until; /* given up then, whatever */
+	long peek_edge_tick; /* the last tick it saw them on its way into cover, */
+	real_point3d peek_edge; /* ... and where it stood: the edge to step out to */
+	real peek_shield; /* its shields as it stepped out */
+	long peek_seen_tick, peek_out_tick; /* out: when it last had them in sight, and when it stepped out */
+	long peek_unit; /* who it is peeking at (remembered here after the chase has let them go) */
+	real preaim_head; /* how far above their middle their eyes were, last seen */
+	real_point3d preaim_point; /* gone from sight: where the aim is held */
+	long preaim_tick;
+	long preaim_logged; /* (the unit it was last logged for) */
 	long shot_cooldown; /* firing: ticks to the next trigger pull */
 	long burst_ticks;
 	long burst_pause;
@@ -19385,6 +19415,103 @@ static int bot_check_threat(struct bot_state *bot, struct bot_skill_parameters c
 	return threatened;
 }
 
+/* The swing past. A person turning a long way onto someone, a new one or
+   one who has jumped across the view, flicks the stick or the wrist hard,
+   goes past them in the way of the turn and comes back onto them: the
+   bigger and quicker the turn, the further past, the poorer the player the
+   more (a few degrees at the bottom on a quarter turn, under one at the
+   top). The bots' hand (bot_turn_look) eased into where it looked and
+   stopped dead on it, every time, which no hand does. The swing is held
+   while the turn is still on its way (or it would have settled before the
+   aim got there), then settles back, the better the quicker.
+   HALO_BOT_OFF=overshoot */
+static void bot_aim_overshoot(struct bot_think *t, real *desired_yaw, real *desired_pitch)
+{
+	struct bot_state *bot = t->bot;
+	long target = t->target;
+	long now = game_time_get();
+	real need_yaw, need_pitch;
+	if (bot_env_off("overshoot") || t->driving)
+	{
+		bot->overshoot_yaw = bot->overshoot_pitch = 0.f;
+		return;
+	}
+	need_yaw = bot_angle_difference(*desired_yaw, bot->yaw);
+	need_pitch = *desired_pitch - bot->pitch;
+	{
+		int fresh = bot->overshoot_target != target || now - bot->overshoot_seen > 10;
+		real need = (real)fabs(need_yaw);
+		bot->overshoot_seen = now;
+		if ((fresh && need > 0.3f) || (need > 0.7f && now - bot->overshoot_tick > BOT_SECONDS(0.8f)))
+		{
+			real frac = bot_skill_fraction();
+			real k = (0.14f - 0.13f * frac) * bot->personality.accuracy * (0.6f + 0.8f * bot_random(bot));
+			real past = MIN(MIN(need, 1.6f) * k, 0.25f);
+			bot->overshoot_target = target;
+			bot->overshoot_tick = now;
+			bot->overshoot_yaw = need_yaw > 0.f ? past : -past;
+			bot->overshoot_pitch = PIN(need_pitch * k, -0.08f, 0.08f);
+			if (bot_logging())
+				bot_log("bot%ld t%ld overshoot: turn %.2f onto %lx, past by %.3f %.3f", t->player_absolute_index, now, need_yaw,
+					(unsigned long)target, bot->overshoot_yaw, bot->overshoot_pitch);
+		}
+		bot->overshoot_target = target;
+	}
+	/* (still swinging round onto them: held; there, or past: settling back) */
+	if (fabs(need_yaw) < 1.5f * fabs(bot->overshoot_yaw) + 0.05f || now - bot->overshoot_tick > BOT_SECONDS(1.f))
+	{
+		real settle = 0.9f - 0.15f * bot_skill_fraction();
+		bot->overshoot_yaw *= settle;
+		bot->overshoot_pitch *= settle;
+	}
+	*desired_yaw = bot_wrap(*desired_yaw + bot->overshoot_yaw);
+	*desired_pitch += bot->overshoot_pitch;
+}
+
+/* Lost in a hard strafe. Someone going fast across the line of sight,
+   close in, is harder to keep on than one coming straight on or standing:
+   a person's aim falls behind them, the further the faster they cross it,
+   and catches up once they slow. The lead is for where they will be when
+   the shot gets there; this is the hand not keeping up with them at all.
+   An error behind the way they cross, by how much faster than about a
+   third of a radian a second they go across the view, the poorer the
+   player and the less accurate its nature the more; the top level all but
+   keeps up. In test games the bots of every level tracked a strafing
+   player at close range as well as a standing one. HALO_BOT_OFF=strafeloss */
+static void bot_aim_strafe_loss(struct bot_think *t, struct bot_skill_parameters const *skill, struct object_datum *target_object)
+{
+	struct bot_state *bot = t->bot;
+	real_vector3d const *going;
+	real toward, across, rate, excess;
+	if (bot_env_off("strafeloss") || t->driving)
+		return;
+	going = &object_get(object_get_ultimate_parent(t->target))->object.translational_velocity;
+	toward = bot_yaw_to(&t->eye, &target_object->object.bounding_sphere_center);
+	across = going->j * (real)cos(toward) - going->i * (real)sin(toward);
+	rate = across / MAX(t->target_distance, 1.f); /* (radians a tick, the way the yaw goes) */
+	excess = (real)fabs(rate) - 0.33f / BOT_TICKS_PER_SECOND;
+	if (excess > 0.f)
+	{
+		/* (how far behind it falls, held there while they keep it up: their
+		   speed across over that third, times a quarter of a second at the
+		   bottom level, a hundredth at the top, at most a fifth of a radian.
+		   Put in a part a tick against the error's settling, so that it comes
+		   to that and no more. The first try added it whole every tick, and
+		   with the settling the bottom levels fell more than half a radian
+		   behind a close strafe) */
+		real frac = bot_skill_fraction();
+		real seconds = (0.25f * (1.f - frac) * (real)sqrt(1.f - frac) + 0.01f) * bot->personality.accuracy;
+		real lag = MIN(excess * BOT_TICKS_PER_SECOND * seconds, 0.2f) * (1.f - skill->aim_settle);
+		bot->aim_error_yaw += rate > 0.f ? -lag : lag;
+		if (bot_logging() && game_time_get() - bot->strafeloss_logged > BOT_SECONDS(2.f))
+		{
+			bot->strafeloss_logged = game_time_get();
+			bot_log("bot%ld t%ld strafeloss: %.2f rad/s across at %.1f, aim %.3f behind", t->player_absolute_index, game_time_get(),
+				rate * BOT_TICKS_PER_SECOND, t->target_distance, (real)fabs(bot->aim_error_yaw));
+		}
+	}
+}
+
 static void bot_aim_at_target(struct bot_think *t)
 {
 	struct bot_state *bot = t->bot;
@@ -19469,7 +19596,10 @@ static void bot_aim_at_target(struct bot_think *t)
 			(BOT_ON(BOT_F_HEAD) && bot_refined_is(65536) && unit->unit.current_weapon_index >= 0 &&
 				bot_head_kills(unit->unit.weapon_object_indices[unit->unit.current_weapon_index], target))) &&
 		TEST_FLAG(_object_mask_biped, target_object->object.type) && target_object->object.parent_object_index == NONE &&
-		bot_skill_fraction() * 0.8f + 0.2f > bot->headshot_roll)
+		(bot_skill_fraction() * 0.8f + 0.2f > bot->headshot_roll ||
+			/* (the pistol out after the overcharge took their shields: the
+			   head, that is what it came out for. bot_noob_combo) */
+			(bot->noob_unit == target && game_time_get() < bot->noob_head_until)))
 	{
 		real_point3d head;
 		unit_get_camera_position(target, &head);
@@ -19545,6 +19675,17 @@ static void bot_aim_at_target(struct bot_think *t)
 	}
 	bot->aim_error_yaw *= skill->aim_settle;
 	bot->aim_error_pitch *= skill->aim_settle;
+	bot_aim_strafe_loss(t, skill, target_object);
+	bot_aim_overshoot(t, &desired_yaw, &desired_pitch);
+	/* (where their eyes are over their middle: for the aim held on where
+	   they went, out of sight, bot_preaim) */
+	if (TEST_FLAG(_object_mask_biped, target_object->object.type) && target_object->object.parent_object_index == NONE &&
+		(game_time_get() + t->player_absolute_index) % 5 == 0)
+	{
+		real_point3d head;
+		unit_get_camera_position(target, &head);
+		bot->preaim_head = PIN(head.z - target_object->object.bounding_sphere_center.z, 0.f, 0.5f);
+	}
 	/* a camouflaged target: only a rough idea where they are, the aim
 	   wandering round them (the further, the more) */
 	if (unit_try_and_get(target) && unit_get(target)->unit.active_camouflage > 0.5f && (game_time_get() + t->player_absolute_index) % 8 == 0)
@@ -19861,6 +20002,374 @@ static void bot_log_position(struct bot_think *t)
 	}
 }
 
+/* The noob combo: the plasma pistol's overcharged shot takes all of
+   someone's shields at once, and a pistol to the head straight after is the
+   kill, before they get them back. A good player has the pistol out the
+   moment he sees the shields go, and goes for the head with it. The bots
+   switched only when the switch's per-tick chance came up
+   (bot_fight_choose_weapon), a second or more later as often as not, and at
+   the body. Now: the overcharge let go at someone, their shields seen gone
+   within a second and a half of it, and a pistol or another precision gun
+   with rounds in it on its back: out at once for the top levels, after a
+   moment's look the lower down, and never for the bottom ones (they don't
+   know the trick), then at the head for three seconds. HALO_BOT_OFF=noobcombo */
+static void bot_noob_combo(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	struct unit_datum *unit = t->unit;
+	long now = game_time_get();
+	struct object_datum *them;
+	if (bot_env_off("noobcombo") || t->vehicle_index != NONE || t->target == NONE)
+		return;
+	them = object_try_and_get(t->target);
+	if (!them)
+		return;
+	/* (let go this tick: bot_fire_control has the charge at -20 on the
+	   tick of the release, and only then) */
+	if (t->weapon.kind == _bot_gun_plasma_pistol && bot->charge_ticks == -20 && bot->charge_time == now)
+	{
+		real know = PIN((bot_skill_now - 2.f) / 2.f, 0.f, 1.f); /* (none at level 3 and under, all from level 8) */
+		bot->noob_unit = t->target;
+		bot->noob_tick = now;
+		bot->noob_stripped = 0;
+		bot->noob_delay = bot_random(bot) < know ? (long)((1.f - know) * BOT_SECONDS(0.7f) * bot->personality.reaction * (0.5f + bot_random(bot))) : NONE;
+	}
+	if (bot->noob_unit != t->target || bot->noob_tick == 0 || now - bot->noob_tick > BOT_SECONDS(1.5f))
+		return;
+	if (bot->noob_stripped == 0 && them->object.shield_vitality < 0.05f)
+		bot->noob_stripped = now;
+	if (bot->noob_stripped != 0 && bot->noob_delay != NONE && now - bot->noob_stripped >= bot->noob_delay && !t->weapon_chosen &&
+		t->weapon.kind == _bot_gun_plasma_pistol && unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index <= 1)
+	{
+		short other_slot = (short)(unit->unit.current_weapon_index == 0 ? 1 : 0);
+		long other_index = unit->unit.weapon_object_indices[other_slot];
+		struct bot_weapon other;
+		if (other_index == NONE || !object_try_and_get(other_index))
+			return;
+		bot_weapon_describe(other_index, &other);
+		if ((other.kind == _bot_gun_pistol || other.precision) && !other.none && (!other.uses_ammunition || other.rounds_loaded > 0 || other.rounds_total > 0))
+		{
+			t->action->desired_weapon_index = other_slot;
+			bot->weapon_switch_ticks = BOT_SECONDS(1.5f);
+			t->weapon_chosen = TRUE;
+			bot->noob_head_until = now + BOT_SECONDS(3.f);
+			if (bot_logging())
+				bot_log("bot%ld t%ld noob combo: shields gone %ld ticks after the overcharge, out after %ld more, for the head at %.1f",
+					t->player_absolute_index, now, bot->noob_stripped - bot->noob_tick, now - bot->noob_stripped, t->target_distance);
+			bot->noob_tick = 0;
+		}
+	}
+}
+
+/* A reload in the quiet. Out of a fight with the magazine well down, a good
+   player reloads as soon as it is safe (nobody in sight, nothing on the
+   tracker, nothing heard for a moment), so as to meet the next one full,
+   not twelve rounds in. The bots reloaded only under a quarter, or empty in
+   the middle of the next fight. The levels from about 4: under 45% of a
+   magazine at level 4, 60% at the top, after one and a half to two
+   seconds of quiet (the aggressive a little later, thinking of the next
+   fight). Never in a fight: that is only when it is empty, as before
+   (bot_fire_control). HALO_BOT_OFF=safereload */
+static void bot_safe_reload(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	struct bot_weapon const *weapon = &t->weapon;
+	struct unit_datum *unit = t->unit;
+	long now = game_time_get();
+	real frac = bot_skill_fraction();
+	long held;
+	struct weapon_datum *gun;
+	struct weapon_definition *definition;
+	long magazine;
+	real quiet;
+	if (bot_env_off("safereload") || frac < 0.35f || t->vehicle_index != NONE || weapon->none || !weapon->uses_ammunition ||
+		weapon->rounds_total <= 0 || t->target != NONE || bot->target_unit != NONE || t->threatened || bot->hit_ticks > 0 ||
+		bot->weapon_switch_ticks > 0 || bot->grenade_pending_ticks > 0 || bot->quiet_since <= 0)
+		return;
+	/* (pressed and let go and pressed again for half a second once begun,
+	   and not begun again for a while: the button is taken on the tick it
+	   goes down, and a gun busy that tick (landing, zoomed) let a press
+	   held down go for nothing, as the sniper rifle did in test games) */
+	if (bot->safe_reload_tick != 0 && now - bot->safe_reload_tick < BOT_SECONDS(0.5f))
+	{
+		if ((now - bot->safe_reload_tick) % 4 < 2)
+			t->action->control_flags |= FLAG(_unit_control_weapon_reload_bit);
+		return;
+	}
+	if (bot->safe_reload_tick != 0 && now - bot->safe_reload_tick < BOT_SECONDS(2.f))
+		return;
+	held = unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT ?
+		unit->unit.weapon_object_indices[unit->unit.current_weapon_index] : NONE;
+	gun = held != NONE ? weapon_try_and_get(held) : NULL;
+	if (!gun)
+		return;
+	definition = weapon_definition_get(gun->definition_index);
+	if (definition->weapon.magazines.count <= 0)
+		return;
+	magazine = TAG_BLOCK_GET_ELEMENT(&definition->weapon.magazines, 0, struct weapon_magazine_definition)->rounds_loaded_maximum;
+	quiet = (now - bot->quiet_since) / (real)BOT_TICKS_PER_SECOND;
+	/* (what the reload of old does already, under a quarter: left to it) */
+	if (magazine > 1 && weapon->rounds_loaded < magazine && weapon->rounds_loaded < (0.45f + 0.15f * frac) * magazine &&
+		!(weapon->rounds_loaded < MAX(1, weapon->rounds_total / 4) && weapon->rounds_loaded < 8) &&
+		quiet > (2.f - 0.5f * frac) * (0.8f + 0.4f * bot->personality.aggression))
+	{
+		bot->safe_reload_tick = now;
+		t->action->control_flags |= FLAG(_unit_control_weapon_reload_bit);
+		if (bot_logging())
+			bot_log("bot%ld t%ld safereload: %d of %ld in the magazine, %d more, quiet %.1f s", t->player_absolute_index, now,
+				weapon->rounds_loaded, magazine, weapon->rounds_total, quiet);
+	}
+}
+
+/* The peek. In cover from someone it knows is there, a person does not
+   sit until his shields are full and then walk out into the open where
+   they are waiting for him: he steps out to the edge, puts a few shots in,
+   and steps back when his shields go or after a moment, and out again a
+   moment later, never on a beat (a rhythm is something to time a shot by).
+   The bots went into cover with their shields gone (bot_fight_cover_check)
+   and, once out of sight there, the fight's movement was over: they walked
+   straight back out after whoever it was, or about their business, with
+   nothing back. Now: in cover, the one it hid from out of sight and
+   remembered, and where it last saw them from on the way in (the edge, a
+   step or a few from the cover): back in a moment or two, crouched, the aim
+   held where they will show (bot_preaim); out to the edge when it is time
+   and its shields are some way back; shooting from there for a second or
+   so; back in when its shields drop by a good part, or the time is up, or
+   they are not to be seen from there. A few times, then it is done with it
+   and fights as before. Someone right up on it: fought. Most of the levels,
+   the lowest less often. HALO_BOT_OFF=peek */
+static void bot_peek_end(struct bot_think *t, char const *why)
+{
+	struct bot_state *bot = t->bot;
+	if (bot->peek_phase == 1 || bot->peek_phase == 2)
+	{
+		if (bot_logging())
+			bot_log("bot%ld t%ld peek done after %ld: %s", t->player_absolute_index, game_time_get(), bot->peek_count, why);
+		bot->in_cover = FALSE;
+	}
+	bot->peek_phase = 0;
+}
+
+static real bot_peek_hide_time(struct bot_state *bot)
+{
+	/* (a skew to the short with a long tail, the bot's own nature in it: no beat) */
+	real r = bot_random(bot);
+	return (0.4f + 0.8f * bot_random(bot) + 1.2f * r * r) * (1.2f - 0.4f * bot->personality.aggression);
+}
+
+static int bot_peek_wanted(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	long now = game_time_get();
+	if (bot_env_off("peek") || t->vehicle_index != NONE || t->zombie || bot->carrying_objective)
+	{
+		bot_peek_end(t, "not now");
+		return FALSE;
+	}
+	if (t->committed)
+		return FALSE;
+	if (!bot->in_cover)
+	{
+		bot->peek_phase = 0;
+		return FALSE;
+	}
+	/* (going in, with them in sight: where it stood is the edge) */
+	if (bot->peek_phase == 0 && t->target != NONE)
+	{
+		bot->peek_edge = t->position;
+		bot->peek_edge_tick = now;
+		return FALSE;
+	}
+	if (bot->peek_phase == 3)
+		return FALSE;
+	if (bot->peek_phase == 0)
+	{
+		real edge = bot_distance2d(&bot->peek_edge, &bot->cover_spot);
+		/* (gone from sight because they died, to it or to someone else,
+		   most of the time in test games: nobody to peek at) */
+		if (bot->target_unit == NONE || !bot_unit_alive(bot->target_unit) || bot->peek_edge_tick == 0 || now - bot->peek_edge_tick > BOT_SECONDS(3.f) || edge < 0.6f || edge > 8.f ||
+			t->weapon.none || bot_on_objective(bot) || bot_distance2d(&t->position, &bot->cover_spot) > 1.5f)
+			return FALSE;
+		if (bot_random(bot) > 0.35f + 0.65f * bot_skill_fraction())
+		{
+			bot->peek_phase = 3;
+			return FALSE;
+		}
+		bot->peek_phase = 1;
+		bot->peek_unit = bot->target_unit;
+		bot->peek_count = 0;
+		bot->peek_most = 2 + (long)(bot_random(bot) * 3.f);
+		bot->peek_next = now + BOT_SECONDS(bot_peek_hide_time(bot));
+		bot->peek_until = now + BOT_SECONDS(8.f + 8.f * bot->personality.patience);
+		if (bot_logging())
+			bot_log("bot%ld t%ld peek from cover: edge %.1f off, shields %.2f, up to %ld times", t->player_absolute_index, now, edge,
+				t->unit->object.shield_vitality, bot->peek_most);
+	}
+	/* (whoever it hid from: still alive. Not
+	   the chase's memory of them, which let them go in three seconds or so,
+	   while its shields were still on their way back) */
+	if (!bot_unit_alive(bot->peek_unit))
+	{
+		bot_peek_end(t, "they are dead");
+		return FALSE;
+	}
+	/* (someone else in sight, not close: the one it peeks at now) */
+	if (t->target != NONE && t->target != bot->peek_unit)
+		bot->peek_unit = t->target;
+	if (t->target != NONE && t->target_distance < 5.f)
+	{
+		bot_peek_end(t, "right on it");
+		return FALSE;
+	}
+	if (now > bot->peek_until)
+	{
+		bot_peek_end(t, "long enough");
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static void bot_peek_move(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	struct bot_move_result *result = &t->result;
+	real shields = t->unit->object.shield_vitality;
+	long now = game_time_get();
+	t->how = 1;
+	t->moved = TRUE;
+	/* (nobody in sight and the chase has let them go: the look on where
+	   they were, at their head's height, all the same) */
+	if (t->target == NONE && bot->target_unit == NONE && !bot_env_off("preaim"))
+	{
+		real_point3d at = bot->last_seen;
+		at.z += bot->preaim_head > 0.f ? bot->preaim_head : 0.2f;
+		t->desired_yaw = bot_yaw_to(&t->eye, &at);
+		t->desired_pitch = (real)atan2(at.z - t->eye.z, MAX(0.5f, bot_distance2d(&at, &t->eye)));
+		t->look_reason = _bot_look_expect;
+	}
+	if (bot->peek_phase == 1)
+	{
+		/* (time to go, and its shields some way back, or well on and a
+		   while waited) */
+		if (now >= bot->peek_next && (shields >= 0.45f || (shields >= 0.25f && now > bot->peek_next + BOT_SECONDS(2.f))))
+		{
+			if (bot->peek_count >= bot->peek_most)
+			{
+				bot_peek_end(t, "peeked enough");
+				t->moved = FALSE;
+				return;
+			}
+			bot->peek_phase = 2;
+			bot->peek_shield = shields;
+			bot->peek_seen_tick = bot->peek_out_tick = now;
+			bot->peek_next = now + BOT_SECONDS((0.6f + 0.5f * bot_random(bot) + 0.5f * bot_random(bot)) * (0.8f + 0.5f * bot->personality.aggression));
+			if (bot_logging())
+				bot_log("bot%ld t%ld peek out %ld: shields %.2f, for %.1f s", t->player_absolute_index, now, bot->peek_count + 1, shields,
+					(bot->peek_next - now) / (real)BOT_TICKS_PER_SECOND);
+		}
+	}
+	else if (bot->peek_phase == 2)
+	{
+		char const *why = NULL;
+		if (t->target != NONE)
+			bot->peek_seen_tick = now;
+		if (shields < bot->peek_shield - 0.3f || shields < 0.2f)
+			why = "shields";
+		else if (now >= bot->peek_next)
+			why = "time";
+		else if (now - bot->peek_seen_tick > BOT_SECONDS(1.f))
+			why = "not there";
+		/* (not seen at all from the edge this time: they have gone from
+		   where they were, and it is done with peeking at it) */
+		if (why && why[0] == 'n' && bot->peek_seen_tick == bot->peek_out_tick)
+		{
+			bot_peek_end(t, "gone from there");
+			t->moved = FALSE;
+			return;
+		}
+		if (why)
+		{
+			bot->peek_phase = 1;
+			bot->peek_count++;
+			bot->peek_next = now + BOT_SECONDS(bot_peek_hide_time(bot));
+			if (bot_logging())
+				bot_log("bot%ld t%ld peek back in: %s, shields %.2f, out again in %.1f s", t->player_absolute_index, now, why, shields,
+					(bot->peek_next - now) / (real)BOT_TICKS_PER_SECOND);
+		}
+	}
+	{
+		real_point3d const *to = bot->peek_phase == 2 ? &bot->peek_edge : &bot->cover_spot;
+		/* (out, and them in sight: stood at it, shooting) */
+		if (bot->peek_phase == 2 && t->target != NONE && bot_distance2d(&t->position, to) < 1.f)
+		{
+			t->moving = TRUE;
+			t->move_speed = 0.f;
+			return;
+		}
+		bot_go(bot, &t->body, to, _bot_move_goal_position, bot->peek_phase == 2 ? 0.4f : 0.5f, result);
+		if (result->moving)
+		{
+			t->move_yaw = result->yaw;
+			t->move_speed = result->speed;
+			t->moving = TRUE;
+		}
+		else if (bot_distance2d(&t->position, to) > 1.2f)
+		{
+			bot_peek_end(t, "no way there");
+			t->moved = FALSE;
+		}
+		else
+		{
+			t->moving = TRUE;
+			t->move_speed = 0.f;
+			if (bot->peek_phase == 1)
+				t->action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
+		}
+	}
+}
+
+/* The aim held where they went. Someone gone out of sight, a good player
+   keeps his crosshair on the corner they went round, at the height of
+   their head, and they walk into it as they come back; a poor one looks
+   where he is walking and has to find them all over again. The bots looked
+   at where the way they were going would take them, through the wall as
+   often as not, at the middle of the body, and walking, mostly down the
+   way they walked (no more than 0.8 off it). Now: where they would be by
+   now when that can be seen from here, and if not where they went out of
+   sight, which is where they will come back; their eyes' height over
+   it, the better the bot the nearer; and walking, the look kept on it up to
+   a quarter turn and more off the way, the better the further, for the
+   first two and a half seconds. The levels from about 3; the rest as
+   before, but for the height. HALO_BOT_OFF=preaim */
+static void bot_preaim(struct bot_think *t, real_point3d *ahead)
+{
+	struct bot_state *bot = t->bot;
+	long now = game_time_get();
+	real frac = bot_skill_fraction();
+	if (bot_env_off("preaim") || t->vehicle_index != NONE)
+		return;
+	if (frac >= 0.25f)
+	{
+		if (bot->preaim_tick != now - 1 || (now + t->player_absolute_index) % 3 == 0)
+		{
+			if (bot_line_clear(bot_sight_flags, &t->eye, ahead, object_get_ultimate_parent(t->me->unit_index)))
+				bot->preaim_point = *ahead;
+			else
+				bot->preaim_point = bot->last_seen;
+		}
+		*ahead = bot->preaim_point;
+	}
+	ahead->z += (bot->preaim_head > 0.f ? bot->preaim_head : 0.2f) * (0.4f + 0.6f * frac);
+	bot->preaim_tick = now;
+	if (bot_logging() && bot->lost_ticks == 3 && bot->preaim_logged != bot->target_unit + bot->seen_ticks)
+	{
+		bot->preaim_logged = bot->target_unit + bot->seen_ticks;
+		bot_log("bot%ld t%ld preaim: player %ld out of sight, held on %s, %.1f off", t->player_absolute_index, now, bot->target_player,
+			frac < 0.25f ? "the way they went" : distance3d(ahead, &bot->last_seen) < 0.6f ? "where they went" : "where they will be",
+			distance3d(&t->eye, ahead));
+	}
+}
+
 static void bot_think_inner(long player_absolute_index, struct player_action *action)
 {
 	struct bot_think think;
@@ -20050,6 +20559,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		/* out of sight: aimed where they'll come out (the way they were
 		   going), ready for them */
 		real_point3d ahead = bot_predict_enemy(bot, 0.3f);
+		bot_preaim(t, &ahead);
 		t->desired_yaw = bot_yaw_to(&t->eye, &ahead);
 		t->desired_pitch = (real)atan2(ahead.z - t->eye.z, MAX(0.5f, bot_distance2d(&ahead, &t->eye)));
 		t->look_reason = _bot_look_expect;
@@ -20191,6 +20701,8 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	else if (t->zombie && t->target != NONE && t->target_distance < 5.f && !t->committed &&
 		(!aas_ready() || aas_line_in_areas(AAS_FOOT, &t->position, &object_get(object_get_ultimate_parent(t->target))->object.position)))
 		bot_zombie_charge(t);
+	else if (bot_peek_wanted(t))
+		bot_peek_move(t); /* (in cover, stepping out and back: bot_peek_move) */
 	else if (bot_stands_to_fight(t))
 		bot_fight_move(t);
 	else
@@ -20386,6 +20898,9 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	{
 		real off = bot_angle_difference(t->desired_yaw, t->path_yaw);
 		real allowed = (bot->target_unit != NONE ? 0.8f : 0.5f) * (1.f - 0.5f * bot_purposeful());
+		/* (the aim held where they went, for a while: further off the way, bot_preaim) */
+		if (bot->target_unit != NONE && bot->preaim_tick == game_time_get() && bot->lost_ticks < BOT_SECONDS(2.5f) && bot_skill_fraction() >= 0.25f)
+			allowed = MAX(allowed, 0.8f + 0.8f * bot_skill_fraction());
 		t->desired_yaw = bot_wrap(t->path_yaw + PIN(off, -allowed, allowed));
 		if (bot->target_unit == NONE && bot->tracked_unit == NONE)
 			t->desired_pitch = 0.f;
@@ -20510,6 +21025,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 			!bot_friend_in_line(me, &t->eye, &object_get(t->target)->object.bounding_sphere_center, t->vehicle_index))
 			bot_fire_control(bot, &t->weapon, off_yaw, off_pitch, t->target_distance, object_get(t->target)->object.shield_vitality, action);
 
+		bot_noob_combo(t);
 		bot_fight_choose_weapon(t);
 
 		bot_grenade_at_target(t);
@@ -20524,6 +21040,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		{
 			action->control_flags |= FLAG(_unit_control_weapon_reload_bit);
 		}
+		bot_safe_reload(t);
 		bot_idle_choose_weapon(bot, action, unit, t->vehicle_index, &t->weapon, t->weapon_chosen);
 	}
 	/* out of ammunition (or battery): the other weapon, if it's any better

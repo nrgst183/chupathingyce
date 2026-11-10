@@ -3217,6 +3217,43 @@ and two kinds of walker); the wrecks of the others stayed.
   Bots seldom have a grenade at the moment they go for a power item, so
   this is occasional (`nadeitem`; `HALO_BOT_NADEGIVE` gives grenades, for
   testing).
+- **The aim swings past on a big turn:** turning a long way onto someone
+  (a new target, or one who has jumped across the view), the aim goes past
+  them in the way of the turn and settles back, as a hand flicking the
+  stick does: a few degrees at the bottom level on a quarter turn, about
+  one at the top. Before, the aim eased in and stopped dead on them every
+  time (`overshoot`).
+- **Lost in a hard strafe:** someone crossing the line of sight faster
+  than about a third of a radian a second is harder to keep on; the aim
+  falls behind the way they go, by how much faster than that they cross
+  it, the more the lower the level and the less accurate the bot's nature,
+  hardly at all at the top. In test games bots of every level tracked a
+  strafing player close in as well as a standing one (`strafeloss`).
+- **The noob combo:** when a bot's overcharged plasma pistol shot has just
+  taken someone's shields and it has a pistol or another precision gun on
+  its back, it switches at once at the top levels, after a moment's look
+  lower down and not at all at level 3 and under, and goes for the head
+  for three seconds. Before, the switch waited on its per-tick chance and
+  aimed at the body (`noobcombo`).
+- **A reload in the quiet:** from about level 4, with nobody in sight,
+  heard or on the tracker for one and a half to two seconds and the
+  magazine under 45% (level 4) to 60% (the top), the bot reloads, so as to
+  meet the next fight full. Never in a fight: that stays for an empty
+  magazine (`safereload`).
+- **Peeking from cover:** a bot that has gone to cover from someone still
+  alive and out of sight now steps out to the edge it came in from when
+  its shields are some way back, shoots for a second or so, and steps back
+  in when its shields drop, its time is up or they are not there, a few
+  times, with timings drawn at random and its nature in them (no beat to
+  time a shot by). Before, once out of sight there it walked straight back
+  out into the open. Someone right on it ends it (`peek`).
+- **The aim held where they went:** someone gone out of sight, a bot from
+  about level 3 holds its aim where they would be by now if that can be
+  seen, and otherwise on where they went out of sight, at the height of
+  their eyes; walking, it keeps the aim there up to well off the way it
+  walks for the first two and a half seconds. Before, it looked along
+  their way through the wall at body height, and mostly down its own path
+  (`preaim`).
 
 In 13-minute test games, bots now drive to the other base and go for its
 flag; before, nobody went for either flag. No game has had a capture yet:

@@ -1811,6 +1811,33 @@ struct bot_state
 	long ambush_player; /* whose body ambush_unit is */
 	real ambush_nearest; /* the nearest they have been since it began to wait, */
 	long ambush_nearer_tick; /* ... and when they last came nearer */
+	/* (keeping low on purpose, bot_stealth_crouch: lying in wait, holding a
+	   camper's spot, creeping up on someone) */
+	int stealth_down; /* crouched for it, as of the last tick */
+	long stealth_why; /* ... for which (1 in wait, 2 holding a spot, 3 creeping up) */
+	long stealth_down_until; /* once down, down until at least then */
+	long stealth_up_until; /* once up, up until at least then */
+	real_point3d stealth_hold_at; /* the spot held that it decided about, */
+	int stealth_hold_keen; /* ... and whether it keeps low there */
+	long creep_unit; /* the one it last thought of creeping up on, */
+	int creep_keen; /* ... whether it would, */
+	long creep_since; /* ... since when it has been creeping (0: not), */
+	long creep_until; /* ... and until when that holds before it thinks again */
+	int creep_hidden; /* ... out of their sight or behind their back (looked at a few times a second) */
+	long creep_look_tick;
+	long shift_next; /* lying in wait: the next shift of its place, or look round the corner */
+	long shift_until; /* ... the one under way, until then */
+	real_point3d shift_spot;
+	int shift_peek; /* ... a look round the corner (into their sight), not a shift out of it */
+	long shift_for; /* ... of the wait that ends then (its ambush_until: a new wait, a fresh start) */
+	long team_break_until; /* a team game: broken off a lost fight to recharge, till then (0: not) */
+	long team_break_tick; /* ... when it last thought of breaking off */
+	long team_break_health; /* ... the health pack it is going for (NONE) */
+	long spawnwatch_victim; /* a team game: whose coming back it is watching for (bot_goal_spawnwatch; NONE), */
+	long spawnwatch_until; /* ... till then, */
+	real_point3d spawnwatch_guess; /* ... where it expects them, */
+	real_point3d spawnwatch_spot; /* ... and where it watches from */
+	real_point3d spawnwatch_shun; /* (hurt: where not to go, bot_consider_shun) */
 	int moved_how; /* which part of the movement had the last tick (1: the fight, 2: travel, 3: lying in wait, 0: none of them) */
 	/* (testing: how it has moved in its fights, bot_logging) */
 	long stat_fight, stat_still, stat_side, stat_turns, stat_air;
@@ -4737,6 +4764,10 @@ static real bot_hunch_width;
 /* somewhere this bot just found no way to (someone up where it can't go):
    not straight back there */
 static real_point3d const *bot_consider_noroute;
+/* ... and, hurt, where someone of theirs is about to come back to life (a
+   team game: bot_spawnwatch_begin), not walked into */
+static real_point3d const *bot_consider_shun;
+#define BOT_SPAWNWATCH_SHUN 10.f
 
 static int bot_noroute_near(struct bot_state const *bot, real_point3d const *point)
 {
@@ -4815,6 +4846,8 @@ static int bot_consider(struct bot_candidate *best, real score, long kind, real_
 	score = bot_hunch(score, kind, point, object);
 	if (bot_consider_noroute && object == NONE && !objective && distance3d(point, bot_consider_noroute) < 4.f)
 		score *= 0.1f;
+	if (bot_consider_shun && !objective && distance3d(point, bot_consider_shun) < BOT_SPAWNWATCH_SHUN)
+		score *= 0.25f;
 	if (score > best->score)
 	{
 		best->score = score;
@@ -8461,12 +8494,15 @@ static real bot_ffa_goal_scale(struct bot_state const *bot, long me, struct unit
    one to come and take it */
 static int bot_find_cover(struct bot_state *bot, struct bot_body const *body, real_point3d const *enemy, long ignore,
 	real_point3d *spot);
+static real bot_team_reset_level(void);
+static int bot_team_reset_kill(struct bot_state *bot, struct player_datum const *me);
 static void bot_goal_reset(struct bot_goal_pass *g)
 {
 	struct bot_state *bot = g->bot;
 	struct unit_datum *unit = g->unit;
 	long now = game_time_get();
-	real ffa = bot_ffa_pro(BOT_G_RESET);
+	/* (a team game's, HALO_BOT_OFF=teamreset: bot_team_reset_level) */
+	real ffa = MAX(bot_ffa_pro(BOT_G_RESET), bot_team_reset_level());
 	if (ffa <= 0.f || bot->reset_until <= now || unit->object.parent_object_index != NONE || bot->carrying_objective)
 		return;
 	if (unit->object.shield_vitality > 0.95f)
@@ -8507,6 +8543,249 @@ static void bot_goal_reset(struct bot_goal_pass *g)
 	if (bot->reset_found > 0)
 		bot_consider(&g->best, (9.f + 6.f * (1.f - bot->personality.aggression)) * ffa, _bot_goal_hold, &bot->reset_spot, NONE,
 			bot->reset_until - now, FALSE);
+}
+
+/* ---- where someone of theirs just killed will come back (a team game,
+   HALO_BOT_OFF=spawnwatch)
+
+What came back when was known (bot_consider_spawns: the guns and powerups),
+and in a free-for-all a bot with no shields left alone someone just born
+(BOT_G_SPAWNWISE); but who came back where was nothing to it. A good player
+in a team game knows the game puts someone back at one of their starting
+places away from his side and near their own, and after a kill he looks
+that way, or goes to where he can see it, to have them as they come in; and
+hurt, he does not walk into it. Now the levels from 5 of 10, all of it from
+7: the starting places are rated for the one killed as the game rates them
+when it puts them back (game_engine_get_starting_location_rating, but for
+the game's roll of the dice), once for each death. Only a guess that most of
+the rating is about one place counts (spread over the map, there is no
+telling); and from a place 10 to 18 units off that sees it, not on top of
+it, which the game would not put them back near. */
+short player_get_starting_location_count(void);
+static real_point3d bots_spawn_guess_at[BOT_MAXIMUM_PLAYERS];
+static long bots_spawn_guess_for[BOT_MAXIMUM_PLAYERS]; /* (the death it was for: bots_killed_time) */
+static int bots_spawn_guess_sure[BOT_MAXIMUM_PLAYERS];
+static long bots_spawn_guess_tick[BOT_MAXIMUM_PLAYERS]; /* (when it was last made: again each second, as their side moves) */
+
+/* how much of it: the levels from 5 of 10, all of it from 7 */
+static real bot_spawnwatch_level(void)
+{
+	return !bot_env_off("spawnwatch") && game_engine && game_engine_has_teams() && game_engine != &race_engine && aas_ready() ?
+		PIN((bot_skill_now - 2.7f) / 1.f, 0.f, 1.f) : 0.f; /* (bot_skill_now is 1 to 5: level 5 of 10 is 2.8, 7 is 3.7) */
+}
+
+/* where the one at this index, dead, will likely come back: FALSE when there
+   is no telling (or they are not dead) */
+static int bot_spawn_guess(long index, real_point3d *at)
+{
+	struct player_datum *them = bot_player_at_index(index);
+	if (index < 0 || index >= BOT_MAXIMUM_PLAYERS || !them || them->unit_index != NONE || bots_killed_time[index] <= 0)
+		return FALSE;
+	if (bots_spawn_guess_for[index] != bots_killed_time[index] || game_time_get() - bots_spawn_guess_tick[index] >= BOT_TICKS_PER_SECOND ||
+		game_time_get() < bots_spawn_guess_tick[index])
+	{
+		int again = bots_spawn_guess_for[index] == bots_killed_time[index];
+		real_point3d was = bots_spawn_guess_at[index];
+		int was_sure = bots_spawn_guess_sure[index];
+		long player_index = DATUM_INDEX_NEW(index, (unsigned short)((struct datum_header *)them)->identifier);
+		short count = player_get_starting_location_count();
+		real best = 0.f, total = 0.f, about = 0.f;
+		short i, chosen = NONE;
+		bots_spawn_guess_for[index] = bots_killed_time[index];
+		bots_spawn_guess_tick[index] = game_time_get();
+		bots_spawn_guess_sure[index] = FALSE;
+		for (i = 0; i < count; i++)
+		{
+			struct player_starting_location *location = player_get_starting_location(i);
+			real rating = location ? game_engine_get_starting_location_rating(player_index, location) : 0.f;
+			if (rating > best)
+			{
+				best = rating;
+				chosen = i;
+			}
+		}
+		if (chosen != NONE)
+		{
+			real_point3d const *place = &player_get_starting_location(chosen)->position;
+			/* (the game draws among them, each by its rating, so what
+			   counts is how much of all the rating is about that place) */
+			for (i = 0; i < count; i++)
+			{
+				struct player_starting_location *location = player_get_starting_location(i);
+				real rating = location ? game_engine_get_starting_location_rating(player_index, location) : 0.f;
+				total += rating;
+				if (location && distance3d(&location->position, place) < 9.f)
+					about += rating;
+			}
+			bots_spawn_guess_at[index] = *place;
+			bots_spawn_guess_sure[index] = total > 0.f && about >= 0.55f * total;
+		}
+		if (bot_logging() && (!again || was_sure != bots_spawn_guess_sure[index] || distance3d(&was, &bots_spawn_guess_at[index]) > 3.f))
+			bot_log("spawnguess t%ld player %ld: %s%s (%.0f in 100 of the rating about it, of %d places)", game_time_get(), index,
+				chosen == NONE ? "nowhere" : "a place", bots_spawn_guess_sure[index] ? ", sure enough" : ", no telling",
+				total > 0.f ? 100.f * about / total : 0.f, (int)count);
+	}
+	*at = bots_spawn_guess_at[index];
+	return bots_spawn_guess_sure[index];
+}
+
+/* (testing: as each comes back, how far from the last guess, sure or not) */
+static void bot_spawn_guess_check(long index, struct player_datum const *player)
+{
+	if (bot_logging() && index >= 0 && index < BOT_MAXIMUM_PLAYERS && bots_killed_time[index] > 0 &&
+		bots_spawn_guess_for[index] == bots_killed_time[index] && player->unit_index != NONE)
+	{
+		bot_log("spawnguess t%ld player %ld back %.1f from the guess (%s)", game_time_get(), index,
+			distance3d(&object_get(player->unit_index)->object.position, &bots_spawn_guess_at[index]),
+			bots_spawn_guess_sure[index] ? "sure enough" : "no telling");
+	}
+}
+
+/* the one of theirs, dead now or only just back, whose coming back is the nearest to it: FALSE for none */
+static int bot_spawn_coming(struct player_datum *player, real_point3d const *position, long *victim, real_point3d *at, long *due)
+{
+	long now = game_time_get();
+	real nearest = 1.0e9f;
+	long index;
+	int found = FALSE;
+	for (index = 0; index < BOT_MAXIMUM_PLAYERS; index++)
+	{
+		struct player_datum *them = bot_player_at_index(index);
+		real_point3d guess;
+		if (!them || !bot_is_enemy((short)player->team_index, them) || bots_killed_time[index] <= 0 || now - bots_killed_time[index] > BOT_SECONDS(20.f) ||
+			now < bots_killed_time[index])
+		{
+			continue;
+		}
+		/* (back already: a moment, as they get their bearings) */
+		if (them->unit_index != NONE)
+		{
+			if (bots_spawn_guess_for[index] != bots_killed_time[index] || !bots_spawn_guess_sure[index] ||
+				now - bots_spawned_time[index] > BOT_SECONDS(2.5f) || now < bots_spawned_time[index])
+			{
+				continue;
+			}
+			guess = bots_spawn_guess_at[index];
+		}
+		else if (!bot_spawn_guess(index, &guess))
+			continue;
+		if (distance3d(&guess, position) < nearest)
+		{
+			nearest = distance3d(&guess, position);
+			*victim = index;
+			*at = guess;
+			*due = them->unit_index != NONE ? 0 : MAX(them->respawn_timer, 0);
+			found = TRUE;
+		}
+	}
+	return found;
+}
+
+/* hurt (shields half gone, or the body hurt), with someone of theirs about
+   to come back near: where they will is no place to go (bot_consider) */
+static void bot_spawnwatch_begin(struct bot_state *bot, long me, struct player_datum *player, struct unit_datum *unit, real_point3d const *position)
+{
+	long victim, due;
+	real_point3d at;
+	bot_consider_shun = NULL;
+	if (bot_spawnwatch_level() <= 0.f || unit->object.parent_object_index != NONE || bot->carrying_objective ||
+		(unit->object.shield_vitality > 0.5f && unit->object.body_vitality > 0.6f))
+	{
+		return;
+	}
+	if (bot_spawn_coming(player, position, &victim, &at, &due) && due < BOT_SECONDS(4.f) && distance3d(&at, position) < 40.f &&
+		bot_random(bot) < 0.5f + 0.5f * bot_spawnwatch_level())
+	{
+		if (bot_logging() && distance3d(&bot->spawnwatch_shun, &at) > 1.f)
+			bot_log("bot%ld t%ld hurt (shields %.2f body %.2f): keeps off where player %ld comes back, %.1f off", me, game_time_get(),
+				unit->object.shield_vitality, unit->object.body_vitality, victim, distance3d(&at, position));
+		bot->spawnwatch_shun = at;
+		bot_consider_shun = &bot->spawnwatch_shun;
+	}
+}
+
+/* after a kill of ours, armed and well: to somewhere that sees where they
+   come back, as they do */
+static void bot_goal_spawnwatch(struct bot_goal_pass *g)
+{
+	struct bot_state *bot = g->bot;
+	struct unit_datum *unit = g->unit;
+	real_point3d const *position = g->position;
+	long now = game_time_get();
+	real level = bot_spawnwatch_level();
+	long victim, due;
+	real_point3d at;
+	real distance;
+	if (level <= 0.f || g->held < 3.5f || unit->object.parent_object_index != NONE || bot->carrying_objective || bot->escorting ||
+		unit->object.shield_vitality < 0.7f || unit->object.body_vitality < 0.5f ||
+		!bot_spawn_coming(g->player, position, &victim, &at, &due))
+	{
+		return;
+	}
+	distance = distance3d(&at, position);
+	if (distance > 45.f || distance < 8.f || due > BOT_SECONDS(6.f))
+		return;
+	/* (the one it chose for, still on: the same spot) */
+	if (!(labs(bot->spawnwatch_until) > now && bot->spawnwatch_victim == victim && distance3d(&bot->spawnwatch_guess, &at) < 1.f))
+	{
+		real_point3d eye = at, spot;
+		real toward = bot_yaw_to(&at, position);
+		real reach = 10.f + 4.f * bot_random(bot);
+		int found = FALSE;
+		long n;
+		/* (made up once for each death: the better the bot, and the
+		   bolder, the likelier) */
+		bot->spawnwatch_victim = victim;
+		bot->spawnwatch_guess = at;
+		bot->spawnwatch_until = now + due + BOT_SECONDS(3.f);
+		if (bot_random(bot) >= level * (0.55f + 0.45f * bot->personality.aggression) * (bot->personality.style == _bot_style_lurker ? 1.2f : 1.f))
+		{
+			bot->spawnwatch_until = -bot->spawnwatch_until; /* (not this one) */
+			return;
+		}
+		eye.z += 0.6f;
+		/* (where it stands, when that sees it and is far enough off) */
+		spot = *position;
+		spot.z += 0.62f;
+		if (distance < 18.f && bot_line_clear(bot_sight_flags, &eye, &spot, g->player->unit_index))
+		{
+			spot = *position;
+			found = TRUE;
+		}
+		/* (on its own side of the place, the way it is coming from
+		   first, then further to either side; and nearer and further) */
+		for (n = 0; n < 21 && !found; n++)
+		{
+			real yaw = bot_wrap(toward + (real)((n % 7 + 1) / 2) * (n & 1 ? 0.45f : -0.45f));
+			real out = reach + (n / 7 == 1 ? 4.f : n / 7 == 2 ? -2.f : 0.f);
+			real_point3d probe, head;
+			probe.x = at.x + (real)cos(yaw) * out;
+			probe.y = at.y + (real)sin(yaw) * out;
+			probe.z = at.z + 0.5f;
+			if (aas_nearest_area(AAS_FOOT, &probe, 3.f, &spot) == NONE || distance3d(&spot, &at) < 8.f || distance3d(&spot, &at) > 20.f ||
+				!bot_within_reach(&spot))
+			{
+				continue;
+			}
+			head = spot;
+			head.z += 0.62f;
+			found = bot_line_clear(bot_sight_flags, &head, &eye, g->player->unit_index);
+		}
+		if (!found)
+		{
+			bot->spawnwatch_until = -bot->spawnwatch_until;
+			return;
+		}
+		bot->spawnwatch_spot = spot;
+		if (bot_logging())
+			bot_log("bot%ld t%ld side %d expects player %ld back in %.1f s at a place %.1f off: watches it from %.1f off it", g->me, now,
+				(int)g->player->team_index, victim, (real)due / BOT_TICKS_PER_SECOND, distance, distance3d(&spot, &at));
+	}
+	if (bot->spawnwatch_until <= now)
+		return;
+	/* (worth about as much as the hunt: someone sure to be there) */
+	bot_consider(&g->best, (6.f + 5.f * bot->personality.aggression) * (0.6f + 0.4f * level) *
+		(g->objective_game ? BOT_OBJECTIVE_HUNT : 1.f), _bot_goal_hold, &bot->spawnwatch_spot, NONE, bot->spawnwatch_until - now, FALSE);
 }
 
 static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum *player, struct unit_datum *unit,
@@ -8568,6 +8847,7 @@ static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum 
 	g.best.object = NONE;
 	g.best.hunted = NONE;
 	bot_hunches_begin(bot, me);
+	bot_spawnwatch_begin(bot, me, player, unit, position);
 	/* (a very large map: the part we are in, or were last, in the air) */
 	bot_consider_region = NONE;
 	bot_consider_from = *position;
@@ -8640,6 +8920,7 @@ static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum 
 	bot_goal_explore(&g);
 	bot_consider_scale = 1.f;
 	bot_goal_reset(&g);
+	bot_goal_spawnwatch(&g);
 	bot_goal_outgunned(&g);
 	bot_goal_help_mate(&g);
 	bot_goal_meet(&g);
@@ -8799,8 +9080,11 @@ static void bot_learn_from_score(struct bot_state *bot, struct player_datum cons
 	{
 		personality->kills_seen++;
 		/* (hurt in the getting of it: a few seconds out of sight, BOT_G_RESET) */
-		if (bot_ffa_pro(BOT_G_RESET) > 0.f && bot->unit_index != NONE && bot_unit_alive(bot->unit_index) &&
-			object_get(bot->unit_index)->object.shield_vitality < 0.75f)
+		/* (... and in a team game, the better the bot the likelier, its
+		   shields more nearly gone, nobody of ours fighting by it and
+		   nothing of the game's in hand: HALO_BOT_OFF=teamreset) */
+		if (bot->unit_index != NONE && bot_unit_alive(bot->unit_index) && (bot_ffa_pro(BOT_G_RESET) > 0.f ?
+			object_get(bot->unit_index)->object.shield_vitality < 0.75f : bot_team_reset_kill(bot, me)))
 		{
 			bot->reset_until = game_time_get() + BOT_SECONDS(5.f);
 			bot->reset_found = FALSE;
@@ -11272,7 +11556,10 @@ static void bots_track_deaths(long now)
 		if (alive)
 		{
 			if (alive_unit[index] != player->unit_index)
+			{
 				bots_spawned_time[index] = now;
+				bot_spawn_guess_check(index, player); /* (testing) */
+			}
 			alive_unit[index] = player->unit_index;
 			last_position[index] = object_get(object_get_ultimate_parent(player->unit_index))->object.position;
 			bots_last_ride[index] = object_get_ultimate_parent(player->unit_index) != player->unit_index ?
@@ -14597,6 +14884,106 @@ static void bot_ambush_to_spot(struct bot_think *t, real off)
 	}
 }
 
+/* Lying in wait, at its place: now and then a step or two along to another
+   place still out of their sight (someone in wait shifts about, he is not a
+   post), and, the better the bot, now and then a look round the corner when
+   it has not known where they are for a moment and a half: a step out to
+   where it sees the way they were coming, a moment there, and back. Both at
+   a crouch walk (bot_stealth_crouch), which keeps it off their motion
+   tracker. The user found the bots that lay in wait stock still at one spot
+   looked like bots gone wrong; at a crouch, shifting now and then and
+   looking round the corner, they look like someone camping on purpose.
+   HALO_BOT_OFF=crouchcamp: still, at the one place, as it was. */
+static void bot_ambush_shift(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	real_point3d const *position = &t->position;
+	long now = game_time_get();
+	real off = bot_distance2d(position, &bot->ambush_spot);
+	if (bot_env_off("crouchcamp") || t->committed || !aas_ready())
+		return;
+	/* (a new wait: the first shift a moment after it is there. Most waits
+	   are over in three or four seconds, they are not coming or they are
+	   there: with the first shift two to six seconds in, one wait in
+	   fifteen had one) */
+	if (bot->shift_for != bot->ambush_until)
+	{
+		bot->shift_for = bot->ambush_until;
+		bot->shift_next = now + BOT_SECONDS(1.f + 1.5f * bot_random(bot) + 1.5f * bot->personality.patience);
+		bot->shift_until = 0;
+		bot->shift_peek = FALSE;
+	}
+	/* (a look round the corner under way: there a moment, then back; and
+	   back whatever, when it is taking too long to get there) */
+	if (bot->shift_peek)
+	{
+		if (off < 0.6f && bot->shift_until == 0)
+			bot->shift_until = now + BOT_SECONDS(0.6f + 0.5f * bot_random(bot));
+		if ((bot->shift_until != 0 && now >= bot->shift_until) || now >= bot->shift_next)
+		{
+			bot->ambush_spot = bot->shift_spot;
+			bot->shift_peek = FALSE;
+			bot->shift_until = 0;
+			bot->shift_next = now + BOT_SECONDS(2.f + 3.f * bot_random(bot));
+		}
+		return;
+	}
+	if (off > 0.6f || now < bot->shift_next)
+		return;
+	{
+		real_point3d their = bot->ambush_at;
+		real toward = bot_yaw_to(position, &bot->ambush_at);
+		real side = bot_random(bot) < 0.5f ? -1.f : 1.f;
+		/* (a look round only when it has lost them, and the better the
+		   bot the likelier; otherwise a shift that keeps it out of sight) */
+		int peek = now - bot->ambush_known > BOT_SECONDS(1.5f) && bot_random(bot) < 0.2f + 0.6f * bot_skill_fraction();
+		int found = FALSE;
+		real_point3d spot;
+		long n;
+		their.z += 0.6f;
+		for (n = 0; n < 6 && !found; n++)
+		{
+			real s = (n & 1) ? -side : side;
+			real reach = 0.8f + 0.4f * (real)(n / 2);
+			/* (a shift across the way they come; a look round, out to a
+			   side and a little toward them) */
+			real yaw = bot_wrap(toward + s * BOT_PI * (peek ? 0.3f : 0.5f));
+			real_point3d probe, head;
+			probe.x = position->x + (real)cos(yaw) * reach;
+			probe.y = position->y + (real)sin(yaw) * reach;
+			probe.z = position->z + 0.3f;
+			if (aas_nearest_area(AAS_FOOT, &probe, 1.f, &spot) == NONE)
+				continue;
+			if (bot_distance2d(&spot, position) < 0.5f || fabs(spot.z - position->z) > 0.5f ||
+				!bot_move_direction_safe(&t->body, bot_yaw_to(position, &spot), bot_distance2d(&spot, position)))
+			{
+				continue;
+			}
+			head = spot;
+			head.z += 0.62f;
+			found = peek ? bot_line_clear(bot_sight_flags, &their, &head, t->me->unit_index) : !bot_line_clear(bot_sight_flags, &their, &head, t->me->unit_index);
+		}
+		if (!found)
+		{
+			bot->shift_next = now + BOT_SECONDS(1.5f);
+			return;
+		}
+		if (bot_logging())
+			bot_log("bot%ld t%ld lying in wait: %s, %.1f along, at a crouch walk", t->player_absolute_index, now,
+				peek ? "a look round the corner" : "a shift of its place out of their sight", bot_distance2d(&spot, position));
+		if (peek)
+		{
+			bot->shift_spot = bot->ambush_spot;
+			bot->shift_peek = TRUE;
+			bot->shift_until = 0;
+			bot->shift_next = now + BOT_SECONDS(3.f); /* (the whole look, at the most) */
+		}
+		else
+			bot->shift_next = now + BOT_SECONDS(2.5f + 3.f * bot_random(bot) + 2.f * bot->personality.patience);
+		bot->ambush_spot = spot;
+	}
+}
+
 static void bot_ambush_wait(struct bot_think *t)
 {
 	struct player_action *action = t->action;
@@ -14605,12 +14992,17 @@ static void bot_ambush_wait(struct bot_think *t)
 	real_point3d const *position = &t->position;
 	struct bot_move_result *result = &t->result;
 
-	/* lying in wait: to the place, and down, and still */
-	real off = bot_distance2d(position, &bot->ambush_spot);
+	/* lying in wait: to the place, and down, and still (but for a shift of
+	   its place now and then, and a look round the corner: bot_ambush_shift) */
+	real off;
 	t->how = 3;
+	bot_ambush_shift(t);
+	off = bot_distance2d(position, &bot->ambush_spot);
 	bot_ambush_to_spot(t, off);
-	/* (standing: crouched in wait it looked like a bot gone wrong, and
-	   standing is as hidden from the tracker as crouched, when still) */
+	/* (crouched: bot_stealth_crouch, HALO_BOT_OFF=crouchcamp. Before it,
+	   it stood, since crouched stock still in wait it looked like a bot
+	   gone wrong, and standing still is as hidden from the tracker as
+	   crouched; still asked for here by HALO_BOT_OFF=standup) */
 	if (off < 2.f && !BOT_ON(BOT_F_STANDUP))
 		action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
 	if (result->look)
@@ -14631,6 +15023,391 @@ static void bot_ambush_wait(struct bot_think *t)
 	/* (no grenade to tell them it is there, either) */
 	if (bot->grenade_cooldown < 3)
 		bot->grenade_cooldown = 3;
+}
+
+/* Holding a camper's spot: a sniper's, a vantage, the place a patient bot
+   or a lurker sits and waits at. Whether it keeps low there is made up once
+   for each spot (the campers, and the better the bot the likelier), and it
+   stays low while it holds it and nobody is in sight, or while it snipes
+   from it at someone a way off who is not shooting at it; the pacing about
+   the spot is a crouch walk then. HALO_BOT_OFF=crouchcamp: standing. */
+static int bot_stealth_holding(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	if (bot_env_off("crouchcamp") || bot->goal_kind != _bot_goal_hold || bot->goal_ticks <= 0 || bot_on_objective(bot) ||
+		bot_distance2d(&t->position, &bot->goal) > 2.5f || fabs(t->position.z - bot->goal.z) > 1.5f)
+	{
+		return FALSE;
+	}
+	/* (someone in sight: only a sniper's shot from far off is taken low) */
+	if (t->target != NONE && !(t->weapon.precision && t->target_distance > 15.f))
+		return FALSE;
+	if (distance3d(&bot->stealth_hold_at, &bot->goal) > 1.f)
+	{
+		int camper = bot->role == _bot_role_sniper || bot_holds_named(t->unit, "sniper") || bot->personality.style == _bot_style_lurker ||
+			bot->personality.camping > 0.55f || bot->personality.patience > 0.65f;
+		real chance = camper ? (0.45f + 0.55f * bot_skill_fraction()) * (0.6f + 0.4f * MAX(bot->personality.camping, bot->personality.patience)) : 0.f;
+		bot->stealth_hold_at = bot->goal;
+		bot->stealth_hold_keen = bot_random(bot) < chance;
+		if (bot_logging() && camper)
+			bot_log("bot%ld t%ld holds a spot (%s, camping %.2f patience %.2f): %s", t->player_absolute_index, game_time_get(),
+				bot->role == _bot_role_sniper ? "a sniper" : bot->personality.style == _bot_style_lurker ? "a lurker" : "a camper",
+				bot->personality.camping, bot->personality.patience, bot->stealth_hold_keen ? "low, at a crouch" : "standing");
+	}
+	return bot->stealth_hold_keen;
+}
+
+/* Creeping up: someone near on its motion tracker (or heard) who has not
+   seen it (their back to it, or a wall between), nobody in its sights, not
+   hit, its shields up, and nothing of the game's to be getting on with: the
+   last stretch at a crouch walk, off their tracker, to have the first shot;
+   up to fight the moment they are in sight. The levels from about 4 of 10
+   up, the patient and the lurkers the most, the rushers the least; made up
+   once for each one it creeps up on, and for a few seconds at the most (a
+   creep is the last few steps, not a way of getting about).
+   HALO_BOT_OFF=sneak: at a run, as it was. */
+#define BOT_CREEP_FROM 14.f /* (how near they are before it creeps) */
+static int bot_stealth_creep(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	long now = game_time_get();
+	long unit_index = bot->tracked_unit;
+	struct object_datum *them;
+	real distance, level;
+	if (bot_env_off("sneak") || t->target != NONE || bot->carrying_objective || bot_on_objective(bot) || bot->escorting || t->unit->object.shield_vitality < 0.5f ||
+		unit_index == NONE || bot->tracked_age > BOT_SECONDS(1.5f) || !bot_unit_alive(unit_index) || !(them = object_try_and_get(unit_index)) ||
+		them->object.parent_object_index != NONE || !TEST_FLAG(_object_mask_biped, them->object.type))
+	{
+		return FALSE;
+	}
+	level = PIN((bot_skill_now - 2.5f) / 2.f, 0.f, 1.f);
+	if (level <= 0.f)
+		return FALSE;
+	distance = distance3d(&bot->tracked_at, &t->position);
+	if (distance < 2.5f || distance > BOT_CREEP_FROM || fabs(bot->tracked_at.z - t->position.z) > 4.f)
+		return FALSE;
+	/* (toward them, or standing: never at a crouch walk away from them,
+	   nor on its way to a gun or a vehicle; and not the moment it is
+	   born, when everyone is a dot on everyone's tracker. At the start of
+	   a game bots crept along on their way to the guns.) */
+	if ((t->moving && t->move_speed > 0.1f && fabs(bot_angle_difference(t->move_yaw, bot_yaw_to(&t->position, &bot->tracked_at))) > 1.3f) ||
+		bot->goal_kind == _bot_goal_item || bot->goal_kind == _bot_goal_vehicle || now - bot->born_tick < BOT_SECONDS(3.f) || now < BOT_SECONDS(5.f))
+	{
+		return FALSE;
+	}
+	if (unit_index != bot->creep_unit || now > bot->creep_until || now < bot->creep_until - BOT_SECONDS(10.f))
+	{
+		real mind = 0.25f + 0.45f * bot->personality.patience + 0.25f * bot->personality.camping - 0.2f * bot->personality.aggression +
+			(bot->personality.style == _bot_style_lurker ? 0.3f : bot->personality.style == _bot_style_rusher ? -0.2f : 0.f);
+		bot->creep_unit = unit_index;
+		bot->creep_keen = bot_random(bot) < level * PIN(mind, 0.f, 1.f);
+		bot->creep_until = now + BOT_SECONDS(8.f);
+		bot->creep_since = 0;
+		bot->creep_look_tick = now - 100;
+		if (bot_logging() && bot->creep_keen)
+			bot_log("bot%ld t%ld means to creep up on player %ld, %.1f off on its tracker", t->player_absolute_index, now,
+				(long)bot_unit_player_index(unit_index), distance);
+	}
+	if (!bot->creep_keen)
+		return FALSE;
+	/* (unseen by them: looked at a few times a second, not every tick) */
+	if (now - bot->creep_look_tick >= 6 || now < bot->creep_look_tick)
+	{
+		real_point3d head;
+		bot->creep_look_tick = now;
+		unit_get_camera_position(unit_index, &head);
+		/* (a wall between, to begin it: in plain sight with their back
+		   turned, it is about to see them itself, and a creep begun then
+		   was over a tick or two later. Begun, their back to it will do) */
+		bot->creep_hidden = !bot_unit_aiming_at(unit_index, &t->eye, 0.85f) &&
+			((bot->stealth_down && bot->stealth_why == 3 && bot_unit_looking_away(unit_index, &t->eye)) ||
+				!bot_line_clear(bot_sight_flags, &head, &t->eye, unit_index));
+	}
+	if (!bot->creep_hidden)
+		return FALSE;
+	if (!bot->creep_since)
+		bot->creep_since = now;
+	else if (now - bot->creep_since > BOT_SECONDS(4.f + 4.f * bot->personality.patience))
+	{
+		bot->creep_keen = FALSE;
+		if (bot_logging())
+			bot_log("bot%ld t%ld creeps no longer: long enough", t->player_absolute_index, now);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+/* at the spot it watches from, with nobody to fight: eyes on where they will
+   come back (after the movement, as the look about while holding a spot) */
+static void bot_spawnwatch_look(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	real_point3d at;
+	/* (they are back, and in its sights: its watch is over) */
+	if (bot->spawnwatch_until > game_time_get() && t->target != NONE && bot_unit_player_index(t->target) == bot->spawnwatch_victim)
+	{
+		if (bot_logging())
+			bot_log("bot%ld t%ld has player %ld in its sights as they come back, %.1f from where it expected them", t->player_absolute_index,
+				game_time_get(), bot->spawnwatch_victim, distance3d(&object_get(t->target)->object.position, &bot->spawnwatch_guess));
+		bot->spawnwatch_until = 0;
+		if (bot->goal_kind == _bot_goal_hold && distance3d(&bot->goal, &bot->spawnwatch_spot) < 0.5f)
+			bot->goal_ticks = 0;
+	}
+	if (bot->spawnwatch_until <= game_time_get() || t->target != NONE || bot->target_unit != NONE || t->look_forced ||
+		t->vehicle_index != NONE || bot->goal_kind != _bot_goal_hold || distance3d(&bot->goal, &bot->spawnwatch_spot) > 0.5f ||
+		bot_distance2d(&t->position, &bot->spawnwatch_spot) > 2.5f)
+	{
+		return;
+	}
+	at = bot->spawnwatch_guess;
+	at.z += 0.6f;
+	t->desired_yaw = bot_yaw_to(&t->eye, &at);
+	t->desired_pitch = (real)atan2(at.z - t->eye.z, MAX(0.5f, bot_distance2d(&at, &t->eye)));
+	t->look_reason = _bot_look_expect;
+}
+
+/* Keeping low on purpose, after the movement is decided: lying in wait (and
+   its shifts and looks round the corner), holding a camper's spot, creeping
+   up on someone. Down, it stays down a second or two at the least, and up,
+   up a moment at the least, so that a reason that comes and goes from one
+   tick to the next is not a bot bobbing up and down; but up at once when
+   it is shot at, someone is in its sights (a sniper's far shot aside), a
+   grenade is coming, it is out at them from where it lay, or the way needs
+   it on its feet (a jump, a ladder). Not taken for stuck while it goes
+   slow on purpose. */
+static void bot_stealth_crouch(struct bot_think *t)
+{
+	static char const *const whys[] = { "", "lying in wait", "holding its spot", "creeping up" };
+	struct bot_state *bot = t->bot;
+	long now = game_time_get();
+	long why = 0;
+	char const *urgent = NULL;
+	if (t->vehicle_index != NONE || t->zombie || t->unit->object.parent_object_index != NONE)
+	{
+		bot->stealth_down = FALSE;
+		return;
+	}
+	/* (a walk off a ledge, or the air of one, is no reason to be up: a
+	   jump, a gap or a ladder is. Up for a drop, it stood every second
+	   step of a creep down the steps of Chill Out) */
+	if (t->committed || t->look_forced || (t->moved && (t->result.jump || t->result.travel == _aas_travel_jump ||
+		t->result.travel == _aas_travel_gap || t->result.travel == _aas_travel_ladder || t->result.travel == _aas_travel_teleport)))
+	{
+		urgent = "the way needs it";
+	}
+	else if (t->threatened || bot->hit_ticks > 0)
+		urgent = "shot at";
+	else if (bot->carrying_objective)
+		urgent = "the objective in hand";
+	else if (bot->grenade_scare != NONE || now < bot->grenade_dodge_until)
+		urgent = "a grenade";
+	else if (bot->ambush_phase == 2)
+		urgent = "out at them";
+	if (!urgent)
+	{
+		if (bot->ambush_phase == 1 && t->ambush_hold && !bot_env_off("crouchcamp") && bot_distance2d(&t->position, &bot->ambush_spot) < 2.5f)
+			why = 1;
+		else if (bot_stealth_holding(t))
+			why = 2;
+		else if (bot_stealth_creep(t))
+			why = 3;
+		/* (a reason gone this tick, down a moment longer, unless there is
+		   someone to fight) */
+		if (!why && bot->stealth_down && now < bot->stealth_down_until && t->target == NONE)
+			why = bot->stealth_why;
+		/* (up a moment ago, or in the air: not straight down again) */
+		if (why && !bot->stealth_down && (now < bot->stealth_up_until || t->body.airborne))
+			why = 0;
+	}
+	if (why)
+	{
+		if (!bot->stealth_down)
+		{
+			bot->stealth_down_until = now + BOT_SECONDS(1.2f + 0.8f * bot_random(bot));
+			if (bot_logging())
+			{
+				if (why == 3)
+					bot_log("bot%ld t%ld keeps low: %s on player %ld, %.1f off, unseen", t->player_absolute_index, now, whys[why],
+						(long)bot_unit_player_index(bot->creep_unit), distance3d(&bot->tracked_at, &t->position));
+				else
+					bot_log("bot%ld t%ld keeps low: %s", t->player_absolute_index, now, whys[why]);
+			}
+		}
+		bot->stealth_down = TRUE;
+		bot->stealth_why = why;
+		t->action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
+		/* (slow on purpose: not to be taken for stuck and jumped about.
+		   A crouch walk is 0.9 units a second, which is just under what
+		   the route takes for a body getting somewhere (BOT_STUCK_PATH):
+		   it hopped every second or two of a creep. Its own count of a
+		   second's progress is put back while it is getting along at a
+		   crouch walk; stopped dead, it is stuck as anyone is.) */
+		bot->progress_ticks = 0;
+		bot->progress_path = 0.f;
+		bot->progress_point = t->position;
+		if (t->moved && (real)sqrt(t->body.velocity.i * t->body.velocity.i + t->body.velocity.j * t->body.velocity.j) * BOT_TICKS_PER_SECOND > 0.4f)
+			bot->mover.move.progress_ticks = 0;
+	}
+	else if (bot->stealth_down)
+	{
+		bot->stealth_down = FALSE;
+		bot->stealth_up_until = now + BOT_SECONDS(0.8f + 0.6f * bot_random(bot));
+		if (bot_logging())
+			bot_log("bot%ld t%ld stands (from %s): %s (travel %d%s%s)", t->player_absolute_index, now, whys[bot->stealth_why],
+				urgent ? urgent : t->target != NONE ? "someone in sight" : "done with it", (int)t->result.travel, t->committed ? " committed" : "",
+				t->look_forced ? " look" : "");
+	}
+}
+
+/* ---- a team game's break from a lost fight (HALO_BOT_OFF=teamreset)
+
+The free-for-all has a good player's way out of a fight he is losing
+(BOT_G_DISENGAGE, to health) and his few seconds out of sight after a kill
+that cost him his shields (BOT_G_RESET); a team game had only the cover
+taken when a bot was all but dead (bot_fight_cover_check: no shields, half
+its health gone, and not the bold), and once round the corner, out of sight
+of whoever it was losing to, it was back on its way to them, its shields
+still down. Now in a team game too, the better the bot the more: its
+shields gone and its health going, behind in the trade, nobody of its side
+fighting beside it (with a friend at it too, it is a fight to stay in) and
+nothing of the game's in hand: out of their sight till its shields are back,
+or to a health pack when its body is hurt; and back in after. And after a
+kill that cost it its shields, a few seconds out of sight before the next. */
+
+/* how much of it: the levels from about 3 of 10, all of it from 7 */
+static real bot_team_reset_level(void)
+{
+	return !bot_env_off("teamreset") && game_engine && game_engine_has_teams() && game_engine != &race_engine ?
+		PIN((bot_skill_now - 2.f) / 2.f, 0.f, 1.f) : 0.f;
+}
+
+/* someone of its side by it who is in a fight (has fired in the last second and a half) */
+static int bot_mate_fighting_near(struct player_datum const *me, real_point3d const *at, real within);
+
+/* a kill that cost it its shields, in a team game: a few seconds out of
+   sight before the next (bot_goal_reset) */
+static int bot_team_reset_kill(struct bot_state *bot, struct player_datum const *me)
+{
+	real level = bot_team_reset_level();
+	struct object_datum *unit = object_try_and_get(bot->unit_index);
+	int go;
+	if (level <= 0.f || !unit || unit->object.parent_object_index != NONE || unit->object.shield_vitality >= 0.4f || bot->carrying_objective || bot->escorting ||
+		bot_on_objective(bot) || bot_mate_fighting_near(me, &unit->object.position, 9.f))
+	{
+		return FALSE;
+	}
+	go = bot_random(bot) < level * (0.5f + 0.5f * (1.f - bot->personality.aggression));
+	if (bot_logging())
+		bot_log("bot%ld t%ld a kill in a team game, its shields at %.2f: %s", (long)(bot - bot_states), game_time_get(),
+			unit->object.shield_vitality, go ? "a few seconds out of sight" : "on");
+	return go;
+}
+
+static int bot_mate_fighting_near(struct player_datum const *me, real_point3d const *at, real within)
+{
+	struct data_iterator iterator;
+	struct player_datum *player;
+	data_iterator_new(&iterator, player_data);
+	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		struct unit_datum *unit;
+		if (player == me || player->unit_index == NONE || !bot_unit_alive(player->unit_index) || bot_is_enemy((short)me->team_index, player))
+			continue;
+		unit = unit_try_and_get(player->unit_index);
+		if (unit && distance3d(&object_get(object_get_ultimate_parent(player->unit_index))->object.position, at) < within &&
+			bot_unit_fired_within(player->unit_index, unit, BOT_SECONDS(1.5f)))
+		{
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+/* (for the fight's health pack, bot_fight_health_pack: how far it goes for
+   one out of a fight it is losing, as BOT_G_DISENGAGE does) */
+static real bot_team_disengage(struct bot_think *t)
+{
+	real level = bot_team_reset_level();
+	if (level <= 0.f || t->bot->carrying_objective || bot_mate_fighting_near(t->me, &t->position, 9.f))
+		return 0.f;
+	return level;
+}
+
+/* broken off, and out of their sight now: whether it is still to keep out
+   of it (FALSE: back to it, or never broke off) */
+static int bot_team_break_holds(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	long now = game_time_get();
+	if (bot->team_break_until <= 0)
+		return FALSE;
+	if (!bot->in_cover || now > bot->team_break_until || t->unit->object.shield_vitality > 0.8f || bot->carrying_objective ||
+		bot_on_objective(bot) || t->vehicle_index != NONE)
+	{
+		if (bot_logging())
+			bot_log("bot%ld t%ld back to it after its break: shields %.2f body %.2f%s", t->player_absolute_index, now,
+				t->unit->object.shield_vitality, t->unit->object.body_vitality, now > bot->team_break_until ? " (waited long enough)" : "");
+		bot->team_break_until = 0;
+		bot->in_cover = FALSE;
+		return FALSE;
+	}
+	return t->target == NONE && !t->committed;
+}
+
+/* ... and keeping out of it: to the place out of their sight, or a health
+   pack near when its body is hurt, and low there, looking the way they would
+   come (the fight's cover, bot_fight_cover_or_range, as it is when they are in
+   sight) */
+static void bot_team_break_move(struct bot_think *t)
+{
+	struct bot_state *bot = t->bot;
+	struct bot_move_result *result = &t->result;
+	real_point3d const *to = &bot->cover_spot;
+	t->how = 1;
+	if (t->unit->object.body_vitality < 0.6f && (game_time_get() + t->player_absolute_index) % 15 == 0)
+		bot->team_break_health = bot_find_health(&t->position, 10.f + 15.f * bot_team_reset_level());
+	if (bot->team_break_health != NONE && bot->team_break_health != 0 && object_try_and_get(bot->team_break_health) &&
+		bot_item_lying(object_get(bot->team_break_health)))
+	{
+		to = &object_get(bot->team_break_health)->object.position;
+	}
+	else
+		bot->team_break_health = NONE;
+	bot_go(bot, &t->body, to, bot->team_break_health != NONE ? _bot_move_goal_item : _bot_move_goal_position, 0.5f, result);
+	t->moved = TRUE;
+	if (result->moving)
+	{
+		t->move_yaw = result->yaw;
+		t->path_yaw = result->path_yaw;
+		t->move_speed = result->speed;
+		t->moving = TRUE;
+	}
+	else if (bot->team_break_health == NONE && bot_distance2d(&t->position, &bot->cover_spot) > 1.2f)
+		bot->in_cover = FALSE; /* (no way there after all) */
+	else
+	{
+		t->moved = FALSE;
+		t->moving = TRUE;
+		t->move_speed = 0.f;
+		t->ambush_hold = FALSE;
+		t->action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
+		/* (not taken for stuck, waiting) */
+		bot->progress_ticks = 0;
+		bot->progress_path = 0.f;
+		if (!result->look)
+		{
+			t->desired_yaw = bot_yaw_to(&t->eye, &bot->last_seen);
+			t->desired_pitch = 0.f;
+			t->look_reason = _bot_look_expect;
+		}
+	}
+	if (result->look)
+	{
+		t->desired_yaw = result->look_yaw;
+		t->desired_pitch = result->look_pitch;
+		t->look_reason = _bot_look_move;
+		t->look_forced = TRUE;
+	}
 }
 
 static void bot_zombie_charge(struct bot_think *t)
@@ -14947,7 +15724,8 @@ static void bot_fight_health_pack(struct bot_think *t, struct bot_fight *f)
 	int wants_health = unit->object.body_vitality < 0.35f || (unit->object.body_vitality < 0.6f && bot->personality.aggression < 0.6f);
 	/* (a free-for-all, a good player: a fight it is losing, shields gone
 	   and the body going, left for health further off, BOT_G_DISENGAGE) */
-	real disengage = bot_ffa_pro(BOT_G_DISENGAGE);
+	/* (... and in a team game, with nobody of ours at it too: bot_team_disengage) */
+	real disengage = MAX(bot_ffa_pro(BOT_G_DISENGAGE), bot_team_disengage(t));
 	int losing = FALSE;
 	if (disengage > 0.f && !wants_health && t->target != NONE && object_try_and_get(t->target) && !f->closing && !bot_on_objective(bot))
 	{
@@ -15375,6 +16153,56 @@ static void bot_fight_jump(struct bot_think *t, struct bot_fight *f)
 	}
 }
 
+/* in the fight: whether to break off, and where to */
+static void bot_fight_team_break(struct bot_think *t, struct bot_fight *f)
+{
+	struct bot_state *bot = t->bot;
+	struct unit_datum *unit = t->unit;
+	long now = game_time_get();
+	real level = bot_team_reset_level();
+	struct object_datum *them;
+	real mine, body, theirs, chance;
+	if (level <= 0.f || bot->in_cover || t->target == NONE || f->closing || t->moved || bot_on_objective(bot) || bot->carrying_objective || bot->escorting ||
+		bot_holds_named(unit, "flag") || bot_holds_named(unit, "ball") || !(them = object_try_and_get(t->target)))
+	{
+		return;
+	}
+	/* (thought of twice a second; and a roll lost, not again for a few
+	   seconds: twice a second while it lasts, it would be a sure thing) */
+	if (now < bot->team_break_tick && bot->team_break_tick - now < BOT_SECONDS(5.f))
+		return;
+	bot->team_break_tick = now + BOT_SECONDS(0.5f);
+	mine = unit->object.shield_vitality;
+	body = unit->object.body_vitality;
+	theirs = PIN(them->object.shield_vitality, 0.f, 1.f) + PIN(them->object.body_vitality, 0.f, 1.f);
+	/* (shields gone, health going, behind in the trade, and being hit;
+	   not when they are nearly done too: finish them) */
+	if (mine > 0.15f || body > 0.85f || theirs < mine + body + 0.35f || !(t->threatened || bot->hit_ticks > 0) ||
+		(them->object.shield_vitality < 0.25f && them->object.body_vitality < 0.6f))
+	{
+		return;
+	}
+	if (bot_mate_fighting_near(t->me, &t->position, 9.f))
+		return;
+	chance = level * (0.55f + 0.45f * (1.f - bot->personality.aggression)) * (bot->personality.style == _bot_style_rusher ? 0.5f : 1.f);
+	if (bot_random(bot) >= chance)
+	{
+		bot->team_break_tick = now + BOT_SECONDS(3.5f);
+		return;
+	}
+	if (bot_find_cover(bot, &t->body, &bot->last_seen, t->me->unit_index, &bot->cover_spot))
+	{
+		bot->in_cover = TRUE;
+		/* (the better the bot, the surer of a whole recharge before it is back) */
+		bot->cover_until = now + BOT_SECONDS(4.f + 3.f * bot->personality.patience + 2.f * level);
+		bot->team_break_until = bot->cover_until;
+		bot->team_break_health = NONE;
+		if (bot_logging())
+			bot_log("bot%ld t%ld breaks off (a team game): shields %.2f body %.2f against %.2f, nobody of ours at it, out of sight %.1f away",
+				t->player_absolute_index, now, mine, body, theirs, bot_distance2d(&t->position, &bot->cover_spot));
+	}
+}
+
 static void bot_fight_move(struct bot_think *t)
 {
 	struct bot_state *bot = t->bot;
@@ -15403,6 +16231,7 @@ static void bot_fight_move(struct bot_think *t)
 	bot_fight_find_high_ground(t, &f);
 	bot_fight_health_pack(t, &f);
 	bot_fight_cover_check(t, &f);
+	bot_fight_team_break(t, &f);
 	bot_fight_cover_or_range(t, &f);
 	bot_fight_range_habits(t, &f);
 	bot_fight_to_high_ground(t, &f);
@@ -20698,6 +21527,9 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		bot_teabag_move(t);
 	else if (bot->ambush_phase == 1 && !t->committed)
 		bot_ambush_wait(t);
+	/* (broken off a lost fight in a team game, out of their sight: kept out of it till its shields are back) */
+	else if (bot_team_break_holds(t))
+		bot_team_break_move(t);
 	else if (t->zombie && t->target != NONE && t->target_distance < 5.f && !t->committed &&
 		(!aas_ready() || aas_line_in_areas(AAS_FOOT, &t->position, &object_get(object_get_ultimate_parent(t->target))->object.position)))
 		bot_zombie_charge(t);
@@ -20858,6 +21690,12 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	   it, as a grenade is. */
 	if (bot_skill_pro() > 0.f && t->vehicle_index == NONE && !t->committed && bot->grenade_scare == NONE)
 		bot_dodge_rocket(t);
+
+	/* ---- keeping low on purpose: lying in wait, holding a camper's spot,
+	   creeping up on someone unseen (bot_stealth_crouch) */
+	bot_stealth_crouch(t);
+	/* (... and watching where someone of theirs will come back: bot_goal_spawnwatch) */
+	bot_spawnwatch_look(t);
 
 	bot->moved_how = t->how;
 	bot_stat_time_spent(t);

@@ -68,7 +68,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 49 /* (49: banks slid down, HALO_BOT_SLIDES; 48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 50 /* (50: jumps up to 0.92 with a run at them, HALO_BOT_HIGHRISE; 49: banks slid down, HALO_BOT_SLIDES; 48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -125,6 +125,16 @@ static real aas_jump_rise(void)
    five times onto Beaver Creek's walkways, from a slope or onto a rounded
    lip; the bots taken that way up the crates of Hang 'em High got their feet
    0.84 up at the most, and failed one in two: HALO_BOT_HIGHRISE=0.97 to try) */
+/* (The highest jumped up with a run at it: 0.92. Made-up jumps tried by a bot
+   on thirty-odd ledges of five maps (tools/jump_lab.py, HALO_BOT_REPLAY), at a
+   full run and off the ground half a unit to two from the face, tucked or
+   not: up to 0.92 every one was made off the ground 0.9 to 1.3 from the
+   face, tucked; a unit up, none onto a level top. From a standing jump at
+   the face, 0.84. So above 0.84 only where there is a run at it, straight
+   behind, aas_high_jump_runup, and reckoned 2.5 s dearer for the run-up.
+   Not by default: on six such ledges of Beaver Creek and Hang 'em High, a
+   bot going up them took longer than round by the ways it had, with the
+   run-up (4.9 s a leg against 1.6). HALO_BOT_HIGHRISE=0.92: so) */
 #define AAS_HIGH_RISE (bot_env_set("HALO_BOT_HIGHRISE") ? (real)atof(getenv("HALO_BOT_HIGHRISE")) : AAS_CROUCH_RISE)
 #define AAS_JUMP_FAR_CELLS NAVM_CELLS(1.f)
 /* (what a crouch jump costs over a jump: the run it loses in the air, a
@@ -1506,7 +1516,7 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 		    a unit and a half: thirteen seconds round. HALO_BOT_OFF=gaplevel:
 		    up only, as it was) */
 		 (rise >= -NAVM_STEP && state->dropped && other->floor > state->dropped_floor + aas_jump_rise() && !aas_gap_level_off())) &&
-		(rise <= AAS_GAP_RISE || (!aas_gap_tall_off() && rise <= aas_crouch_rise())) &&
+		(rise <= AAS_GAP_RISE || (!aas_gap_tall_off() && rise <= MIN(aas_crouch_rise(), AAS_CROUCH_RISE))) &&
 		rise >= -3.5f && (!state->dropped || rise >= -NAVM_JUMP || other->floor > state->dropped_floor + NAVM_JUMP) && column->found == NONE &&
 		other->wall >= 20)
 	{
@@ -1811,6 +1821,52 @@ static void aas_shift_aside(real_point3d *point, real dx, real dy, real length, 
 }
 
 /* a gap wants room to run at it from, straight behind its edge */
+static real aas_candidate_rise(struct aas_candidate const *candidate)
+{
+	return navm.spans[candidate->low_span].floor - navm.spans[candidate->edge_span].floor;
+}
+
+/* (whether the floor along a line is level: within 0.15 of where it begins, a
+   span every tenth of a unit) */
+static boolean aas_line_level(real_point3d const *from, real_point3d const *to)
+{
+	long k, steps = (long)(aas_distance2d(from, to) / NAVM_CELL) + 1;
+	for (k = 0; k <= steps; k++)
+	{
+		real_point3d at;
+		long u;
+		at.x = from->x + (to->x - from->x) * k / steps;
+		at.y = from->y + (to->y - from->y) * k / steps;
+		at.z = from->z;
+		u = navm_span_at(&at, 0.15f, 0.15f);
+		if (u == NONE)
+			return FALSE;
+	}
+	return TRUE;
+}
+
+/* a jump up higher than the standing one (above 0.84) has the run it wants:
+   level floor straight behind the face for two and a half units, the way it
+   is jumped (jump_lab.py's run of 2.2 and its take-off 0.9 to 1.3 off) */
+static boolean aas_high_jump_runup(struct aas_candidate const *candidate)
+{
+	real_point3d edge, land, inside, back;
+	real dx, dy, length;
+	navm_span_point(candidate->edge_span, &edge);
+	navm_span_point(candidate->low_span, &land);
+	dx = edge.x - land.x, dy = edge.y - land.y;
+	length = (real)sqrt(dx * dx + dy * dy);
+	if (length < 0.01f)
+		return FALSE;
+	inside = edge;
+	inside.x += dx / length * 0.2f;
+	inside.y += dy / length * 0.2f;
+	back = edge;
+	back.x += dx / length * 2.5f;
+	back.y += dy / length * 2.5f;
+	return navm_line_walkable(&inside, &back, 0.f, 0.f) && aas_line_level(&inside, &back);
+}
+
 static boolean aas_gap_has_runup(struct aas_candidate const *candidate)
 {
 	real_point3d edge, land, back;
@@ -2133,6 +2189,12 @@ static boolean aas_ledge_add_reach(long type, struct aas_reaches *reaches, struc
 	reach->time = run / aas_speed(type);
 	if (hop)
 		reach->time += 0.4f; /* (the hop over the lip; the drop's own cost, below, as well) */
+	/* (higher than the standing one: its run-up and the risk, a second and a
+	   quarter; reckoned at its run alone, the route took it where it had a
+	   way round as quick, and the run-up made it the slower: Beaver Creek's
+	   0.88 up by the blue base, 4.3 s a leg against 1.6 round) */
+	if (candidate->travel == _aas_travel_jump && reach->left.z - reach->edge.z > AAS_CROUCH_RISE + 0.005f)
+		reach->time += getenv("HALO_BOT_HIGHCOST") ? (float)atof(getenv("HALO_BOT_HIGHCOST")) : 2.5f;
 	/* (a crouch jump's: the risk of it) */
 	if ((candidate->travel == _aas_travel_jump || candidate->travel == _aas_travel_gap) && reach->left.z - reach->edge.z > aas_jump_rise() + 0.01f)
 		reach->time += AAS_CROUCH_COST;
@@ -2423,6 +2485,11 @@ static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 			else if (candidate->travel == _aas_travel_jump || candidate->travel == _aas_travel_drop)
 			{
 				tries++;
+				if (candidate->travel == _aas_travel_jump && aas_candidate_rise(candidate) > AAS_CROUCH_RISE + 0.005f && !aas_high_jump_runup(candidate))
+				{
+					aas_ledge_why(type, candidate, "high, no run at it");
+					continue;
+				}
 				if (!aas_face_clear(type, candidate, &hop))
 				{
 					aas_ledge_why(type, candidate, "face not clear");

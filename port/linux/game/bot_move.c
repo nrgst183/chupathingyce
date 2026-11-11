@@ -1847,6 +1847,11 @@ static boolean bot_move_over_floor(struct bot_body const *body, real z);
 static void bot_move_people_style(struct aas_reach const *reach, struct bot_people_way *way, real_point3d *takeoff)
 {
 	real heading = bot_yaw_to(bot_distance2d(&reach->start, &reach->left) > 0.3f ? &reach->start : &reach->edge, &reach->left);
+	/* (square to the face: from the foot of it, not from the start, which
+	   can be along the face from it) */
+	boolean high = reach->left.z - reach->edge.z > 0.845f && !bot_env_off("psface");
+	if (high && bot_distance2d(&reach->edge, &reach->left) > 0.1f)
+		heading = bot_yaw_to(&reach->edge, &reach->left);
 	memset(way, 0, sizeof(*way));
 	way->heading = heading;
 	/* (testing: HALO_BOT_PS_SPEED, _CROUCH, _ACROSS another) */
@@ -1855,6 +1860,17 @@ static void bot_move_people_style(struct aas_reach const *reach, struct bot_peop
 	way->crouch_off = 999;
 	takeoff->x = reach->left.x - (real)cos(heading) * bot_move_jt("HALO_BOT_PS_ACROSS", BOT_PEOPLE_HIGH_ACROSS);
 	takeoff->y = reach->left.y - (real)sin(heading) * bot_move_jt("HALO_BOT_PS_ACROSS", BOT_PEOPLE_HIGH_ACROSS);
+	/* (off the ground a unit from the foot of the face, not a unit and two
+	   fifths short of where it lands: where it lands can be most of a unit
+	   past the face, and from there the take-off was half a unit off it,
+	   too near for the highest. Made-up jumps (tools/jump_lab.py): 0.9 to 1.3
+	   off the face, tucked, made all of them to 0.92; nearer or further,
+	   fewer. HALO_BOT_OFF=psface: as before) */
+	if (high)
+	{
+		takeoff->x = reach->edge.x - (real)cos(heading) * bot_move_jt("HALO_BOT_PS_BACK", 0.95f);
+		takeoff->y = reach->edge.y - (real)sin(heading) * bot_move_jt("HALO_BOT_PS_BACK", 0.95f);
+	}
 	takeoff->z = reach->edge.z;
 }
 
@@ -1883,12 +1899,16 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 	{
 		real_point3d back = *takeoff;
 		real ground;
-		real runup = move->people_air_ticks < 0 ? 2.f : MIN(1.4f, MAX(0.6f, way->speed * 0.6f));
+		/* (a jump up of the bots' own found people's way, above what one
+		   jumps standing, wants all of a run, square: made-up jumps,
+		   tools/jump_lab.py, from two units' run and more, flat out) */
+		boolean strict = reach->people < 0 && reach->left.z - reach->edge.z > 0.845f && !bot_env_off("psstrict");
+		real runup = move->people_air_ticks < 0 || strict ? 2.f : MIN(1.4f, MAX(0.6f, way->speed * 0.6f));
 		back.x -= ci * runup;
 		back.y -= cj * runup;
 		/* (to the start of the run: a step or so back along the way, when
 		   it is not on the line already and coming at it) */
-		if (!move->people_runup && (along > -runup * 0.6f || fabs(aside) > 0.25f || going < 1.5f || move->people_air_ticks < 0) && along < 0.3f)
+		if (!move->people_runup && (along > -runup * 0.6f || fabs(aside) > 0.25f || going < 1.5f || move->people_air_ticks < 0) && (along < 0.3f || strict))
 		{
 			real_point3d above = back;
 			above.z += 0.5f;
@@ -1902,6 +1922,16 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 					result->speed = bot_distance2d(position, &back) < 0.6f ? 0.5f : 1.f;
 					return;
 				}
+			}
+			/* (no run to be had from here, for one of the bots' own: not
+			   jumped from a walk; another way, for this bot, a while) */
+			else if (strict)
+			{
+				if (bot_logging())
+					bot_log("bot%ld: high jump %ld with no run at it from here: another way", bot->index, move->reach);
+				bot_move_avoid(move, move->reach, BOT_SECONDS(15));
+				move->reach = NONE;
+				return;
 			}
 			move->people_runup = TRUE;
 		}
@@ -1938,6 +1968,19 @@ static void bot_move_travel_people(struct bot_mover *bot, struct bot_body const 
 			if (bot_logging())
 				bot_log("bot%ld: a way people take (%ld), off at %.2f %.2f %.2f at %.2f a second (theirs %.2f), after a run-up", bot->index,
 					(long)reach->people, position->x, position->y, position->z, going, way->speed);
+			return;
+		}
+		/* (... and not off at all slower or off the line, for one of the
+		   bots' own: back for another run. Off a unit a second slow, or a
+		   unit past the place, a bot of the first of these came down short
+		   one time in eight) */
+		else if (strict && along >= -0.06f && (going < way->speed * 0.85f || fabs(aside) > 0.25f))
+		{
+			if (along > 0.35f)
+			{
+				move->people_runup = FALSE;
+				move->people_air_ticks = -1;
+			}
 			return;
 		}
 		/* (off the ground at the place, or just past it) */

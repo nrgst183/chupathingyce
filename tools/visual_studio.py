@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from tools.embed_assets import PROMPT_ICONS, UI_FONT_FILES  # noqa: E402
+from tools.embed_assets import MEDAL_ATLAS, MEDAL_ATLAS_CELL, PROMPT_ICONS, UI_FONT_FILES  # noqa: E402
 from tools.linux_build import (MBEDTLS_DIR, MINIUPNPC_DIR, MUSL_MATH_DIR, STB_DIR, XDK_INCLUDE, game_sources,  # noqa: E402
                                miniupnpc_sources, musl_math_sources)
 from tools.lp64_build import lp64_excluded  # noqa: E402
@@ -212,6 +212,8 @@ def main() -> None:
         sys.exit(f"{PORT_DIR / 'tools' / 'prebuild.ps1'}: $uiFontFiles is not tools/embed_assets.py's UI_FONT_FILES")
     if prebuild_list("promptIcons") != [Path(path).as_posix() for path in PROMPT_ICONS]:
         sys.exit(f"{PORT_DIR / 'tools' / 'prebuild.ps1'}: $promptIcons is not tools/embed_assets.py's PROMPT_ICONS")
+    if f"$medalAtlas = '{MEDAL_ATLAS.as_posix()}'" not in prebuild or f"$medalAtlasCell = {MEDAL_ATLAS_CELL}" not in prebuild:
+        sys.exit(f"{PORT_DIR / 'tools' / 'prebuild.ps1'}: $medalAtlas is not tools/embed_assets.py's MEDAL_ATLAS")
     game = linux_config["game"]
     linux_platform = Path(linux_config["platform_sources"])
     prefix_header = PORT_DIR / "include" / "halo_windows_prefix.h"

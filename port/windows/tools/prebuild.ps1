@@ -160,6 +160,12 @@ function Embed-Assets
 	{
 		[void]$inputs.Add($loadingFile)
 	}
+	# the stock maps' shader key list (tools/embed_assets.py's SHADER_KEYS_FILE)
+	$shaderKeysFile = Join-Parts $Root 'port/assets/shaders/stock.keys'
+	if (Test-Path -LiteralPath $shaderKeysFile)
+	{
+		[void]$inputs.Add($shaderKeysFile)
+	}
 
 	# nothing to do when the output is newer than everything it is made from
 	if (Test-Path -LiteralPath $Output)
@@ -388,6 +394,31 @@ function Embed-Assets
 	[void]$text.Append("};`n")
 	[void]$text.Append("const unsigned long loading_picture_data_size = $($data.Length);`n")
 
+	# the stock maps' shader key list, zlib-deflated (xgpu_shader_keys.c
+	# inflates it), of size 0 if the checkout does not have it; only where
+	# it is used (tools/embed_assets.py's the same)
+	$keys = New-Object byte[] 0
+	$data = New-Object byte[] 0
+	if (Test-Path -LiteralPath $shaderKeysFile)
+	{
+		$keys = [System.IO.File]::ReadAllBytes($shaderKeysFile)
+		$data = [HaloPng]::Zlib($keys)
+	}
+	[void]$text.Append("`n#ifdef HALO_SHADER_PREP`n")
+	[void]$text.Append("const unsigned int xgpu_shader_keys_stock_data[] = {`n")
+	if ($data.Length -gt 0)
+	{
+		Add-Words $text $data
+	}
+	else
+	{
+		[void]$text.Append("`t0,`n")
+	}
+	[void]$text.Append("};`n")
+	[void]$text.Append("const unsigned long xgpu_shader_keys_stock_data_size = $($data.Length);`n")
+	[void]$text.Append("const unsigned long xgpu_shader_keys_stock_text_size = $($keys.Length);`n")
+	[void]$text.Append("#endif`n")
+
 	$folder = [System.IO.Path]::GetDirectoryName($Output)
 	if ($folder -and -not (Test-Path -LiteralPath $folder))
 	{
@@ -425,6 +456,10 @@ $promptIcons = @(
 	'port/assets/prompts/bumper-right.png',
 	'port/assets/prompts/button-back.png'
 )
+# the medals' atlas and its cell (tools/embed_assets.py's MEDAL_ATLAS and
+# MEDAL_ATLAS_CELL: tools/visual_studio.py checks that they match)
+$medalAtlas = 'port/assets/medals/medals-64.png'
+$medalAtlasCell = 64
 
 # an 8-bit RGBA, non-interlaced PNG's pixels (rows from the top, 4 bytes a
 # pixel), its filters undone, as tools/embed_assets.py's png_rgba does
@@ -483,6 +518,30 @@ public static class HaloPng
 		}
 		return pixels;
 	}
+
+	/* data as a zlib stream, as Python's zlib.compress makes: the two bytes
+	   of header, the deflate data, and the Adler-32 of the data, high byte
+	   first (zlib's uncompress checks it) */
+	public static byte[] Zlib(byte[] data)
+	{
+		System.IO.MemoryStream output = new System.IO.MemoryStream();
+		output.WriteByte(0x78);
+		output.WriteByte(0x9c);
+		using (System.IO.Compression.DeflateStream deflate = new System.IO.Compression.DeflateStream(output, System.IO.Compression.CompressionMode.Compress, true))
+			deflate.Write(data, 0, data.Length);
+		uint a = 1, b = 0;
+		foreach (byte value in data)
+		{
+			a = (a + value) % 65521;
+			b = (b + a) % 65521;
+		}
+		uint adler = (b << 16) | a;
+		output.WriteByte((byte)(adler >> 24));
+		output.WriteByte((byte)(adler >> 16));
+		output.WriteByte((byte)(adler >> 8));
+		output.WriteByte((byte)adler);
+		return output.ToArray();
+	}
 }
 "@
 
@@ -506,7 +565,7 @@ function Embed-Fonts
 	{
 		return
 	}
-	$inputs = @($PSCommandPath) + @($uiFontFiles + $promptIcons | ForEach-Object { Join-Parts $Root $_ })
+	$inputs = @($PSCommandPath) + @($uiFontFiles + $promptIcons + @($medalAtlas) | ForEach-Object { Join-Parts $Root $_ })
 	if (Test-Path -LiteralPath $FontsOutput)
 	{
 		$written = (Get-Item -LiteralPath $FontsOutput).LastWriteTimeUtc
@@ -567,7 +626,20 @@ function Embed-Fonts
 	{
 		$names += "icon$icon"
 	}
-	[void]$text.Append(($names -join ', ')).Append(",`n};`n")
+	[void]$text.Append(($names -join ', ')).Append(",`n};`n`n")
+	# the medals' icons: one atlas, RGBA, rows from the top, a cell each
+	# (tools/embed_assets.py's MEDAL_ATLAS, medal_icons.h's order)
+	$width = 0
+	$height = 0
+	$pixels = [HaloPng]::Rgba([System.IO.File]::ReadAllBytes((Join-Parts $Root $medalAtlas)), [ref]$width, [ref]$height)
+	[void]$text.Append("/* (ui_overlay.c's: the medals' atlas, ui_medal_atlas_cell pixels a medal) */`n")
+	[void]$text.Append("#ifdef HALO_MEDAL_ICONS`n")
+	[void]$text.Append("static const unsigned int medal_atlas[] = {`n")
+	Add-Words $text $pixels
+	[void]$text.Append("};`n")
+	[void]$text.Append("const int ui_medal_atlas_cell = $medalAtlasCell, ui_medal_atlas_width = $width, ui_medal_atlas_height = $height;`n")
+	[void]$text.Append("const unsigned int *const ui_medal_atlas = medal_atlas;`n")
+	[void]$text.Append("#endif`n")
 
 	$folder = [System.IO.Path]::GetDirectoryName($FontsOutput)
 	if ($folder -and -not (Test-Path -LiteralPath $folder))

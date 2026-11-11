@@ -84,19 +84,19 @@
     <HaloPlatformOptions Condition="'$(Platform)'!='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall /clang:-Wno-unused-function /clang:-Wno-unknown-pragmas /clang:-Wno-microsoft-anon-tag /clang:-Wno-pragma-pack /clang:-Wno-ignored-attributes /clang:-Wno-duplicate-decl-specifier /clang:-Wno-missing-braces /clang:-Wno-unused-variable /clang:-Wno-ignored-pragmas /clang:-Wno-microsoft-enum-forward-reference /clang:-Wno-language-extension-token "/clang:-iquote$(HaloRoot)port\linux\include"</HaloPlatformOptions>
     <HaloPlatformOptions Condition="'$(Platform)'=='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall /clang:-Wno-unused-function /clang:-Wno-unknown-pragmas /clang:-Wno-microsoft-anon-tag /clang:-Wno-pragma-pack /clang:-Wno-ignored-attributes /clang:-Wno-duplicate-decl-specifier /clang:-Wno-missing-braces /clang:-Wno-unused-variable /clang:-Wno-ignored-pragmas /clang:-Wno-microsoft-enum-forward-reference /clang:-Wno-language-extension-token /clang:-Werror=incompatible-pointer-types /clang:-Werror=int-to-pointer-cast /clang:-Werror=pointer-to-int-cast /clang:-Werror=void-pointer-to-int-cast /clang:-Werror=int-conversion "/clang:-iquote$(HaloRoot)port\linux\include"</HaloPlatformOptions>
     <HaloPlatformDefines>$(HaloAbiDefines);HALO_LINUX_PLATFORM_LAYER</HaloPlatformDefines>
-    <HaloPlatformIncludes>$(HaloRoot)port\windows\include\posix;$(HaloRoot)port\windows\include\crt;$(HaloRoot)port\linux\src;$(HaloRoot)port\windows\include;$(HaloRoot)port\third_party\tomlc17;$(HaloRoot)port\third_party\expat;$(HaloRoot)port\third_party\kcp;$(HaloRoot)port\third_party\qrcodegen;$(HaloRoot)port\third_party\monocypher;$(HaloRoot)port\third_party\zlib;$(HaloRoot)port\third_party\zstd\lib;$(HaloRoot)source;$(HaloRoot)source\cseries;$(HaloSDL)\include;$(HaloRoot)port\include\xdk</HaloPlatformIncludes>
+    <HaloPlatformIncludes>$(HaloRoot)port\windows\include\posix;$(HaloRoot)port\windows\include\crt;$(HaloRoot)port\linux\src;$(HaloRoot)port\windows\include;$(HaloRoot)port\third_party\tomlc17;$(HaloRoot)port\third_party\expat;$(HaloRoot)port\third_party\kcp;$(HaloRoot)port\third_party\qrcodegen;$(HaloRoot)port\third_party\monocypher;$(HaloRoot)port\third_party\zlib;$(HaloRoot)port\third_party\zstd\lib;$(HaloRoot)port\third_party\opus\include;$(HaloRoot)source;$(HaloRoot)source\cseries;$(HaloSDL)\include;$(HaloRoot)port\include\xdk</HaloPlatformIncludes>
     <HaloPlatformForced>$(HaloRoot)port\windows\include\halo_windows_prefix.h</HaloPlatformForced>
     <HaloPlatformWarnings>Level3</HaloPlatformWarnings>
     <HaloPlatformUpdaterOptions Condition="'$(Platform)'!='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall /clang:-Wno-unused-function /clang:-Wno-unknown-pragmas /clang:-Wno-microsoft-anon-tag /clang:-Wno-pragma-pack /clang:-Wno-ignored-attributes /clang:-Wno-duplicate-decl-specifier /clang:-Wno-missing-braces /clang:-Wno-unused-variable /clang:-Wno-ignored-pragmas /clang:-Wno-microsoft-enum-forward-reference /clang:-Wno-language-extension-token "/clang:-iquote$(HaloRoot)port\linux\include"</HaloPlatformUpdaterOptions>
     <HaloPlatformUpdaterOptions Condition="'$(Platform)'=='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall /clang:-Wno-unused-function /clang:-Wno-unknown-pragmas /clang:-Wno-microsoft-anon-tag /clang:-Wno-pragma-pack /clang:-Wno-ignored-attributes /clang:-Wno-duplicate-decl-specifier /clang:-Wno-missing-braces /clang:-Wno-unused-variable /clang:-Wno-ignored-pragmas /clang:-Wno-microsoft-enum-forward-reference /clang:-Wno-language-extension-token /clang:-Werror=incompatible-pointer-types /clang:-Werror=int-to-pointer-cast /clang:-Werror=pointer-to-int-cast /clang:-Werror=void-pointer-to-int-cast /clang:-Werror=int-conversion "/clang:-iquote$(HaloRoot)port\linux\include"</HaloPlatformUpdaterOptions>
     <HaloPlatformUpdaterDefines>$(HaloAbiDefines);HALO_LINUX_PLATFORM_LAYER</HaloPlatformUpdaterDefines>
-    <HaloPlatformUpdaterIncludes>$(HaloRoot)port\windows\include\posix;$(HaloRoot)port\windows\include\crt;$(HaloRoot)port\linux\src;$(HaloRoot)port\windows\include;$(HaloRoot)port\third_party\tomlc17;$(HaloRoot)port\third_party\expat;$(HaloRoot)port\third_party\kcp;$(HaloRoot)port\third_party\qrcodegen;$(HaloRoot)port\third_party\monocypher;$(HaloRoot)port\third_party\zlib;$(HaloRoot)port\third_party\zstd\lib;$(HaloRoot)source;$(HaloRoot)source\cseries;$(HaloSDL)\include;$(HaloRoot)port\include\xdk</HaloPlatformUpdaterIncludes>
+    <HaloPlatformUpdaterIncludes>$(HaloRoot)port\windows\include\posix;$(HaloRoot)port\windows\include\crt;$(HaloRoot)port\linux\src;$(HaloRoot)port\windows\include;$(HaloRoot)port\third_party\tomlc17;$(HaloRoot)port\third_party\expat;$(HaloRoot)port\third_party\kcp;$(HaloRoot)port\third_party\qrcodegen;$(HaloRoot)port\third_party\monocypher;$(HaloRoot)port\third_party\zlib;$(HaloRoot)port\third_party\zstd\lib;$(HaloRoot)port\third_party\opus\include;$(HaloRoot)source;$(HaloRoot)source\cseries;$(HaloSDL)\include;$(HaloRoot)port\include\xdk</HaloPlatformUpdaterIncludes>
     <HaloPlatformUpdaterForced>$(HaloRoot)port\windows\include\halo_windows_prefix.h;$(HaloGenerated)halo_version.h</HaloPlatformUpdaterForced>
     <HaloPlatformUpdaterWarnings>Level3</HaloPlatformUpdaterWarnings>
     <HaloPlatformFontOptions Condition="'$(Platform)'!='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall /clang:-Wno-unused-function /clang:-Wno-unknown-pragmas /clang:-Wno-microsoft-anon-tag /clang:-Wno-pragma-pack /clang:-Wno-ignored-attributes /clang:-Wno-duplicate-decl-specifier /clang:-Wno-missing-braces /clang:-Wno-unused-variable /clang:-Wno-ignored-pragmas /clang:-Wno-microsoft-enum-forward-reference /clang:-Wno-language-extension-token "/clang:-iquote$(HaloRoot)port\linux\include"</HaloPlatformFontOptions>
     <HaloPlatformFontOptions Condition="'$(Platform)'=='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall /clang:-Wno-unused-function /clang:-Wno-unknown-pragmas /clang:-Wno-microsoft-anon-tag /clang:-Wno-pragma-pack /clang:-Wno-ignored-attributes /clang:-Wno-duplicate-decl-specifier /clang:-Wno-missing-braces /clang:-Wno-unused-variable /clang:-Wno-ignored-pragmas /clang:-Wno-microsoft-enum-forward-reference /clang:-Wno-language-extension-token /clang:-Werror=incompatible-pointer-types /clang:-Werror=int-to-pointer-cast /clang:-Werror=pointer-to-int-cast /clang:-Werror=void-pointer-to-int-cast /clang:-Werror=int-conversion "/clang:-iquote$(HaloRoot)port\linux\include"</HaloPlatformFontOptions>
     <HaloPlatformFontDefines>$(HaloAbiDefines);HALO_LINUX_PLATFORM_LAYER</HaloPlatformFontDefines>
-    <HaloPlatformFontIncludes>$(HaloRoot)port\windows\include\posix;$(HaloRoot)port\windows\include\crt;$(HaloRoot)port\linux\src;$(HaloRoot)port\windows\include;$(HaloRoot)port\third_party\tomlc17;$(HaloRoot)port\third_party\expat;$(HaloRoot)port\third_party\kcp;$(HaloRoot)port\third_party\qrcodegen;$(HaloRoot)port\third_party\monocypher;$(HaloRoot)port\third_party\zlib;$(HaloRoot)port\third_party\zstd\lib;$(HaloRoot)source;$(HaloRoot)source\cseries;$(HaloSDL)\include;$(HaloRoot)port\include\xdk;$(HaloRoot)port\third_party\stb</HaloPlatformFontIncludes>
+    <HaloPlatformFontIncludes>$(HaloRoot)port\windows\include\posix;$(HaloRoot)port\windows\include\crt;$(HaloRoot)port\linux\src;$(HaloRoot)port\windows\include;$(HaloRoot)port\third_party\tomlc17;$(HaloRoot)port\third_party\expat;$(HaloRoot)port\third_party\kcp;$(HaloRoot)port\third_party\qrcodegen;$(HaloRoot)port\third_party\monocypher;$(HaloRoot)port\third_party\zlib;$(HaloRoot)port\third_party\zstd\lib;$(HaloRoot)port\third_party\opus\include;$(HaloRoot)source;$(HaloRoot)source\cseries;$(HaloSDL)\include;$(HaloRoot)port\include\xdk;$(HaloRoot)port\third_party\stb</HaloPlatformFontIncludes>
     <HaloPlatformFontForced>$(HaloRoot)port\windows\include\halo_windows_prefix.h</HaloPlatformFontForced>
     <HaloPlatformFontWarnings>Level3</HaloPlatformFontWarnings>
     <HaloWin32BrowserOptions Condition="'$(Platform)'!='x64'">$(HaloAbiOptions) /clang:-std=gnu11 /clang:-Wall</HaloWin32BrowserOptions>
@@ -142,6 +142,11 @@
     <HaloZstdIncludes></HaloZstdIncludes>
     <HaloZstdForced></HaloZstdForced>
     <HaloZstdWarnings>TurnOffAllWarnings</HaloZstdWarnings>
+    <HaloOpusOptions>$(HaloAbiOptions) /clang:-std=gnu11</HaloOpusOptions>
+    <HaloOpusDefines>$(HaloAbiDefines);OPUS_BUILD;VAR_ARRAYS;HAVE_LRINTF;HAVE_LRINT</HaloOpusDefines>
+    <HaloOpusIncludes>$(HaloRoot)port\third_party\opus\include;$(HaloRoot)port\third_party\opus\celt;$(HaloRoot)port\third_party\opus\silk;$(HaloRoot)port\third_party\opus\silk\float</HaloOpusIncludes>
+    <HaloOpusForced></HaloOpusForced>
+    <HaloOpusWarnings>TurnOffAllWarnings</HaloOpusWarnings>
     <HaloExpatOptions>$(HaloAbiOptions) /clang:-std=gnu11</HaloExpatOptions>
     <HaloExpatDefines>$(HaloAbiDefines)</HaloExpatDefines>
     <HaloExpatIncludes>$(HaloRoot)port\third_party\expat</HaloExpatIncludes>
@@ -6887,6 +6892,965 @@
       <WarningLevel>$(HaloZstdWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloZstdDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>$(HaloZstdOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\bands.c">
+      <ObjectFileName>$(IntDir)bands_e1c60342.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt.c">
+      <ObjectFileName>$(IntDir)celt_e43602fb.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt_encoder.c">
+      <ObjectFileName>$(IntDir)celt_encoder_9c0c9b7d.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt_decoder.c">
+      <ObjectFileName>$(IntDir)celt_decoder_5761004c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\cwrs.c">
+      <ObjectFileName>$(IntDir)cwrs_6e5d5e4a.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\entcode.c">
+      <ObjectFileName>$(IntDir)entcode_da63f267.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\entdec.c">
+      <ObjectFileName>$(IntDir)entdec_049780e8.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\entenc.c">
+      <ObjectFileName>$(IntDir)entenc_6da3c2be.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\kiss_fft.c">
+      <ObjectFileName>$(IntDir)kiss_fft_c38f68ab.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\laplace.c">
+      <ObjectFileName>$(IntDir)laplace_bb4bc98c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\mathops.c">
+      <ObjectFileName>$(IntDir)mathops_6a5ba342.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\mdct.c">
+      <ObjectFileName>$(IntDir)mdct_7a1b58a5.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\modes.c">
+      <ObjectFileName>$(IntDir)modes_a2139898.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\pitch.c">
+      <ObjectFileName>$(IntDir)pitch_490bcb22.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt_lpc.c">
+      <ObjectFileName>$(IntDir)celt_lpc_d292f35f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\quant_bands.c">
+      <ObjectFileName>$(IntDir)quant_bands_a41db3ac.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\rate.c">
+      <ObjectFileName>$(IntDir)rate_1a4ab207.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\vq.c">
+      <ObjectFileName>$(IntDir)vq_473d24fd.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\CNG.c">
+      <ObjectFileName>$(IntDir)CNG_adbb0467.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\code_signs.c">
+      <ObjectFileName>$(IntDir)code_signs_c2eae3b8.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\init_decoder.c">
+      <ObjectFileName>$(IntDir)init_decoder_96bc3bb7.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_core.c">
+      <ObjectFileName>$(IntDir)decode_core_32079136.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_frame.c">
+      <ObjectFileName>$(IntDir)decode_frame_044575ea.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_parameters.c">
+      <ObjectFileName>$(IntDir)decode_parameters_6d590d1b.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_indices.c">
+      <ObjectFileName>$(IntDir)decode_indices_94f393d2.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_pulses.c">
+      <ObjectFileName>$(IntDir)decode_pulses_6780e43f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decoder_set_fs.c">
+      <ObjectFileName>$(IntDir)decoder_set_fs_33e775f1.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\dec_API.c">
+      <ObjectFileName>$(IntDir)dec_API_ba632c61.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\enc_API.c">
+      <ObjectFileName>$(IntDir)enc_API_88a096a3.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\encode_indices.c">
+      <ObjectFileName>$(IntDir)encode_indices_d950e3ce.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\encode_pulses.c">
+      <ObjectFileName>$(IntDir)encode_pulses_22540c42.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\gain_quant.c">
+      <ObjectFileName>$(IntDir)gain_quant_74ee9574.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\interpolate.c">
+      <ObjectFileName>$(IntDir)interpolate_413a25f6.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LP_variable_cutoff.c">
+      <ObjectFileName>$(IntDir)LP_variable_cutoff_4cf2dcca.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_decode.c">
+      <ObjectFileName>$(IntDir)NLSF_decode_d3f7465e.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NSQ.c">
+      <ObjectFileName>$(IntDir)NSQ_cdf26e7f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NSQ_del_dec.c">
+      <ObjectFileName>$(IntDir)NSQ_del_dec_09553500.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\PLC.c">
+      <ObjectFileName>$(IntDir)PLC_7ad30119.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\shell_coder.c">
+      <ObjectFileName>$(IntDir)shell_coder_e2d51093.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_gain.c">
+      <ObjectFileName>$(IntDir)tables_gain_d27d5ba3.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_LTP.c">
+      <ObjectFileName>$(IntDir)tables_LTP_98f32ea1.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_NLSF_CB_NB_MB.c">
+      <ObjectFileName>$(IntDir)tables_NLSF_CB_NB_MB_a9362d7c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_NLSF_CB_WB.c">
+      <ObjectFileName>$(IntDir)tables_NLSF_CB_WB_76901cd5.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_other.c">
+      <ObjectFileName>$(IntDir)tables_other_0343137e.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_pitch_lag.c">
+      <ObjectFileName>$(IntDir)tables_pitch_lag_6a81c15f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_pulses_per_block.c">
+      <ObjectFileName>$(IntDir)tables_pulses_per_block_5ee76d05.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\VAD.c">
+      <ObjectFileName>$(IntDir)VAD_13c0169f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\control_audio_bandwidth.c">
+      <ObjectFileName>$(IntDir)control_audio_bandwidth_47deb0fa.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\quant_LTP_gains.c">
+      <ObjectFileName>$(IntDir)quant_LTP_gains_0cc0cd58.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\VQ_WMat_EC.c">
+      <ObjectFileName>$(IntDir)VQ_WMat_EC_55f5e2bb.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\HP_variable_cutoff.c">
+      <ObjectFileName>$(IntDir)HP_variable_cutoff_d3afc740.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_encode.c">
+      <ObjectFileName>$(IntDir)NLSF_encode_ef86a4e9.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_VQ.c">
+      <ObjectFileName>$(IntDir)NLSF_VQ_f2748350.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_unpack.c">
+      <ObjectFileName>$(IntDir)NLSF_unpack_3c9266da.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_del_dec_quant.c">
+      <ObjectFileName>$(IntDir)NLSF_del_dec_quant_d6ad085c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\process_NLSFs.c">
+      <ObjectFileName>$(IntDir)process_NLSFs_ff762b21.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_LR_to_MS.c">
+      <ObjectFileName>$(IntDir)stereo_LR_to_MS_252824c6.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_MS_to_LR.c">
+      <ObjectFileName>$(IntDir)stereo_MS_to_LR_7b1adc75.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\check_control_input.c">
+      <ObjectFileName>$(IntDir)check_control_input_22c5a8ab.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\control_SNR.c">
+      <ObjectFileName>$(IntDir)control_SNR_981dc8c8.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\init_encoder.c">
+      <ObjectFileName>$(IntDir)init_encoder_d817d352.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\control_codec.c">
+      <ObjectFileName>$(IntDir)control_codec_f53b1894.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\A2NLSF.c">
+      <ObjectFileName>$(IntDir)A2NLSF_43977083.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\ana_filt_bank_1.c">
+      <ObjectFileName>$(IntDir)ana_filt_bank_1_e05027da.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\biquad_alt.c">
+      <ObjectFileName>$(IntDir)biquad_alt_66483c31.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\bwexpander_32.c">
+      <ObjectFileName>$(IntDir)bwexpander_32_c75b55ec.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\bwexpander.c">
+      <ObjectFileName>$(IntDir)bwexpander_4bfd239c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\debug.c">
+      <ObjectFileName>$(IntDir)debug_ad243e82.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_pitch.c">
+      <ObjectFileName>$(IntDir)decode_pitch_a20bc07b.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\inner_prod_aligned.c">
+      <ObjectFileName>$(IntDir)inner_prod_aligned_a160eebc.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\lin2log.c">
+      <ObjectFileName>$(IntDir)lin2log_d3aabf4a.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\log2lin.c">
+      <ObjectFileName>$(IntDir)log2lin_a8c9cddc.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LPC_analysis_filter.c">
+      <ObjectFileName>$(IntDir)LPC_analysis_filter_fd003d39.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LPC_inv_pred_gain.c">
+      <ObjectFileName>$(IntDir)LPC_inv_pred_gain_99ef63cb.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\table_LSF_cos.c">
+      <ObjectFileName>$(IntDir)table_LSF_cos_5d14195d.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF2A.c">
+      <ObjectFileName>$(IntDir)NLSF2A_d962d758.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_stabilize.c">
+      <ObjectFileName>$(IntDir)NLSF_stabilize_ccedbeb5.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_VQ_weights_laroia.c">
+      <ObjectFileName>$(IntDir)NLSF_VQ_weights_laroia_4abe8185.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\pitch_est_tables.c">
+      <ObjectFileName>$(IntDir)pitch_est_tables_267eb92f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler.c">
+      <ObjectFileName>$(IntDir)resampler_3d8bf15e.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_down2_3.c">
+      <ObjectFileName>$(IntDir)resampler_down2_3_a6a174e2.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_down2.c">
+      <ObjectFileName>$(IntDir)resampler_down2_7a65088d.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_AR2.c">
+      <ObjectFileName>$(IntDir)resampler_private_AR2_ce16f3be.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_down_FIR.c">
+      <ObjectFileName>$(IntDir)resampler_private_down_FIR_4197c01c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_IIR_FIR.c">
+      <ObjectFileName>$(IntDir)resampler_private_IIR_FIR_e5812ee3.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_up2_HQ.c">
+      <ObjectFileName>$(IntDir)resampler_private_up2_HQ_f0819766.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_rom.c">
+      <ObjectFileName>$(IntDir)resampler_rom_01389293.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\sigm_Q15.c">
+      <ObjectFileName>$(IntDir)sigm_Q15_8fc9c5e2.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\sort.c">
+      <ObjectFileName>$(IntDir)sort_3dc255be.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\sum_sqr_shift.c">
+      <ObjectFileName>$(IntDir)sum_sqr_shift_4838a5ce.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_decode_pred.c">
+      <ObjectFileName>$(IntDir)stereo_decode_pred_b1907ade.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_encode_pred.c">
+      <ObjectFileName>$(IntDir)stereo_encode_pred_ad51ed55.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_find_predictor.c">
+      <ObjectFileName>$(IntDir)stereo_find_predictor_3278087e.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_quant_pred.c">
+      <ObjectFileName>$(IntDir)stereo_quant_pred_5ddaae63.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LPC_fit.c">
+      <ObjectFileName>$(IntDir)LPC_fit_80add86c.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\apply_sine_window_FLP.c">
+      <ObjectFileName>$(IntDir)apply_sine_window_FLP_fb527c04.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\corrMatrix_FLP.c">
+      <ObjectFileName>$(IntDir)corrMatrix_FLP_b60abe7d.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\encode_frame_FLP.c">
+      <ObjectFileName>$(IntDir)encode_frame_FLP_1b3cc651.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_LPC_FLP.c">
+      <ObjectFileName>$(IntDir)find_LPC_FLP_a1dd8413.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_LTP_FLP.c">
+      <ObjectFileName>$(IntDir)find_LTP_FLP_6dffa3ff.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_pitch_lags_FLP.c">
+      <ObjectFileName>$(IntDir)find_pitch_lags_FLP_99e54196.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_pred_coefs_FLP.c">
+      <ObjectFileName>$(IntDir)find_pred_coefs_FLP_cf7c2190.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LPC_analysis_filter_FLP.c">
+      <ObjectFileName>$(IntDir)LPC_analysis_filter_FLP_9bb60cc8.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LTP_analysis_filter_FLP.c">
+      <ObjectFileName>$(IntDir)LTP_analysis_filter_FLP_167bcbfe.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LTP_scale_ctrl_FLP.c">
+      <ObjectFileName>$(IntDir)LTP_scale_ctrl_FLP_cc588822.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\noise_shape_analysis_FLP.c">
+      <ObjectFileName>$(IntDir)noise_shape_analysis_FLP_b0d0eca7.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\process_gains_FLP.c">
+      <ObjectFileName>$(IntDir)process_gains_FLP_2ca5e8a1.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\regularize_correlations_FLP.c">
+      <ObjectFileName>$(IntDir)regularize_correlations_FLP_a4525542.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\residual_energy_FLP.c">
+      <ObjectFileName>$(IntDir)residual_energy_FLP_8c6d0365.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\warped_autocorrelation_FLP.c">
+      <ObjectFileName>$(IntDir)warped_autocorrelation_FLP_cbcc7543.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\wrappers_FLP.c">
+      <ObjectFileName>$(IntDir)wrappers_FLP_ef73b940.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\autocorrelation_FLP.c">
+      <ObjectFileName>$(IntDir)autocorrelation_FLP_11508772.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\burg_modified_FLP.c">
+      <ObjectFileName>$(IntDir)burg_modified_FLP_6d1fc637.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\bwexpander_FLP.c">
+      <ObjectFileName>$(IntDir)bwexpander_FLP_3a033ca3.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\energy_FLP.c">
+      <ObjectFileName>$(IntDir)energy_FLP_1bbf10d7.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\inner_product_FLP.c">
+      <ObjectFileName>$(IntDir)inner_product_FLP_2ef32ec4.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\k2a_FLP.c">
+      <ObjectFileName>$(IntDir)k2a_FLP_407f8720.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LPC_inv_pred_gain_FLP.c">
+      <ObjectFileName>$(IntDir)LPC_inv_pred_gain_FLP_41a8db39.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\pitch_analysis_core_FLP.c">
+      <ObjectFileName>$(IntDir)pitch_analysis_core_FLP_42d9d863.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\scale_copy_vector_FLP.c">
+      <ObjectFileName>$(IntDir)scale_copy_vector_FLP_d3024cbc.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\scale_vector_FLP.c">
+      <ObjectFileName>$(IntDir)scale_vector_FLP_38f919fb.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\schur_FLP.c">
+      <ObjectFileName>$(IntDir)schur_FLP_3f7128f4.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\sort_FLP.c">
+      <ObjectFileName>$(IntDir)sort_FLP_dd23bd40.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus.c">
+      <ObjectFileName>$(IntDir)opus_d0d79e37.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_decoder.c">
+      <ObjectFileName>$(IntDir)opus_decoder_1412a567.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_encoder.c">
+      <ObjectFileName>$(IntDir)opus_encoder_2ffe6c3f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\extensions.c">
+      <ObjectFileName>$(IntDir)extensions_61984773.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_multistream.c">
+      <ObjectFileName>$(IntDir)opus_multistream_4636a075.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_multistream_encoder.c">
+      <ObjectFileName>$(IntDir)opus_multistream_encoder_9a16bf0f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_multistream_decoder.c">
+      <ObjectFileName>$(IntDir)opus_multistream_decoder_a14d49ef.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\repacketizer.c">
+      <ObjectFileName>$(IntDir)repacketizer_9b312fac.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_projection_encoder.c">
+      <ObjectFileName>$(IntDir)opus_projection_encoder_b8f1bb22.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_projection_decoder.c">
+      <ObjectFileName>$(IntDir)opus_projection_decoder_c646b07f.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\mapping_matrix.c">
+      <ObjectFileName>$(IntDir)mapping_matrix_b719bc4e.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\analysis.c">
+      <ObjectFileName>$(IntDir)analysis_8f77c143.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\mlp.c">
+      <ObjectFileName>$(IntDir)mlp_623d7d97.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\mlp_data.c">
+      <ObjectFileName>$(IntDir)mlp_data_f5cfa56e.obj</ObjectFileName>
+      <WarningLevel>$(HaloOpusWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloOpusDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloOpusIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloOpusOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\third_party\musl-math\src\__cos.c">
       <ObjectFileName>$(IntDir)__cos_63395aba.obj</ObjectFileName>

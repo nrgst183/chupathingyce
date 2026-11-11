@@ -36,10 +36,13 @@ from .linux_build import (
     MONOCYPHER_DIR,
     MUSL_MATH_DIR,
     OPTIMISATION,
+    OPUS_DEFINES,
+    OPUS_DIR,
     PLATFORM_FLAGS as LINUX_PLATFORM_FLAGS,
     QRCODEGEN_DIR,
     STB_DIR,
     TOML_DIR,
+    VOICE_SOURCE,
     XDK_INCLUDE,
     ZLIB_DEFINES,
     ZLIB_DIR,
@@ -54,6 +57,7 @@ from .linux_build import (
     game_browser_defines,
     miniupnpc_sources,
     musl_math_sources,
+    opus_sources,
     updater_defines,
 )
 from .ninja_syntax import Writer
@@ -316,6 +320,8 @@ class Lp64Build:
             f"-I{ZLIB_DIR}",
             # (and Zstandard's, likewise)
             f"-I{ZSTD_DIR / 'lib'}",
+            # (and Opus's: voice.c's codec)
+            f"-I{OPUS_DIR / 'include'}",
             f"-I{_quote(lp64(Path('source')))} -I{_quote(lp64(Path('source/cseries')))}",
             host.host_include, f"-idirafter {xdk}",
         ])
@@ -335,10 +341,10 @@ class Lp64Build:
                 add(source, posix_cflags, native=True)
             elif source.name in VERSION_SOURCES:
                 add(lp64(source), f"{platform_cflags} {updater_defines(getattr(sln, 'port_release', False))}")
-            elif source.name in ("bink_ffmpeg.c", "bink_null.c"):
+            elif source.name in ("bink_ffmpeg.c", "bink_null.c", "capture_clips.c"):
                 add(lp64(source), " ".join([platform_cflags, *host.ffmpeg_cflags]))
-            elif source.name == "text_hires.c":
-                # (it includes stb_truetype by a path from its own folder: the
+            elif source.name in ("text_hires.c", "capture.c"):
+                # (they include stb by a path from their own folder: the
                 # copy's folder has no third_party beside it, the original's has)
                 add(lp64(source), f"{platform_cflags} -idirafter {LINUX_PORT_DIR / 'src'}")
             else:
@@ -385,6 +391,14 @@ class Lp64Build:
         if host.compressed_maps:
             for name in ZSTD_SOURCES:
                 add(ZSTD_DIR / name, " ".join([*native_third_party, *ZSTD_DEFINES]), native=True)
+        # voice chat's codec (port/third_party/opus; voice.c), with the
+        # host's ABI: its API is ints, floats and its own types; a build
+        # without voice.c (the dedicated server) leaves it out
+        if VOICE_SOURCE not in excluded:
+            for source in opus_sources():
+                add(source, " ".join([*native_third_party, "-std=gnu11", *OPUS_DEFINES,
+                                      *(f"-I{OPUS_DIR / name}" for name in ("include", "celt", "silk", "silk/float"))]),
+                    native=True)
         third_party = " ".join([abi, "-std=gnu11", "-w"])
         add(lp64(TOML_DIR / "tomlc17.c"), third_party)
         add(lp64(KCP_DIR / "ikcp.c"), third_party)

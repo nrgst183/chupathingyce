@@ -106,6 +106,9 @@ void ui_overlay_plasma_source(int serial, const unsigned char *pixels, int width
 hardware format, the texture cache's: the interface's plasma map), once:
 nonzero if it was read */
 int ui_overlay_plasma_from_texture(const void *hardware_format);
+/* the color of the plasma's bright threads (0xRRGGBBAA, its alpha unused):
+the theme's (ui_style_theme) */
+void ui_overlay_plasma_thread(unsigned int color);
 
 /* what is drawn from here on goes over what was drawn before at a lower
 layer (0 to 4; each frame starts at 0): text is drawn over the shapes of
@@ -136,6 +139,14 @@ frame: serial names it (a new serial's pixels are copied; the same
 serial's are not read again), 0 none */
 void ui_overlay_picture(int serial, const unsigned char *pixels, int width, int height, float x, float y,
 	float draw_width, float draw_height, unsigned int color);
+
+/* a medal's icon (medal_icons.h's index: the site's medals, as
+stats.chupathingy.org draws them), size square, x, y its top left, tinted by
+color (its alpha fades it). Nothing in a build without them
+(HALO_MEDAL_ICONS, halo_console_features.h); ui_overlay_medals_available
+says whether they are drawn */
+void ui_overlay_medal(int medal, float x, float y, float size, unsigned int color);
+int ui_overlay_medals_available(void);
 
 /* a place the overlay leaves for the game's own drawing (a map's picture),
 for this frame (at most 4) */
@@ -173,9 +184,75 @@ enum
 	/* a friend's emblem on a toast, and its letter */
 	UI_COLOR_EMBLEM_FRIEND,
 	UI_COLOR_EMBLEM_LETTER,
+	/* the setup screen's (launcher.c): its title, its sections (lit: their
+	glow), a row's label not ready, a lit label's glow, a lit section's glow,
+	quieter and fainter text, its states (good, bad), a row's tag, the
+	prompts, the full-screen rule and its glow, a separator, a field (a path,
+	a progress bar's track) and its edge, a progress bar's fill from its top
+	to its bottom, the backdrop's space from its top to its middle and
+	bottom, its stars (their alpha their own), and what is cleared behind */
+	UI_COLOR_TITLE,
+	UI_COLOR_TITLE_GLOW,
+	UI_COLOR_NAV,
+	UI_COLOR_NAV_GLOW,
+	UI_COLOR_LABEL_DIM,
+	UI_COLOR_LABEL_GLOW,
+	UI_COLOR_SELECTED_GLOW,
+	UI_COLOR_TEXT_DIM,
+	UI_COLOR_FAINT,
+	UI_COLOR_GOOD,
+	UI_COLOR_BAD,
+	UI_COLOR_TAG,
+	UI_COLOR_PROMPT,
+	UI_COLOR_PROMPT_GLOW,
+	UI_COLOR_LINE,
+	UI_COLOR_LINE_GLOW,
+	UI_COLOR_SEPARATOR,
+	UI_COLOR_FIELD,
+	UI_COLOR_FIELD_EDGE,
+	UI_COLOR_PROGRESS_TOP,
+	UI_COLOR_PROGRESS_BOTTOM,
+	UI_COLOR_BACKDROP_TOP,
+	UI_COLOR_BACKDROP_MIDDLE,
+	UI_COLOR_BACKDROP_BOTTOM,
+	UI_COLOR_STAR,
+	UI_COLOR_CLEAR,
+	/* the look's own pieces (ui_overlay_style.c): a panel's edge and the
+	glow around what is lit, the card's rule, a tab, the lit tab, the
+	selection's edge, a row's glass, its edge and the lit row's plasma, and
+	the plasma's bright threads */
+	UI_COLOR_PANEL_EDGE,
+	UI_COLOR_GLOW,
+	UI_COLOR_RULE,
+	UI_COLOR_TAB,
+	UI_COLOR_TAB_ON,
+	UI_COLOR_SELECTED_EDGE,
+	UI_COLOR_ROW,
+	UI_COLOR_ROW_EDGE,
+	UI_COLOR_ROW_ON,
+	UI_COLOR_PLASMA_THREAD,
+	/* the Guide's (guide.c): a quieter label, a setting's name, and the
+	dots of a friend in a game and offline */
+	UI_COLOR_LABEL_SOFT,
+	UI_COLOR_DOT_GAME,
+	UI_COLOR_DOT_OFFLINE,
 	NUMBER_OF_UI_COLORS
 };
 unsigned int ui_style_color(int name);
+
+/* the themes the palette comes in: Halo Blue (the default) and
+Chupathingy Red (display.theme) */
+enum
+{
+	UI_THEME_BLUE,
+	UI_THEME_RED,
+	NUMBER_OF_UI_THEMES
+};
+/* the palette from here on (live: the next frame draws in it) */
+void ui_style_theme(int theme);
+int ui_style_theme_current(void);
+/* display.theme's value ("blue", "red") as a theme: blue for anything else */
+int ui_style_theme_named(const char *name);
 
 /* the look's text, each kind in the menus' fonts (ui_style_text): a list's
 headings ("ONLINE (2 OF 3)"), a row's name and its status line, a pane's
@@ -196,6 +273,9 @@ float ui_style_text(int kind, float x, float y, int align, const char *text);
 /* the same faded by share (0 to 1: a toast coming and going) */
 float ui_style_text_faded(int kind, float share, float x, float y, int align, const char *text);
 float ui_style_text_size(int kind);
+/* the same at scale times its size (a larger screen's rows: the setup
+screen's) */
+float ui_style_text_scaled(int kind, float scale, float x, float y, int align, const char *text);
 
 /* the clock the plasma scrolls by, in milliseconds: set once a frame
 before drawing (the game's system_milliseconds, the launcher's ticks) */
@@ -212,6 +292,12 @@ void ui_style_glass(float x, float y, float width, float height, float radius, u
 	unsigned int edge);
 /* a row's capsule: glass, the selected one lit with the plasma */
 void ui_style_row(float x, float y, float width, float height, int selected);
+/* a setting's row (settings_rows.h's, the Guide's and the setup screen's):
+its capsule (ui_style_row), its label in ui_style_text's UI_TEXT_NAME at
+scale times its size, a tag after it (badge, as "NEEDS A RESTART"; NULL:
+none), and its value at the right between the arrows that change it */
+void ui_style_setting(float x, float y, float width, float height, float scale, const char *label, const char *badge,
+	const char *value, int selected);
 /* section tabs between left and right, height tall: the bumpers' glyphs at
 the ends (the keyboard's: left_key and right_key, as "Q" and "E", or the
 device's LB and RB when NULL), the names centered, the selected one lit.

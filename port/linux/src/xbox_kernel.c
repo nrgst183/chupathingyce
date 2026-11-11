@@ -8,6 +8,7 @@ threads, asynchronous procedure calls, time, memory and debug output.
 #include "platform.h"
 #include "posix.h"
 #include "thread_stop.h"
+#include "log_paths.h"
 
 #include <errno.h>
 #include <sched.h>
@@ -54,6 +55,11 @@ void platform_log(const char *format, ...)
 	va_end(arguments);
 	quiet = platform_log_quiet(buffer);
 
+	va_start(arguments, format);
+	vsnprintf(buffer, sizeof(buffer), format, arguments);
+	va_end(arguments);
+	/* (the home folder as ~, unless debug.log_full_paths: log_paths.h) */
+	log_paths_redact_line(buffer, sizeof(buffer));
 	/* (a console whose standard error is its debug channel gets the line
 	from console_debug_print below: HALO_CONSOLE_DEBUG_CHANNEL) */
 #ifndef HALO_CONSOLE_DEBUG_CHANNEL
@@ -71,10 +77,7 @@ void platform_log(const char *format, ...)
 		void console_debug_print(const char *text);
 		char line[2048];
 
-		va_start(arguments, format);
-		snprintf(line, sizeof(line) - 2, "halo: ");
-		vsnprintf(line + 6, sizeof(line) - 8, format, arguments);
-		va_end(arguments);
+		snprintf(line, sizeof(line) - 2, "halo: %s", buffer);
 		strcat(line, "\r\n");
 		console_debug_print(line);
 	}
@@ -84,12 +87,8 @@ void platform_log(const char *format, ...)
 		/* the dedicated server's recent log, for its control API
 		(server/platform/server_control.c) */
 		void server_control_log(const char *text);
-		char line[2048];
 
-		va_start(arguments, format);
-		vsnprintf(line, sizeof(line), format, arguments);
-		va_end(arguments);
-		server_control_log(line);
+		server_control_log(buffer);
 	}
 #endif
 #ifdef HALO_64BIT

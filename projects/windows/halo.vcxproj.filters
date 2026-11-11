@@ -1155,6 +1155,9 @@
     <ClCompile Include="$(HaloRoot)source\objects\damage_effect_definitions.c">
       <Filter>source\objects</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)source\objects\door_portals.c">
+      <Filter>source\objects</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)source\objects\light_definitions.c">
       <Filter>source\objects</Filter>
     </ClCompile>
@@ -1623,7 +1626,19 @@
     <ClCompile Include="$(HaloRoot)source\units\vehicles.c">
       <Filter>source\units</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\ambient_emitter_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\ammo_counter_falloff.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\ammo_counter_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\audio_probe.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\authored_emitter_lighting.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\bot_aas.c">
@@ -1707,6 +1722,12 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\coop_spectate.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\covenant_emitter_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\covenant_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\determinism_check.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1731,6 +1752,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\guide.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\guide_record.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\host_evidence.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1746,6 +1770,12 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\invite_prompt.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\late_join.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lighting_config.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\line_of_sight.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1759,6 +1789,18 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\map_packs.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\map_share_client.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\map_share_host.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\map_share_wire.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\medal_hud.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\menu_functions.c">
@@ -1777,6 +1819,12 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\msvc_comdat.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\muzzle_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\needler_lighting.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\network_actors.c">
@@ -1809,6 +1857,27 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\pal_tags.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\party_teams.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\plasma_collision.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\plasma_collision_models.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\plasma_collision_scene.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\plasma_falloff.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\plasma_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\plasma_occlusion.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\powerup_timers.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1818,10 +1887,22 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\profile_screen.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\render_enumerate.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\render_interpolation.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\report_player.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\rocket_lighting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\server_browser.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\stats_log.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\structure_culling.c">
@@ -1872,6 +1953,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\ui_map_list.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\voice_game.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)server\src\command_line.c">
       <Filter>server\src</Filter>
     </ClCompile>
@@ -1908,6 +1992,12 @@
     <ClCompile Include="$(HaloRoot)server\src\server_names.c">
       <Filter>server\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)server\src\server_reports.c">
+      <Filter>server\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\about.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\bink_ffmpeg.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -1924,6 +2014,12 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\cabinet.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\capture.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\capture_clips.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\ce_installer.c">
@@ -2013,7 +2109,13 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\launcher.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\link_register.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\log_address.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\log_paths.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\map_archive.c">
@@ -2034,7 +2136,25 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\map_file_hash.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\map_host_download.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\map_index.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\map_quick_check.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\map_repo.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\map_repo_game.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\map_report.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\map_share_files.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\menu_files.c">
@@ -2067,7 +2187,16 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\p2p_signal.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\party_teams_plan.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\pc_disc.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\plasma_model_shader.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\plasma_occlusion_gl.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\playlist_download.c">
@@ -2092,6 +2221,15 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\sdl_platform.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\server_badge.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\service_record.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\settings_rows.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\social.c">
@@ -2127,6 +2265,12 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\updater.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\voice.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\voice_jitter.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\xbdm.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -2152,6 +2296,9 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\xgpu_shader_cache.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\xgpu_shader_keys.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\xgpu_text.c">

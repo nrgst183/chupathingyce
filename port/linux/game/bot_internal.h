@@ -88,6 +88,10 @@ struct bot_move_state
 	long landed_reach; /* a jump or a gap just made (NONE: none), watched a moment for whether it stays there */
 	long landed_until;
 	real landed_z;
+	long walk_air_reach; /* the walk it was on when it left the ground on its own (NONE: on the ground, or on a reach) */
+	real walk_air_z;
+	long walk_fell_reach; /* the last walk it fell off of, and when */
+	long walk_fell_tick;
 	long reach_rise_ticks; /* a ladder: when we last got higher */
 	real reach_rise_z;
 	/* reachabilities failed at: not taken again for a while */

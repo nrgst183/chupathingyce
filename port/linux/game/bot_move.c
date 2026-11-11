@@ -106,6 +106,8 @@ void bot_move_reset(struct bot_move_state *move)
 	move->route_goal_area = NONE;
 	move->area_before = NONE;
 	move->landed_reach = NONE;
+	move->walk_air_reach = NONE;
+	move->walk_fell_reach = NONE;
 	for (i = 0; i < BOT_AVOID_REACHES; i++)
 		if (move->avoid_until[i] == 0)
 			move->avoid_reach[i] = NONE;
@@ -3939,6 +3941,43 @@ static void bot_move_landed_check(struct bot_mover *bot, struct bot_body const *
 {
 	struct bot_move_state *move = &bot->move;
 	real_point3d const *position = &body->position;
+
+	/* (Off the ground on a walk, not a jump, and down a good way lower when
+	   it came down: the walk took it over an edge. The run along the top of
+	   the rock by the rocket launcher on Battle Creek goes over a crest, and
+	   a bot at a run left the ground on it and came down the far side, five
+	   units under, every time: forty seconds for a way of eight. That walk
+	   is left for a while, by this bot; when it happens again, for everyone.
+	   HALO_BOT_OFF=walkfall) */
+	if (type != AAS_FOOT || move->reach != NONE || bot_env_off("walkfall"))
+		move->walk_air_reach = NONE;
+	else if (body->airborne)
+	{
+		if (move->walk_air_reach == NONE && move->corridor_count > 0 && aas_reach(type, move->corridor[0]) &&
+			aas_reach(type, move->corridor[0])->travel == _aas_travel_walk)
+		{
+			move->walk_air_reach = move->corridor[0];
+			move->walk_air_z = position->z;
+		}
+	}
+	else if (move->walk_air_reach != NONE)
+	{
+		long fell = move->walk_air_reach;
+		move->walk_air_reach = NONE;
+		if (position->z < move->walk_air_z - 1.5f)
+		{
+			boolean again = move->walk_fell_reach == fell && game_time_get() - move->walk_fell_tick < BOT_SECONDS(300);
+			if (bot_logging())
+				bot_log("bot%ld: fell off walking %ld (%.1f down, at %.2f %.2f %.2f)%s", bot->index, fell, move->walk_air_z - position->z,
+					position->x, position->y, position->z, again ? ", again" : "");
+			bot_move_avoid(move, fell, BOT_SECONDS(30));
+			if (again && !bot_move_crowded(bot))
+				aas_reach_failed(AAS_FOOT, fell);
+			move->walk_fell_reach = fell;
+			move->walk_fell_tick = game_time_get();
+			move->corridor_count = 0;
+		}
+	}
 
 	/* (over a jump or a gap a moment ago, and well below where it came
 	   down: it did not stay there. A place to land that nothing stands on,

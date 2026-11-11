@@ -12841,6 +12841,7 @@ static void bot_consider_spawns(struct bot_state *bot, long me, struct player_da
 }
 
 static void bot_think_inner(long player_absolute_index, struct player_action *action);
+boolean move_log_replay(long player_absolute_index, struct player_action *action);
 /* infection.c's */
 boolean infection_player_is_zombie(long player_index);
 
@@ -12920,6 +12921,8 @@ void bot_think(long player_absolute_index, struct player_action *action)
 	{
 		bot_think_inner(player_absolute_index, action);
 		bot_hold_fire(player_absolute_index, action);
+		/* (testing: a person's movement played back, move_log.c) */
+		move_log_replay(player_absolute_index, action);
 		return;
 	}
 	start = bot_time_microseconds();

@@ -900,3 +900,168 @@ void move_log_tick(void)
 		mp->was_jump_held = jump_held;
 	}
 }
+
+/* ---------- a person's movement played back by a bot (testing)
+
+HALO_BOT_REPLAY=<file>: the first bot to think, once it has been on its feet
+three seconds, is put where a person was at the start of a stretch of their
+movement log, going as they went, and given their stick, facing and
+buttons tick by tick: whether the game, so moved, does what it did for
+them is whether the log has all that a jump of theirs is (and the bots'
+jumps can be worked out from it). The file, from tools/move_replay.py:
+a line a tick, "x y z vx vy vz yaw pitch forward left jump crouch", the
+velocities in units a second. Played HALO_BOT_REPLAY_TIMES times (8),
+three seconds apart; each tick logged "replay <try> <tick> x y z air".
+HALO_BOT_REPLAY_SHIFT=n: the inputs n ticks later than the place;
+HALO_BOT_REPLAY_JUMP=n and HALO_BOT_REPLAY_CROUCH=n: the jump's press, or
+the crouch's, n ticks later (for how much it may be off);
+HALO_BOT_REPLAY_TUCK=a,b: crouched from a ticks after the feet left the
+ground to b, instead of as the person was */
+
+#define MOVE_REPLAY_TICKS 600
+static struct
+{
+	int loaded;
+	long count;
+	float rows[MOVE_REPLAY_TICKS][12];
+	long player;
+	long tick, tries, wait;
+	long takeoff; /* the row the feet left the ground (the file's first line) */
+} move_replay = { 0, 0, { { 0 } }, NONE, -1, 0, 0, 0 };
+
+static long move_replay_env(char const *name, long otherwise)
+{
+	char const *value = getenv(name);
+	return value ? atol(value) : otherwise;
+}
+
+static void move_replay_load(void)
+{
+	char const *path = getenv("HALO_BOT_REPLAY");
+	FILE *file;
+	char line[512];
+	move_replay.loaded = path ? 1 : -1;
+	if (!path || !(file = fopen(path, "r")))
+	{
+		if (path)
+			platform_log("replay: cannot read %s", path);
+		move_replay.loaded = -1;
+		return;
+	}
+	while (move_replay.count < MOVE_REPLAY_TICKS && fgets(line, sizeof(line), file))
+	{
+		float *r = move_replay.rows[move_replay.count];
+		char name[64];
+		if (line[0] == '#')
+		{
+			sscanf(line, "# %63s %ld", name, &move_replay.takeoff);
+			continue;
+		}
+		if (sscanf(line, "%f %f %f %f %f %f %f %f %f %f %f %f", &r[0], &r[1], &r[2], &r[3], &r[4], &r[5], &r[6], &r[7], &r[8], &r[9], &r[10], &r[11]) == 12)
+			move_replay.count++;
+	}
+	fclose(file);
+	platform_log("replay: %ld ticks from %s", move_replay.count, path);
+}
+
+/* the replay's inputs for the bot this tick, if it is the one replaying
+   (TRUE: the action is the person's) */
+boolean move_log_replay(long player_absolute_index, struct player_action *action)
+{
+	struct player_datum *player;
+	struct biped_datum *biped;
+	long k, shift, jump_shift, crouch_shift;
+	if (!move_replay.loaded)
+		move_replay_load();
+	if (move_replay.loaded < 0 || move_replay.count < 2)
+		return FALSE;
+	if (move_replay.player == NONE)
+		move_replay.player = player_absolute_index;
+	if (player_absolute_index != move_replay.player || move_replay.tries >= move_replay_env("HALO_BOT_REPLAY_TIMES", 8))
+		return FALSE;
+	{
+		struct data_iterator iterator;
+		struct player_datum *each;
+		player = NULL;
+		data_iterator_new(&iterator, player_data);
+		while ((each = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+			if (DATUM_INDEX_TO_ABSOLUTE_INDEX(iterator.datum_index) == player_absolute_index)
+				player = each;
+		if (!player)
+			return FALSE;
+	}
+	biped = player->unit_index != NONE ? biped_try_and_get(player->unit_index) : NULL;
+	if (!biped || biped->object.parent_object_index != NONE)
+	{
+		move_replay.tick = -1;
+		move_replay.wait = 0;
+		return FALSE;
+	}
+	shift = move_replay_env("HALO_BOT_REPLAY_SHIFT", 0);
+	jump_shift = move_replay_env("HALO_BOT_REPLAY_JUMP", 0);
+	crouch_shift = move_replay_env("HALO_BOT_REPLAY_CROUCH", 0);
+	if (move_replay.tick < 0)
+	{
+		/* (three seconds on its feet, standing still, before each try) */
+		if (++move_replay.wait < 90)
+		{
+			action->control_flags = 0;
+			action->throttle.i = action->throttle.j = 0.f;
+			return TRUE;
+		}
+		{
+			float const *r = move_replay.rows[0];
+			real_point3d at;
+			real_vector3d forward, up;
+			at.x = r[0];
+			at.y = r[1];
+			at.z = r[2];
+			forward.i = (real)cos(r[6]);
+			forward.j = (real)sin(r[6]);
+			forward.k = 0.f;
+			up.i = up.j = 0.f;
+			up.k = 1.f;
+			object_set_position(player->unit_index, &at, &forward, &up);
+			biped->object.translational_velocity.i = r[3] / TICKS_PER_SECOND;
+			biped->object.translational_velocity.j = r[4] / TICKS_PER_SECOND;
+			biped->object.translational_velocity.k = r[5] / TICKS_PER_SECOND;
+			move_replay.tick = 0;
+		}
+	}
+	k = move_replay.tick - shift;
+	action->control_flags = 0;
+	action->throttle.i = action->throttle.j = 0.f;
+	action->primary_trigger = 0.f;
+	if (k >= 0 && k < move_replay.count)
+	{
+		float const *r = move_replay.rows[k];
+		long kj = move_replay.tick - shift - jump_shift, kc = move_replay.tick - shift - crouch_shift;
+		action->desired_facing.yaw = r[6];
+		action->desired_facing.pitch = r[7];
+		action->throttle.i = r[8];
+		action->throttle.j = r[9];
+		if (kj >= 0 && kj < move_replay.count && move_replay.rows[kj][10] > 0.5f)
+			action->control_flags |= FLAG(_unit_control_jump_bit);
+		/* (HALO_BOT_REPLAY_TUCK=a,b: crouched from a ticks after the feet
+		   left the ground to before b, whatever the person did) */
+		char const *tuck = getenv("HALO_BOT_REPLAY_TUCK");
+		long from = 0, to = 0;
+		if (tuck && sscanf(tuck, "%ld,%ld", &from, &to) == 2)
+		{
+			long since = move_replay.tick - shift - move_replay.takeoff;
+			if (since >= from && since < to)
+				action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
+		}
+		else if (kc >= 0 && kc < move_replay.count && move_replay.rows[kc][11] > 0.5f)
+			action->control_flags |= FLAG(_unit_control_crouch_modifier_bit);
+	}
+	platform_log("replay %ld %ld %.4f %.4f %.4f %d", move_replay.tries, move_replay.tick, biped->object.position.x, biped->object.position.y,
+		biped->object.position.z, TEST_FLAG(biped->biped.flags, _biped_airborne_bit) != 0);
+	if (++move_replay.tick >= move_replay.count + 10)
+	{
+		move_replay.tick = -1;
+		move_replay.wait = 0;
+		move_replay.tries++;
+	}
+	return TRUE;
+}

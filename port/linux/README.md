@@ -3261,6 +3261,21 @@ and two kinds of walker); the wrecks of the others stayed.
   its legs a tenth quicker, Hang 'em High's too, Wizard's and Damnation's as
   before, and the slots made 97 in 100 times (`sliverway`; the navigation
   cache's version is 48).
+- **A person's jump played back by a bot:** `tools/move_replay.py
+  logs/move_log.csv logs/move_jumps.txt <line> replay.txt` takes a jump of
+  the movement log (from a second before it to half a second after), and
+  `HALO_BOT_REPLAY=replay.txt` has the first bot of a game put where the
+  person was, going as they went, and given their stick, facing and buttons
+  tick by tick; `tools/move_replay.py compare replay.txt <game's log>` sets
+  its path against theirs. Played back, a person's crouch jump 0.71 up onto
+  Chill Out's ledge by the red base came down within a tenth of a unit of
+  where theirs did, every time: the log has all that a jump is. With
+  `HALO_BOT_REPLAY_JUMP=n`, `HALO_BOT_REPLAY_CROUCH=n` (the press n ticks
+  later) and `HALO_BOT_REPLAY_TUCK=a,b` (crouched from a ticks to b, instead),
+  how much of it may be off: the jump a sixth of a second either way; the
+  crouch from any time after the feet are off the ground (not with the
+  press: then there is no jump), the later the further it carries, and a tap
+  of three ticks enough; let go anywhere but while the feet go over the lip.
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

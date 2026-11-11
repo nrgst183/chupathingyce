@@ -64,6 +64,7 @@ struct bot_move_state
 	long people_air_ticks; /* a way people take: ticks since the feet left the ground (bot_move_travel_people) */
 	int people_runup; /* ... gone back for a run at it */
 	int tuck_high; /* a jump up high enough to want the legs tucked from the third tick (bot_move_jump_off) */
+	int tuck_begun; /* ... and the tuck begun, as late as it does it (bot_move_tuck_when) */
 	real reach_peak;
 	real reach_pace; /* a gap: how fast it is run at (0: not worked out yet; 1: flat out) */
 	int reach_no_jump; /* ... and run off the edge of, not jumped from (it lands near, and well below) */

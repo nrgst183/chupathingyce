@@ -3276,6 +3276,17 @@ and two kinds of walker); the wrecks of the others stayed.
   crouch from any time after the feet are off the ground (not with the
   press: then there is no jump), the later the further it carries, and a tap
   of three ticks enough; let go anywhere but while the feet go over the lip.
+- **The tuck as late as the jump allows:** from the playback above, a bot's
+  tuck on a jump up (and a gap up) waits, in the air, until untucked its
+  feet would be short of the lip when it gets to the face, going as it is,
+  and the face is the tuck's six ticks of lift and three more away; jumps it
+  clears untucked (most to 0.65 up, come at at a run) get none, and keep
+  their speed. Jumped from at the face, as the bots mostly do, the tuck is
+  begun as soon as the feet are off the ground, as before (`tucklate`). In
+  tours of six maps and on the ledge course, as many made and as quick.
+  `HALO_BOT_RUNONWIDE`: a jump up begun as a person's from up to two and a
+  half units off and steered onto, not only when already square and at a
+  run; not by default, as many ledges slower as quicker.
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

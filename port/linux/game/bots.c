@@ -20482,7 +20482,13 @@ static void bot_track_unseen(struct bot_think *t)
 		   while: a dot on the tracker is the only one about) */
 		bot->personality.aggression > 0.35f * (1.f - bot_press()) * (1.f - bot_quiet(bot)) &&
 		(weapon->value >= 4.f || bot->personality.aggression > 0.75f || bot_quiet(bot) > 0.5f) && bot->goal_kind != _bot_goal_enemy &&
-		!(bot->goal_kind == _bot_goal_item && bot_goal_is_powerup(bot)) && bot_unit_alive(bot->tracked_unit))
+		!(bot->goal_kind == _bot_goal_item && bot_goal_is_powerup(bot)) && bot_unit_alive(bot->tracked_unit) &&
+		/* (nor from a better gun a few steps off that it broke off for: the
+		   two took turns, a tick or a few each, and the bot went neither way,
+		   a third of all its grabs made again within a second. HALO_BOT_OFF=
+		   grabhold) */
+		!(bot->goal_kind == _bot_goal_item && bot->goal_object != NONE && bot->goal_object == bot->grab_object && bot->goal_ticks > 0 &&
+			!bot_env_off("grabhold")))
 	{
 		if (!bot_noroute_near(bot, &bot->tracked_at))
 		{

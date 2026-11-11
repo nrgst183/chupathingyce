@@ -12905,6 +12905,25 @@ static void bot_dodge_note_loss(long player_absolute_index, real loss)
 	}
 }
 
+/* A person can't put the flag (or the ball) away: player_control.c holds
+   the weapon that must be readied in the hand, whatever is asked for. A
+   bot's action goes past that, so a bot switching to its shotgun put the
+   flag away, hidden where it was (the game logs it dropped there), and it
+   could stand on its own base all game without scoring: the capture is
+   only for the flag in hand (game_engine_ctf.c). The same rule here. */
+static void bot_keep_readied(long player_absolute_index, struct player_action *action)
+{
+	struct player_datum *me = bot_player_at_index(player_absolute_index);
+	short slot;
+	if (!me || me->unit_index == NONE || !object_try_and_get(me->unit_index) || bot_env_off("keepflag"))
+		return;
+	slot = unit_inventory_get_must_be_readied_weapon(me->unit_index);
+	if (slot == NONE)
+		return;
+	action->desired_weapon_index = slot;
+	action->desired_zoom_level = NONE;
+}
+
 /* testing: HALO_BOT_PROFILE, what the bots cost a tick, every 5 s of game */
 void bot_think(long player_absolute_index, struct player_action *action)
 {
@@ -12921,6 +12940,7 @@ void bot_think(long player_absolute_index, struct player_action *action)
 	{
 		bot_think_inner(player_absolute_index, action);
 		bot_hold_fire(player_absolute_index, action);
+		bot_keep_readied(player_absolute_index, action);
 		/* (testing: a person's movement played back, move_log.c) */
 		move_log_replay(player_absolute_index, action);
 		return;
@@ -12929,6 +12949,7 @@ void bot_think(long player_absolute_index, struct player_action *action)
 	BOT_PROFILE_MARK("setup");
 	bot_think_inner(player_absolute_index, action);
 	bot_hold_fire(player_absolute_index, action);
+	bot_keep_readied(player_absolute_index, action);
 	BOT_PROFILE_MARK(NULL);
 	spent = bot_time_microseconds() - start;
 	bot_profile_call_end(player_absolute_index, game_time_get(), spent, 2000);
@@ -20461,7 +20482,13 @@ static void bot_track_unseen(struct bot_think *t)
 		   while: a dot on the tracker is the only one about) */
 		bot->personality.aggression > 0.35f * (1.f - bot_press()) * (1.f - bot_quiet(bot)) &&
 		(weapon->value >= 4.f || bot->personality.aggression > 0.75f || bot_quiet(bot) > 0.5f) && bot->goal_kind != _bot_goal_enemy &&
-		!(bot->goal_kind == _bot_goal_item && bot_goal_is_powerup(bot)) && bot_unit_alive(bot->tracked_unit))
+		!(bot->goal_kind == _bot_goal_item && bot_goal_is_powerup(bot)) && bot_unit_alive(bot->tracked_unit) &&
+		/* (nor from a better gun a few steps off that it broke off for: the
+		   two took turns, a tick or a few each, and the bot went neither way,
+		   a third of all its grabs made again within a second. HALO_BOT_OFF=
+		   grabhold) */
+		!(bot->goal_kind == _bot_goal_item && bot->goal_object != NONE && bot->goal_object == bot->grab_object && bot->goal_ticks > 0 &&
+			!bot_env_off("grabhold")))
 	{
 		if (!bot_noroute_near(bot, &bot->tracked_at))
 		{

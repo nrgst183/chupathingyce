@@ -3325,6 +3325,25 @@ and two kinds of walker); the wrecks of the others stayed.
   unit from it, at a full run or back for another run, and not from a walk
   (another way, if there is no run to be had). Not by default: on six such
   ledges the ways round them were as quick or quicker.
+- **The flag stays in hand:** a person can't put the flag (or the ball)
+  away, but a bot's choice of weapon went past that rule, so a carrier that
+  switched to its shotgun put the flag away. The flag then stayed hidden
+  where that happened (the game counts it as dropped there), and the bot
+  stood on its own base for the rest of the game, because a capture counts
+  only for a flag in hand. Seen on Death Island: one bot spent 140 s like
+  this. Now the bots keep it in hand too (`keepflag`).
+- **A walk that goes over an edge:** a bot running along the top of the
+  rock by Battle Creek's rocket launcher left the ground on its crest and
+  came down the far side, five units lower, every time. When a bot leaves
+  the ground on a walk (not a jump) and lands 1.5 or more lower, it avoids
+  that walk for 30 s. If the same walk drops it again, the walk counts as
+  failed for every bot. The creek-to-rocket tour leg went from 17.5 s to
+  12.9 s on average (`walkfall`).
+- **A better gun a few steps off is gone for:** the hunt for someone on
+  the motion tracker overrode a bot's break for a better gun nearby, and the
+  next tick the gun took over again. About a third of all grabs were made
+  again within a second, and the bot stood between the two
+  (`grabhold`).
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

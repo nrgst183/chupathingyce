@@ -173,13 +173,17 @@ struct move_player
 		long toward, away, across, still;
 		long jumps, crouches, shots;
 		real damage;
-		long weapon;
+		/* (names, not tag indices: a fight or a drive is written when it
+		   ends, which can be once the map is gone, the game quit back to
+		   the menus, and an index of the old map's then is no tag at all;
+		   the game halted on it) */
+		char weapon[48];
 	} fight;
 	struct move_drive
 	{
 		int on;
 		long began;
-		long vehicle_definition;
+		char vehicle[48];
 		real_point3d from, last;
 		real distance, speed_sum, fastest;
 		long ticks, flat_out, sliding, in_air;
@@ -458,7 +462,7 @@ static void move_log_fight_end(short local, struct move_player *mp, char const *
 		f->began, local, move_log_map(), seconds, f->distance_ticks ? f->distance_sum / f->distance_ticks : 0.f, f->side_changes / MAX(seconds, 0.1f),
 		100.f * f->toward / moving, 100.f * f->away / moving, 100.f * f->across / moving, 100.f * f->still / moving, f->jumps / MAX(seconds, 0.1f),
 		f->crouches / MAX(seconds, 0.1f), f->shots / MAX(seconds, 0.1f), f->damage, MAX(0.f, f->enemy_start - f->enemy_last),
-		f->weapon != NONE ? move_log_short_name(f->weapon) : "-", how);
+		f->weapon[0] ? f->weapon : "-", how);
 	move_log_line(move_log.fights, line);
 }
 
@@ -475,7 +479,7 @@ static void move_log_drive_end(short local, struct move_player *mp)
 		return;
 	snprintf(line, sizeof(line), "drive t%ld player %d on %s: %s from %.1f %.1f %.1f to %.1f %.1f %.1f, %.1f s, %.1f units, %.2f u/s on the whole, %.2f at the most; "
 		"flat out %.0f%%, sliding %.0f%%, in the air %.0f%%%s",
-		dr->began, local, move_log_map(), move_log_short_name(dr->vehicle_definition), dr->from.x, dr->from.y, dr->from.z, dr->last.x, dr->last.y,
+		dr->began, local, move_log_map(), dr->vehicle[0] ? dr->vehicle : "-", dr->from.x, dr->from.y, dr->from.z, dr->last.x, dr->last.y,
 		dr->last.z, seconds, dr->distance, dr->speed_sum / ticks, dr->fastest, 100.f * dr->flat_out / ticks, 100.f * dr->sliding / ticks,
 		100.f * dr->in_air / ticks, dr->flipped ? "; turned over" : "");
 	move_log_line(move_log.drives, line);
@@ -797,7 +801,7 @@ void move_log_tick(void)
 				f->enemy_unit = enemy;
 				f->enemy_start = enemy_vitality;
 				f->enemy_last = enemy_vitality;
-				f->weapon = NONE;
+				f->weapon[0] = '\0';
 			}
 			if (f->on)
 			{
@@ -819,7 +823,7 @@ void move_log_tick(void)
 					f->ticks++;
 					f->damage += damage;
 					if (held != NONE && object_try_and_get(held))
-						f->weapon = object_get(held)->definition_index;
+						csstrncpy(f->weapon, move_log_short_name(object_get(held)->definition_index), sizeof(f->weapon) - 1);
 					if (enemy != NONE)
 					{
 						real to_enemy = bot_yaw_to(at, &object_get(enemy)->object.position);
@@ -861,7 +865,7 @@ void move_log_tick(void)
 				csmemset(dr, 0, sizeof(*dr));
 				dr->on = TRUE;
 				dr->began = now;
-				dr->vehicle_definition = root->definition_index;
+				csstrncpy(dr->vehicle, move_log_short_name(root->definition_index), sizeof(dr->vehicle) - 1);
 				dr->from = *at;
 				dr->last = *at;
 				dr->rest = floor;

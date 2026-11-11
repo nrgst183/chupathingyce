@@ -18672,6 +18672,10 @@ static void bot_make_body(struct player_datum *me, int teams, long vehicle_index
 	body->facing_yaw = bot_wrap((real)atan2(root->object.forward.j, root->object.forward.i));
 	body->team = me->team_index;
 	body->teams = teams;
+	/* (testing, HALO_BOT_SPEEDSCALE=1.25: every bot that much faster on its
+	   feet, as a game type's carrier or a slayer's much killed is) */
+	if (getenv("HALO_BOT_SPEEDSCALE"))
+		me->speed_multiplier = (real)atof(getenv("HALO_BOT_SPEEDSCALE"));
 	body->speed_scale = me->speed_multiplier > 0.1f ? me->speed_multiplier : 1.f;
 	/* (whether the game takes a jump from it now: bipeds.c's own test) */
 	body->can_jump = FALSE;

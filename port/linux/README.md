@@ -3287,6 +3287,26 @@ and two kinds of walker); the wrecks of the others stayed.
   `HALO_BOT_RUNONWIDE`: a jump up begun as a person's from up to two and a
   half units off and steered onto, not only when already square and at a
   run; not by default, as many ledges slower as quicker.
+- **How fast a bot runs, in its jumps:** a game type's ball carrier, and
+  slayer's much killed and much killing, run faster or slower than the
+  usual (the player's speed, which the game moves them by). A gap's run and
+  jump are now worked out at the speed the bot runs at: faster, it no longer
+  eases off to the usual speed (and lands as far on as the floor allows);
+  slower, a gap too far for its run even with the steering in the air is
+  not run at but gone round, for that bot alone, for twenty seconds, and is
+  no failure of the gap's for the others. In tours with every bot a quarter
+  slower, Wizard's gaps went from 78 and 86 in 100 made to 85 and 87, the
+  tours as quick; a quarter faster, a fiftieth more legs (`speedaware`).
+  `HALO_BOT_SPEEDSCALE=1.25`: every bot that much faster, for testing.
+- **Tried, and not by default:** `HALO_BOT_LINEUP` has a walking bot turn
+  onto the line through a jump up a few links ahead, square to it, a unit
+  and a half or more out, to take it at a run as a person does; in tours it
+  cost a twentieth on Beaver Creek, Damnation and Hang 'em High, where most
+  jumps up are onto crates, not taken at a run whatever. `HALO_BOT_SLIDES`
+  (with `HALO_BOT_NOCACHE=1`) traces slides down banks too steep to stand
+  on, as ways down; Beaver Creek's banks a person was quicker over were in
+  fact a jump and a drop the navigation has, and the slides shortened none
+  of a person's 292 moves.
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

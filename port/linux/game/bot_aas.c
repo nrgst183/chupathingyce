@@ -68,7 +68,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 48 /* (48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 49 /* (49: banks slid down, HALO_BOT_SLIDES; 48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -868,6 +868,7 @@ struct aas_candidate
 	long careful; /* drop: a fall beyond where it lands */
 	long walkover; /* floor a step up or down just over a slot: walked */
 	long sliver; /* ... and through a slot too narrow for an area, aas_sliver_scan */
+	long slide; /* drop: off the edge and down a bank too steep to stand on, aas_slide_scan */
 };
 
 /* Sorted, and what compares equal left in the order it was in. (The C
@@ -1623,6 +1624,89 @@ static void aas_sliver_scan(long type, struct aas_candidates *list, long s, long
 	}
 }
 
+/* Down a bank too steep to stand on. A body walked off the top of one is
+   not stood anywhere till the bottom: it slides, down the fall line, onto
+   the floor below, two or three units off. The areas have no floor on the
+   bank and the drops look for it straight under the edge, so there was no
+   way down at all: Beaver Creek's banks along the creek on the east side,
+   which a person slid down in two seconds, the navigation went round in
+   seven to thirteen. Traced from the edge as a body slides: a ray down a
+   quarter of a unit on each step, which way the bank falls there; to where
+   it comes out on floor (somewhere it stands, in an area), within six units
+   and nowhere going up; a drop, walked off the top. HALO_BOT_SLIDES: so;
+   not by default: Beaver Creek's banks the person was quicker over turned
+   out to be jumps and drops the navigation has, the slides found (two
+   hundred on Beaver Creek) shortened none of the person's 292 moves, and
+   Beaver Creek's tours were a little slower with them */
+static void aas_slide_scan(long type, struct aas_candidates *list, long s, long d)
+{
+	unsigned long const flags = FLAG(_collision_test_front_facing_surfaces_bit) | FLAG(_collision_test_structure_bit);
+	struct collision_result collision;
+	real_point3d at, edge;
+	real dx = (real)navm_dx[d], dy = (real)navm_dy[d];
+	real length = (real)sqrt(dx * dx + dy * dy), travelled = 0.f, last_z;
+	long step, steep = 0;
+	long a = NONE, a_span = NONE;
+	navm_span_point(s, &edge);
+	dx /= length;
+	dy /= length;
+	at = edge;
+	last_z = edge.z;
+	for (step = 0; step < 28; step++)
+	{
+		real_point3d from;
+		real_vector3d down;
+		real nx, ny, nl;
+		at.x += dx * 0.25f;
+		at.y += dy * 0.25f;
+		travelled += 0.25f;
+		from = at;
+		from.z = last_z + 0.4f;
+		down.i = down.j = 0.f;
+		down.k = -2.5f;
+		if (!collision_test_vector(flags, &from, &down, NONE, &collision))
+			return; /* (a drop into nothing near: not a bank) */
+		if (collision.point.z > last_z + 0.05f)
+			return; /* (up again: not a way down) */
+		last_z = collision.point.z;
+		if (collision.plane.n.k >= NAVM_MINIMUM_NORMAL_K)
+		{
+			/* floor: the slide's end, if it was a slide and somewhere stood */
+			long x = (long)((collision.point.x - navm.x0) / NAVM_CELL), y = (long)((collision.point.y - navm.y0) / NAVM_CELL), u;
+			if (steep < 2 || edge.z - collision.point.z < 0.4f || x < 0 || y < 0 || x >= navm.width || y >= navm.height)
+				return;
+			for (u = navm_first_span_at(x, y); u != NONE; u = navm.spans[u].next)
+			{
+				if (fabs(navm.spans[u].floor - collision.point.z) < 0.25f && aas_eligible(type, u))
+				{
+					long before = list->count;
+					aas_ledge_candidate(type, list, s, d, step + 1, u, _aas_travel_drop, FALSE, &a, &a_span);
+					if (list->count > before)
+						list->items[list->count - 1].slide = TRUE;
+					return;
+				}
+			}
+			return;
+		}
+		/* (a wall, not a bank) */
+		if (collision.plane.n.k < 0.25f)
+			return;
+		/* on down the fall line */
+		steep++;
+		nx = collision.plane.n.i;
+		ny = collision.plane.n.j;
+		nl = (real)sqrt(nx * nx + ny * ny);
+		if (nl > 0.01f)
+		{
+			dx = nx / nl;
+			dy = ny / nl;
+		}
+		at.x = collision.point.x;
+		at.y = collision.point.y;
+	}
+	(void)travelled;
+}
+
 static void aas_ledge_scan(long type, struct aas_candidates *list, long s, long d)
 {
 	long const reach_cells = NAVM_CELLS(3.2f); /* how far out from a ledge to look */
@@ -2263,6 +2347,20 @@ static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 		for (d = 0; d < aas_scan_directions(type); d++)
 			aas_ledge_scan(type, &list, s, d);
 	}
+	/* (and the banks too steep to stand on, slid down) */
+	if (type == AAS_FOOT && bot_env_set("HALO_BOT_SLIDES"))
+	{
+		for (s = 0; s < navm.span_count; s++)
+		{
+			long d;
+			struct navm_span const *span = &navm.spans[s];
+			if (!aas_eligible(type, s) || !(span->flags & _navm_span_edge_border))
+				continue;
+			for (d = 0; d < 8; d++)
+				if (aas_scan_neighbor(type, s, d) == NONE)
+					aas_slide_scan(type, &list, s, d);
+		}
+	}
 	/* (and the slots through to the next area too narrow to be one) */
 	if (type == AAS_FOOT && !bot_env_off("sliverway"))
 	{
@@ -2320,6 +2418,8 @@ static void aas_ledge_reaches(long type, struct aas_reaches *reaches)
 					continue;
 				}
 			}
+			else if (candidate->slide)
+				tries++; /* (the slide's own way down was traced: aas_slide_scan) */
 			else if (candidate->travel == _aas_travel_jump || candidate->travel == _aas_travel_drop)
 			{
 				tries++;

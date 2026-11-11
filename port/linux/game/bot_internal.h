@@ -68,6 +68,7 @@ struct bot_move_state
 	real reach_peak;
 	real reach_pace; /* a gap: how fast it is run at (0: not worked out yet; 1: flat out) */
 	int reach_no_jump; /* ... and run off the edge of, not jumped from (it lands near, and well below) */
+	int reach_too_far; /* ... and too far across for how fast this body runs now (a slow game type's, slayer's) */
 	real reach_beyond; /* ... and how far on from the near end of where it lands it is meant to come down */
 	int reach_hole; /* a gap that is walked over: 0 not looked at, 1 walked, 2 a hole a body goes down (jumped) */
 	int reach_no_room; /* a gap with nowhere behind its edge to take a run from */

@@ -918,16 +918,22 @@ the crouch's, n ticks later (for how much it may be off);
 HALO_BOT_REPLAY_TUCK=a,b: crouched from a ticks after the feet left the
 ground to b, instead of as the person was */
 
-#define MOVE_REPLAY_TICKS 600
+#define MOVE_REPLAY_TICKS 30000
+#define MOVE_REPLAY_SEGMENTS 512
+/* (a file may hold many stretches, each after its own "#" line, played in
+   turn, each HALO_BOT_REPLAY_TIMES times: tools/jump_lab.py's made-up jumps) */
 static struct
 {
 	int loaded;
 	long count;
-	float rows[MOVE_REPLAY_TICKS][12];
+	float (*all)[12];
+	long segments;
+	long first[MOVE_REPLAY_SEGMENTS + 1], takeoffs[MOVE_REPLAY_SEGMENTS];
+	float (*rows)[12]; /* the stretch being played */
 	long player;
 	long tick, tries, wait;
-	long takeoff; /* the row the feet left the ground (the file's first line) */
-} move_replay = { 0, 0, { { 0 } }, NONE, -1, 0, 0, 0 };
+	long takeoff; /* the row the feet left the ground (its "#" line's second word) */
+} move_replay = { 0, 0, NULL, 0, { 0 }, { 0 }, NULL, NONE, -1, 0, 0, 0 };
 
 static long move_replay_env(char const *name, long otherwise)
 {
@@ -948,20 +954,39 @@ static void move_replay_load(void)
 		move_replay.loaded = -1;
 		return;
 	}
+	move_replay.all = (float (*)[12])malloc(sizeof(float[12]) * MOVE_REPLAY_TICKS);
+	if (!move_replay.all)
+	{
+		fclose(file);
+		move_replay.loaded = -1;
+		return;
+	}
 	while (move_replay.count < MOVE_REPLAY_TICKS && fgets(line, sizeof(line), file))
 	{
-		float *r = move_replay.rows[move_replay.count];
+		float *r = move_replay.all[move_replay.count];
 		char name[64];
 		if (line[0] == '#')
 		{
-			sscanf(line, "# %63s %ld", name, &move_replay.takeoff);
+			long takeoff = 0;
+			if (move_replay.segments >= MOVE_REPLAY_SEGMENTS)
+				break;
+			sscanf(line, "# %63s %ld", name, &takeoff);
+			move_replay.first[move_replay.segments] = move_replay.count;
+			move_replay.takeoffs[move_replay.segments] = takeoff;
+			move_replay.segments++;
 			continue;
 		}
 		if (sscanf(line, "%f %f %f %f %f %f %f %f %f %f %f %f", &r[0], &r[1], &r[2], &r[3], &r[4], &r[5], &r[6], &r[7], &r[8], &r[9], &r[10], &r[11]) == 12)
 			move_replay.count++;
 	}
 	fclose(file);
-	platform_log("replay: %ld ticks from %s", move_replay.count, path);
+	if (!move_replay.segments)
+	{
+		move_replay.first[0] = 0;
+		move_replay.segments = 1;
+	}
+	move_replay.first[move_replay.segments] = move_replay.count;
+	platform_log("replay: %ld ticks in %ld stretches from %s", move_replay.count, move_replay.segments, path);
 }
 
 /* the replay's inputs for the bot this tick, if it is the one replaying
@@ -973,12 +998,23 @@ boolean move_log_replay(long player_absolute_index, struct player_action *action
 	long k, shift, jump_shift, crouch_shift;
 	if (!move_replay.loaded)
 		move_replay_load();
-	if (move_replay.loaded < 0 || move_replay.count < 2)
+	if (move_replay.loaded < 0 || move_replay.first[move_replay.segments] < 2)
 		return FALSE;
 	if (move_replay.player == NONE)
 		move_replay.player = player_absolute_index;
-	if (player_absolute_index != move_replay.player || move_replay.tries >= move_replay_env("HALO_BOT_REPLAY_TIMES", 8))
+	if (player_absolute_index != move_replay.player || move_replay.tries >= move_replay_env("HALO_BOT_REPLAY_TIMES", 8) * move_replay.segments)
 		return FALSE;
+	{
+		long segment = move_replay.tries / move_replay_env("HALO_BOT_REPLAY_TIMES", 8);
+		move_replay.rows = move_replay.all + move_replay.first[segment];
+		move_replay.count = move_replay.first[segment + 1] - move_replay.first[segment];
+		move_replay.takeoff = move_replay.takeoffs[segment];
+		if (move_replay.count < 2)
+		{
+			move_replay.tries++;
+			return FALSE;
+		}
+	}
 	{
 		struct data_iterator iterator;
 		struct player_datum *each;
@@ -1003,7 +1039,7 @@ boolean move_log_replay(long player_absolute_index, struct player_action *action
 	if (move_replay.tick < 0)
 	{
 		/* (three seconds on its feet, standing still, before each try) */
-		if (++move_replay.wait < 90)
+		if (++move_replay.wait < move_replay_env("HALO_BOT_REPLAY_WAIT", 90))
 		{
 			action->control_flags = 0;
 			action->throttle.i = action->throttle.j = 0.f;

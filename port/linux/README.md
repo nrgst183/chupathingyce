@@ -3307,6 +3307,24 @@ and two kinds of walker); the wrecks of the others stayed.
   on, as ways down; Beaver Creek's banks a person was quicker over were in
   fact a jump and a drop the navigation has, and the slides shortened none
   of a person's 292 moves.
+- **What a jump up takes, found by trying it:** `tools/jump_lab.py` makes
+  up jumps onto ledges of a map (from a navigation dump), each tried every
+  way: off the ground half a unit to two from the face after a full run,
+  the legs not tucked, tucked early, tucked so the lift is done just before
+  the face (held, or a tap), and a bot plays them all in one game
+  (`HALO_BOT_REPLAY` takes a file of many stretches now, each after its own
+  `#` line; `HALO_BOT_REPLAY_WAIT` the ticks between them). On 33 ledges of
+  five maps: to about 0.6 up, no tuck, from anywhere to 1.7 off, the
+  quickest; from 0.6 to 0.92, a tuck whose lift is done three ticks before
+  the face, off the ground 0.9 to 1.3 from it at a full run, made every one,
+  and was the quickest of the tucks; a unit up onto a level top, none. The
+  bots' own jump, from standing at the face, goes to 0.84. With
+  `HALO_BOT_HIGHRISE=0.92` the navigation finds jumps up to 0.92 where there
+  is a straight level run of two and a half units at the face, reckoned 2.5
+  s dearer for the run, and a bot takes them so: square to the face, off a
+  unit from it, at a full run or back for another run, and not from a walk
+  (another way, if there is no run to be had). Not by default: on six such
+  ledges the ways round them were as quick or quicker.
 - **The movement log on Linux** goes to the logs folder (it went into the
   data folder, one set for every copy of the game running).
 - **Jumps like people's, found everywhere:** what the movement logs showed

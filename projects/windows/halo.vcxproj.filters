@@ -46,6 +46,21 @@
     <Filter Include="port\third_party\musl-math\src">
       <UniqueIdentifier>{daceba45-7c69-537d-9f63-29f8e4ceffb0}</UniqueIdentifier>
     </Filter>
+    <Filter Include="port\third_party\opus">
+      <UniqueIdentifier>{57950bec-acc5-3e23-1143-221014409414}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="port\third_party\opus\celt">
+      <UniqueIdentifier>{0b04857a-0886-9ab5-d64f-e07732f7df74}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="port\third_party\opus\silk">
+      <UniqueIdentifier>{568c9382-4c82-86c9-bff2-b81d465f62b5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="port\third_party\opus\silk\float">
+      <UniqueIdentifier>{dd77c8f2-fa11-effc-574a-5bafdfb3f5b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="port\third_party\opus\src">
+      <UniqueIdentifier>{2b4b319f-496f-0871-e515-a0cbd10ab7c7}</UniqueIdentifier>
+    </Filter>
     <Filter Include="port\third_party\qrcodegen">
       <UniqueIdentifier>{dd557a4f-808b-4dd5-d814-89cb0e97b92b}</UniqueIdentifier>
     </Filter>
@@ -2789,6 +2804,417 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\third_party\zstd\lib\decompress\zstd_decompress_block.c">
       <Filter>port\third_party\zstd\lib\decompress</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\bands.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt_encoder.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt_decoder.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\cwrs.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\entcode.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\entdec.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\entenc.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\kiss_fft.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\laplace.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\mathops.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\mdct.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\modes.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\pitch.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\celt_lpc.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\quant_bands.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\rate.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\vq.c">
+      <Filter>port\third_party\opus\celt</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\CNG.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\code_signs.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\init_decoder.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_core.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_frame.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_parameters.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_indices.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_pulses.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decoder_set_fs.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\dec_API.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\enc_API.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\encode_indices.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\encode_pulses.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\gain_quant.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\interpolate.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LP_variable_cutoff.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_decode.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NSQ.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NSQ_del_dec.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\PLC.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\shell_coder.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_gain.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_LTP.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_NLSF_CB_NB_MB.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_NLSF_CB_WB.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_other.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_pitch_lag.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\tables_pulses_per_block.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\VAD.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\control_audio_bandwidth.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\quant_LTP_gains.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\VQ_WMat_EC.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\HP_variable_cutoff.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_encode.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_VQ.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_unpack.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_del_dec_quant.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\process_NLSFs.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_LR_to_MS.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_MS_to_LR.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\check_control_input.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\control_SNR.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\init_encoder.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\control_codec.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\A2NLSF.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\ana_filt_bank_1.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\biquad_alt.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\bwexpander_32.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\bwexpander.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\debug.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\decode_pitch.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\inner_prod_aligned.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\lin2log.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\log2lin.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LPC_analysis_filter.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LPC_inv_pred_gain.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\table_LSF_cos.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF2A.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_stabilize.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\NLSF_VQ_weights_laroia.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\pitch_est_tables.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_down2_3.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_down2.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_AR2.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_down_FIR.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_IIR_FIR.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_private_up2_HQ.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\resampler_rom.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\sigm_Q15.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\sort.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\sum_sqr_shift.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_decode_pred.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_encode_pred.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_find_predictor.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\stereo_quant_pred.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\LPC_fit.c">
+      <Filter>port\third_party\opus\silk</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\apply_sine_window_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\corrMatrix_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\encode_frame_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_LPC_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_LTP_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_pitch_lags_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\find_pred_coefs_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LPC_analysis_filter_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LTP_analysis_filter_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LTP_scale_ctrl_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\noise_shape_analysis_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\process_gains_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\regularize_correlations_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\residual_energy_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\warped_autocorrelation_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\wrappers_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\autocorrelation_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\burg_modified_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\bwexpander_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\energy_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\inner_product_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\k2a_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\LPC_inv_pred_gain_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\pitch_analysis_core_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\scale_copy_vector_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\scale_vector_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\schur_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\silk\float\sort_FLP.c">
+      <Filter>port\third_party\opus\silk\float</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_decoder.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_encoder.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\extensions.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_multistream.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_multistream_encoder.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_multistream_decoder.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\repacketizer.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_projection_encoder.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\opus_projection_decoder.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\mapping_matrix.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\analysis.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\mlp.c">
+      <Filter>port\third_party\opus\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\opus\src\mlp_data.c">
+      <Filter>port\third_party\opus\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\third_party\musl-math\src\__cos.c">
       <Filter>port\third_party\musl-math\src</Filter>

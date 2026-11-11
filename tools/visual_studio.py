@@ -44,6 +44,7 @@ from tools.lp64_build import lp64_excluded  # noqa: E402
 from tools.version import VERSION_SOURCES  # noqa: E402
 from tools.windows_build import MONOCYPHER_DIR, ZLIB_DEFINES, ZLIB_DIR, ZLIB_SOURCES  # noqa: E402
 from tools.linux_build import ZSTD_DEFINES, ZSTD_DIR, ZSTD_SOURCES  # noqa: E402
+from tools.linux_build import OPUS_DEFINES, OPUS_DIR, opus_sources  # noqa: E402
 from tools.windows_build import (COMMENT, EXPAT_DIR, EXPAT_SOURCES, EXPORTED_INLINE, KCP_DIR, LINUX_DIR,  # noqa: E402
                                  PORT_DIR, QRCODEGEN_DIR, SDL_SHA256, SDL_VERSION, TOML_DIR, WIN32_FLAGS,
                                  WINDOWS32, WINDOWS64, WindowsTarget)
@@ -244,7 +245,7 @@ def main() -> None:
         platform_includes = [
             win(posix_include), win(crt_include), win(linux_platform), win(PORT_DIR / "include"), win(TOML_DIR),
             win(EXPAT_DIR), win(KCP_DIR), win(QRCODEGEN_DIR), win(MONOCYPHER_DIR), win(ZLIB_DIR),
-            win(ZSTD_DIR / "lib"), win(Path("source")), win(Path("source/cseries")), sdl_include, win(XDK_INCLUDE)]
+            win(ZSTD_DIR / "lib"), win(OPUS_DIR / "include"), win(Path("source")), win(Path("source/cseries")), sdl_include, win(XDK_INCLUDE)]
         return {
             # (-w hides everything, the errors a build asks for too: a build
             # that has such errors names its warnings itself, after the
@@ -292,6 +293,9 @@ def main() -> None:
             # (Zstandard's decoder, for compressed Halo PC maps: port/third_party/zstd;
             # map_compressed.c)
             "Zstd": group(["-std=gnu11"], split_flags(list(ZSTD_DEFINES))[0], [], [], False),
+            # (voice chat's codec: port/third_party/opus; voice.c)
+            "Opus": group(["-std=gnu11"], split_flags(list(OPUS_DEFINES))[0],
+                          [win(OPUS_DIR / name) for name in ("include", "celt", "silk", "silk/float")], [], False),
             # (the menus' XML parser: port/third_party/expat; menu_files.c)
             "Expat": group(["-std=gnu11"], [], [win(EXPAT_DIR)], [], False),
             "MuslMath": group(["-std=gnu11"], [], [win(MUSL_MATH_DIR / "include")],
@@ -353,6 +357,9 @@ def main() -> None:
         add(ZLIB_DIR / name, "Zlib")
     for name in ZSTD_SOURCES:
         add(ZSTD_DIR / name, "Zstd")
+    # voice chat's codec (port/third_party/opus; voice.c)
+    for source in opus_sources():
+        add(source, "Opus")
     for source in musl_math_sources():
         add(source, "MuslMath")
 

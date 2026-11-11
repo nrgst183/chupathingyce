@@ -961,7 +961,12 @@ static void bot_move_gap_takeoff(struct bot_mover *bot, struct bot_body const *b
 	real across = bot_distance2d(&reach->edge, &reach->left);
 	real down = reach->edge.z - reach->left.z;
 	real under = BOT_JUMP_VELOCITY * BOT_JUMP_VELOCITY + 2.f * BOT_JUMP_GRAVITY * down;
-	real speed = BOT_RUN_SPEED;
+	/* (how fast this body runs now: a game type's ball carrier, slayer's
+	   much killed or much killing run faster or slower, and the jump
+	   carries as far as the run is fast. HALO_BOT_OFF=speedaware: as at
+	   the usual speed) */
+	real scale = !bot_env_off("speedaware") && body->speed_scale > 0.1f ? body->speed_scale : 1.f;
+	real speed = BOT_RUN_SPEED * scale;
 	real carried, wanted;
 	real_point3d there;
 	real ground;
@@ -969,6 +974,7 @@ static void bot_move_gap_takeoff(struct bot_mover *bot, struct bot_body const *b
 
 	move->reach_pace = 1.f;
 	move->reach_no_jump = FALSE;
+	move->reach_too_far = FALSE;
 	move->reach_beyond = 0.05f;
 	if ((reach->careful == AAS_WALKOVER && move->reach_hole != 2) || reach->careful == AAS_HOP)
 		return;
@@ -994,6 +1000,14 @@ static void bot_move_gap_takeoff(struct bot_mover *bot, struct bot_body const *b
 	there.x = reach->edge.x + (real)cos(run) * (carried - 0.3f);
 	there.y = reach->edge.y + (real)sin(run) * (carried - 0.3f);
 	there.z = reach->left.z + 1.f;
+	/* (short of it at a full run, this slow: not to be jumped by this body
+	   now; up to the edge and on, at the usual speed, it was a fall.
+	   Wizard's long gaps, everyone a quarter slower: 129 of 165 made) */
+	if (scale < 0.97f && carried + 0.35f < across && down < 0.5f)
+	{
+		move->reach_too_far = TRUE;
+		return;
+	}
 	if (carried <= wanted + 0.2f || (bot_ground(&there, 1.5f, body->unit_index, &ground) && ground > reach->left.z - 0.4f && ground < reach->left.z + 0.7f))
 		return;
 	if (down > 0.5f)
@@ -1748,7 +1762,7 @@ static boolean bot_move_gap_leap(struct bot_mover *bot, struct bot_body const *b
 			   spare where the floor goes on and none where it is
 			   to be landed on exactly) */
 			real air = (BOT_JUMP_VELOCITY + (real)sqrt(under)) / BOT_JUMP_GRAVITY;
-			real most = BOT_RUN_SPEED * MIN(move->reach_pace, 1.f) * (body->speed_scale > 0.f ? MIN(body->speed_scale, 1.f) : 1.f);
+			real most = BOT_RUN_SPEED * MIN(move->reach_pace, 1.f) * (body->speed_scale > 0.f ? (bot_env_off("speedaware") ? MIN(body->speed_scale, 1.f) : body->speed_scale) : 1.f);
 			real faster = MIN(1.05f * air, MAX(most - toward, 0.f));
 			early = toward * air + 0.5f * faster * air >= bot_distance2d(position, landing) + move->reach_beyond + (move->reach_pace >= 1.f ? 0.2f : 0.05f);
 		}
@@ -1966,6 +1980,20 @@ static void bot_move_travel_gap(struct bot_mover *bot, struct bot_body const *bo
 	boolean steered = FALSE;
 
 	bot_move_gap_hole(move, body, reach);
+	/* (too far for how fast this body runs now: another way, for this bot
+	   alone and a while, and not a failure of the gap's: the others run
+	   at the usual speed. bot_move_gap_takeoff) */
+	if (!move->reach_started && move->reach_pace <= 0.f && reach->careful != AAS_WALKOVER && reach->careful != AAS_HOP)
+		bot_move_gap_takeoff(bot, body, reach);
+	if (!move->reach_started && move->reach_too_far)
+	{
+		if (bot_logging())
+			bot_log("bot%ld: gap %ld too far at %.2f of a run: another way", bot->index, move->reach, body->speed_scale);
+		bot_move_avoid(move, move->reach, BOT_SECONDS(20));
+		move->reach = NONE;
+		result->speed = 0.f;
+		return;
+	}
 	if (reach->careful == AAS_WALKOVER && move->reach_hole != 2)
 	{
 		bot_move_gap_walkover(bot, body, reach, result);
@@ -2002,7 +2030,7 @@ static void bot_move_travel_gap(struct bot_mover *bot, struct bot_body const *bo
 	   to it, or the jump carries clean over where it's going) */
 	if (!steered)
 	{
-		if (body->speed_scale > 1.05f && (move->reach_started || move->reach_phase == 1))
+		if (body->speed_scale > 1.05f && (move->reach_started || move->reach_phase == 1) && bot_env_off("speedaware"))
 			result->speed = 1.f / body->speed_scale;
 		/* (... and no faster than lands it where it is going: bot_move_gap_takeoff) */
 		if (move->reach_pace > 0.f && move->reach_pace < 1.f && (move->reach_started || move->reach_phase == 1) && !(reach->careful == AAS_WALKOVER && move->reach_hole != 2))
@@ -3503,6 +3531,75 @@ static boolean bot_move_jump_run_on(struct bot_mover *bot, struct bot_body const
 	}
 }
 
+/* Lined up for a jump up ahead. A person comes at a ledge they mean to jump
+   up already square to it and at a run, from a unit and a half to two off,
+   having turned onto that line a few steps before; the bots went to the
+   foot of the ledge the way the corners took them, and were at it from the
+   side, or slow, and jumped from where they stood or went back for a run.
+   So, walking, with a jump up a link or three on the route that is jumped
+   at a run (onto floor that goes on, bot_move_jump_run_on): onto the line
+   through where it lands, square to the face, joined a unit and a half or
+   more out from it, and on along it, so that it is come at as a person
+   does. HALO_BOT_LINEUP: so; not by default: in tours of six maps, Beaver
+   Creek's, Damnation's and Hang 'em High's legs were slower by a twentieth
+   with it (the line is gone out of the way to, and most of their jumps up
+   are onto crates, not taken at a run whatever) */
+static void bot_move_lineup(struct bot_mover *bot, struct bot_body const *body, struct bot_move_result *result)
+{
+	struct bot_move_state *move = &bot->move;
+	real_point3d const *position = &body->position;
+	long k;
+	if (!bot_env_set("HALO_BOT_LINEUP") || bot_env_off("jumptech") || move->reach != NONE || !result->moving || result->exact || body->airborne)
+		return;
+	for (k = move->corridor_count - 1; k >= 0 && k >= move->corridor_count - 3; k--)
+	{
+		struct aas_reach const *reach = aas_reach(AAS_FOOT, move->corridor[k]);
+		real_point3d const *landing;
+		real face, c, sn, off_face, aside, rise, join;
+		real_point3d merge, inside, beyond;
+		real ground;
+		if (!reach || reach->travel == _aas_travel_walk)
+			continue;
+		if (reach->travel != _aas_travel_jump || reach->people)
+			return;
+		landing = &reach->left;
+		rise = landing->z - reach->edge.z;
+		if (rise < 0.3f || rise > 0.84f || fabs(position->z - reach->edge.z) > 0.25f)
+			return;
+		face = bot_yaw_to(bot_distance2d(&reach->start, landing) > 0.12f ? &reach->start : &reach->edge, landing);
+		c = (real)cos(face);
+		sn = (real)sin(face);
+		off_face = (reach->edge.x - position->x) * c + (reach->edge.y - position->y) * sn - BOT_BODY_RADIUS;
+		aside = -(landing->x - position->x) * sn + (landing->y - position->y) * c;
+		if (off_face < 1.5f || off_face > 5.f || fabs(aside) < 0.15f)
+			return;
+		/* (onto floor that goes on past where it lands) */
+		beyond = *landing;
+		beyond.x += c * 0.7f;
+		beyond.y += sn * 0.7f;
+		beyond.z += 0.5f;
+		if (!bot_ground(&beyond, 1.f, body->unit_index, &ground) || fabs(ground - landing->z) > 0.15f)
+			return;
+		/* (joined two thirds of the way in, and no nearer than a unit and a half) */
+		join = MAX(1.5f, off_face * 0.6f);
+		merge.x = landing->x - c * (join + BOT_BODY_RADIUS + bot_distance2d(&reach->edge, landing));
+		merge.y = landing->y - sn * (join + BOT_BODY_RADIUS + bot_distance2d(&reach->edge, landing));
+		merge.z = reach->edge.z + 0.2f;
+		inside = reach->edge;
+		inside.x -= c * 0.3f;
+		inside.y -= sn * 0.3f;
+		inside.z += 0.2f;
+		if (!navm_line_walkable(position, &merge, 0.15f, 0.f) || !navm_line_walkable(&merge, &inside, 0.15f, 0.f) ||
+			bot_move_rise_between(body, &merge, &inside) >= BOT_RUNUP_RISE)
+		{
+			return;
+		}
+		result->yaw = bot_yaw_to(position, &merge);
+		result->speed = 1.f;
+		return;
+	}
+}
+
 /* a reachability that's more than a walk, next: at its start, take it */
 static int bot_move_take_next(struct bot_mover *bot, struct bot_body const *body, struct bot_move_result *result, long area, real_point3d const *corners, long corner_count)
 {
@@ -4382,6 +4479,7 @@ void bot_move_to_goal(struct bot_mover *bot, struct bot_body const *body, struct
 		return;
 	}
 	bot_move_walk(bot, body, goal, result, area, goal_area, corners, corner_count);
+	bot_move_lineup(bot, body, result);
 
 finish:
 	if (type != AAS_FOOT)

@@ -3340,7 +3340,8 @@ and two kinds of walker); the wrecks of the others stayed.
   ladder at a run from about two thirds of a unit out, as the movement logs
   show people doing on Longest. They grab it about six tenths up and skip
   the bottom of the climb (`ladderjump`).
-- **The high ground in slayer:** now and then a bot with a gun that reaches
+- **The high ground in slayer** (off for now, `HALO_BOT_PERCH=1` to try
+  it; bots stood about more with it): now and then a bot with a gun that reaches
   goes up to a high place that sees a lot, holds it a while, and shoots
   down from there. These include the roofs of Battle Creek's bases and,
   for a bot holding the sniper rifle, the rifle's own spawn when it is up
@@ -3432,7 +3433,8 @@ and two kinds of walker); the wrecks of the others stayed.
   someone with nothing to shoot comes after; the one carrying the flag or
   the ball is never put off for it. In a game where everyone has the same
   gun, it makes no difference. Better bots mind it more (`foepriority`).
-- **Out of a far sniper's sight:** against a sniper more than 22 units
+- **Out of a far sniper's sight** (off for now, `HALO_BOT_SNIPERCOVER=1`
+  to try it): against a sniper more than 22 units
   off, a bot whose own gun doesn't reach that far goes behind cover if
   there is some near, and otherwise closes in (`snipercover`).
 - **Jumps over railings:** the jump scan now looks past the foot of a

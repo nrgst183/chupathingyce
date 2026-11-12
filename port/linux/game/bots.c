@@ -8594,7 +8594,8 @@ static int bot_goal_perch(struct bot_goal_pass *g)
 			return TRUE;
 		}
 	}
-	if (game_engine == &slayer_engine && !bot_env_off("perch") && held >= 5.f && !bot->carrying_objective &&
+	/* (off for now, HALO_BOT_PERCH=1 to try it: bots stood about more with it) */
+	if (game_engine == &slayer_engine && bot_env_set("HALO_BOT_PERCH") && !bot_env_off("perch") && held >= 5.f && !bot->carrying_objective &&
 		bot_random(bot) < (0.15f + 0.35f * bot->personality.camping) * (0.4f + 0.6f * PIN((bot_skill_now - 2.f) / 3.f, 0.f, 1.f)) *
 			(bot_holds_named(unit, "sniper") ? 1.6f : 1.f))
 	{
@@ -16649,7 +16650,8 @@ static void bot_fight_foe_gun(struct bot_think *t, struct bot_fight *f)
 	{
 		/* (out of its sight if there is a wall near, else in at them)
 		   HALO_BOT_OFF=snipercover */
-		if (!bot_env_off("snipercover") && target_distance > 22.f && !bot->in_cover && --bot->cover_check_ticks <= 0)
+		/* (off for now, HALO_BOT_SNIPERCOVER=1 to try it) */
+		if (bot_env_set("HALO_BOT_SNIPERCOVER") && !bot_env_off("snipercover") && target_distance > 22.f && !bot->in_cover && --bot->cover_check_ticks <= 0)
 		{
 			bot->cover_check_ticks = 15;
 			if (bot_find_cover(bot, &t->body, &bot->last_seen, t->me->unit_index, &bot->cover_spot))

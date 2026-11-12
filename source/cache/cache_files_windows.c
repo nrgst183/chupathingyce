@@ -197,6 +197,7 @@ a pack's Xbox maps, <file>@<pack>, are read from maps_<pack> */
 #include "tag_files/tag_files.h"
 #include "scenario/scenario_definitions.h"
 #include "rasterizer/rasterizer.h"
+#include "mcc_cache.h" /* independent MCC reads and namespace */
 
 #include <xtl.h>
 
@@ -886,6 +887,8 @@ boolean cache_files_precache_is_copying_map(
 boolean cache_files_precache_map_loaded(
 	const char *map_name)
 {
+	if (mcc_level_name(map_name))
+		return mcc_cache_available(map_name);
 	return cached_map_files_find_map(tag_name_strip_path(map_name)) != NONE;
 }
 
@@ -924,6 +927,8 @@ boolean cache_files_precache_map_begin(
 {
 	const char *cache_map_name = tag_name_strip_path(map_name);
 
+	if (mcc_level_name(map_name))
+		return mcc_cache_require(map_name, 0);
 	if (!cache_files_precache_map_loaded(map_name))
 	{
 		struct cache_file_header header;
@@ -1194,9 +1199,17 @@ short cache_file_read(
 		}
 	}
 
+	/* port: an MCC map's reads are served at once, with no request of the
+	cache thread's (which could all be another map's still): a request index
+	that names none in flight */
+	if (mcc_cache_tags_loaded())
+	{
+		*completion_flag_reference = mcc_cache_read(tag_index, offset, size, buffer) ? TRUE :
+			(boolean)_cache_file_read_failed;
+		return 0;
+	}
 	request_index = cache_request_next_free_index();
 	request = cache_request_get(request_index);
-
 	match_assert(
 		"c:\\halo\\SOURCE\\cache\\cache_files_windows.c",
 		269,

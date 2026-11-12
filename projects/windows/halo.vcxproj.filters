@@ -1770,6 +1770,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\guide_record.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\guide_workshop.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\host_evidence.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1813,6 +1816,168 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\map_share_wire.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_audio.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_bitmaps.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_cache.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_cache_format.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_camera.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_campaign.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_checkpoint.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_damage.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_environment_shader.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_errors.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_game_speed.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_geometry.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_grenades.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_hud.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_hud_draw.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_identity.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_loading.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_main.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_maps.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_menu_preview.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_menu_text.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_movement.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_network.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_object_names.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_object_names_network.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_objects.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_package.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_particles.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_pause.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_pause_runtime.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_player.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_precache.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_progress.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_projectiles.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_protocol.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_recording_control.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_recordings.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_resources.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_script_effects.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_script_parameters.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_scripts.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_seats.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_sha256.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_share_rules.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_sprites.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_syntax.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_tag_validate.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_tags.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_terminal.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_texture_cache.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_ui.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_ui_teams.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_vorbis.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_workshop.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\medal_hud.c">
@@ -2115,6 +2280,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\gl_functions.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\guide_layout.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\halo_linker_common.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -2175,6 +2343,24 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\map_share_files.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_environment_shader_gl.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_manifest.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_memory.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_menu_metadata.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_preview_image.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_texture_bridge.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\menu_files.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -2232,7 +2418,16 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\posix_browser.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\posix_mcc_preview.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\posix_steam_bridge.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\posix_ui_font.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\retry_backoff.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\save_folder.c">
@@ -2251,6 +2446,24 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\social.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_api.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_cmd.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_find.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_pipe.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_client_bridge.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_workshop.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\text_hires.c">
@@ -2287,6 +2500,15 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\voice_jitter.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\workshop_browser.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\workshop_collections.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\workshop_list.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\xbdm.c">
@@ -2674,6 +2896,12 @@
       <Filter>port\windows\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\windows\src\win32_posix.c">
+      <Filter>port\windows\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\windows\src\win32_steam_bridge.c">
+      <Filter>port\windows\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\windows\src\win32_steam_workshop.c">
       <Filter>port\windows\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\windows\src\win32_update.c">

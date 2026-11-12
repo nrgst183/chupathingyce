@@ -696,6 +696,7 @@ struct material_definition;
 struct material_effect;
 struct material_effect_material;
 struct material_effects_definition;
+struct mcc_workshop_item;
 struct memory_pool;
 struct memory_pool_block;
 struct memory_status;

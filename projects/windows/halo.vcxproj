@@ -4314,6 +4314,14 @@
       <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\guide_workshop.c">
+      <ObjectFileName>$(IntDir)guide_workshop_3eb217f3.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\host_evidence.c">
       <ObjectFileName>$(IntDir)host_evidence_015c19d1.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
@@ -4428,6 +4436,438 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\map_share_wire.c">
       <ObjectFileName>$(IntDir)map_share_wire_58238e07.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_audio.c">
+      <ObjectFileName>$(IntDir)mcc_audio_b27ca1a4.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_bitmaps.c">
+      <ObjectFileName>$(IntDir)mcc_bitmaps_0d0e6804.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_cache.c">
+      <ObjectFileName>$(IntDir)mcc_cache_df47facd.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_cache_format.c">
+      <ObjectFileName>$(IntDir)mcc_cache_format_62c9f12c.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_camera.c">
+      <ObjectFileName>$(IntDir)mcc_camera_430b40ab.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_campaign.c">
+      <ObjectFileName>$(IntDir)mcc_campaign_d31bb7b8.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_checkpoint.c">
+      <ObjectFileName>$(IntDir)mcc_checkpoint_6951663b.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_damage.c">
+      <ObjectFileName>$(IntDir)mcc_damage_440d2c43.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_environment_shader.c">
+      <ObjectFileName>$(IntDir)mcc_environment_shader_27e287a8.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_errors.c">
+      <ObjectFileName>$(IntDir)mcc_errors_ba00b710.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_game_speed.c">
+      <ObjectFileName>$(IntDir)mcc_game_speed_7c294d52.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_geometry.c">
+      <ObjectFileName>$(IntDir)mcc_geometry_3685860e.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_grenades.c">
+      <ObjectFileName>$(IntDir)mcc_grenades_9239b832.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_hud.c">
+      <ObjectFileName>$(IntDir)mcc_hud_1c17d5ba.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_hud_draw.c">
+      <ObjectFileName>$(IntDir)mcc_hud_draw_266d3077.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_identity.c">
+      <ObjectFileName>$(IntDir)mcc_identity_d5765769.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_loading.c">
+      <ObjectFileName>$(IntDir)mcc_loading_c05c4470.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_main.c">
+      <ObjectFileName>$(IntDir)mcc_main_d733f197.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_maps.c">
+      <ObjectFileName>$(IntDir)mcc_maps_6a826024.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_menu_preview.c">
+      <ObjectFileName>$(IntDir)mcc_menu_preview_a9ed26d2.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_menu_text.c">
+      <ObjectFileName>$(IntDir)mcc_menu_text_499e6aba.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_movement.c">
+      <ObjectFileName>$(IntDir)mcc_movement_8d49749d.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_network.c">
+      <ObjectFileName>$(IntDir)mcc_network_08eea0b1.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_object_names.c">
+      <ObjectFileName>$(IntDir)mcc_object_names_7f6e35c2.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_object_names_network.c">
+      <ObjectFileName>$(IntDir)mcc_object_names_network_93249a42.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_objects.c">
+      <ObjectFileName>$(IntDir)mcc_objects_7bdafc62.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_package.c">
+      <ObjectFileName>$(IntDir)mcc_package_01b689be.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_particles.c">
+      <ObjectFileName>$(IntDir)mcc_particles_d22ee20a.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_pause.c">
+      <ObjectFileName>$(IntDir)mcc_pause_103ab799.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_pause_runtime.c">
+      <ObjectFileName>$(IntDir)mcc_pause_runtime_49bc34d5.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_player.c">
+      <ObjectFileName>$(IntDir)mcc_player_617d134e.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_precache.c">
+      <ObjectFileName>$(IntDir)mcc_precache_a7a37259.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_progress.c">
+      <ObjectFileName>$(IntDir)mcc_progress_79dba992.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_projectiles.c">
+      <ObjectFileName>$(IntDir)mcc_projectiles_2de6b2af.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_protocol.c">
+      <ObjectFileName>$(IntDir)mcc_protocol_62eae877.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_recording_control.c">
+      <ObjectFileName>$(IntDir)mcc_recording_control_3c5b07fb.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_recordings.c">
+      <ObjectFileName>$(IntDir)mcc_recordings_96c0b298.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_resources.c">
+      <ObjectFileName>$(IntDir)mcc_resources_8b6d05a2.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_script_effects.c">
+      <ObjectFileName>$(IntDir)mcc_script_effects_b535e510.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_script_parameters.c">
+      <ObjectFileName>$(IntDir)mcc_script_parameters_63aed4d0.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_scripts.c">
+      <ObjectFileName>$(IntDir)mcc_scripts_c63add09.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_seats.c">
+      <ObjectFileName>$(IntDir)mcc_seats_d46d2c72.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_sha256.c">
+      <ObjectFileName>$(IntDir)mcc_sha256_11662ebc.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_share_rules.c">
+      <ObjectFileName>$(IntDir)mcc_share_rules_7195b675.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_sprites.c">
+      <ObjectFileName>$(IntDir)mcc_sprites_a0c42567.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_syntax.c">
+      <ObjectFileName>$(IntDir)mcc_syntax_aa522f5c.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_tag_validate.c">
+      <ObjectFileName>$(IntDir)mcc_tag_validate_9a4b3c8b.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_tags.c">
+      <ObjectFileName>$(IntDir)mcc_tags_f32df337.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_terminal.c">
+      <ObjectFileName>$(IntDir)mcc_terminal_0359fb18.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_texture_cache.c">
+      <ObjectFileName>$(IntDir)mcc_texture_cache_3fbbc9eb.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_ui.c">
+      <ObjectFileName>$(IntDir)mcc_ui_22a8c175.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_ui_teams.c">
+      <ObjectFileName>$(IntDir)mcc_ui_teams_6d7c9675.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_vorbis.c">
+      <ObjectFileName>$(IntDir)mcc_vorbis_7e06b301.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mcc_workshop.c">
+      <ObjectFileName>$(IntDir)mcc_workshop_61ce8fa3.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
@@ -5234,6 +5674,14 @@
       <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\guide_layout.c">
+      <ObjectFileName>$(IntDir)guide_layout_204a0e08.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\halo_linker_common.c">
       <ObjectFileName>$(IntDir)halo_linker_common_ceafc100.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
@@ -5394,6 +5842,54 @@
       <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_environment_shader_gl.c">
+      <ObjectFileName>$(IntDir)mcc_environment_shader_gl_17a77819.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_manifest.c">
+      <ObjectFileName>$(IntDir)mcc_manifest_e2969dde.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_memory.c">
+      <ObjectFileName>$(IntDir)mcc_memory_72861d2b.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_menu_metadata.c">
+      <ObjectFileName>$(IntDir)mcc_menu_metadata_6285f653.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_preview_image.c">
+      <ObjectFileName>$(IntDir)mcc_preview_image_97efcbdb.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\mcc_texture_bridge.c">
+      <ObjectFileName>$(IntDir)mcc_texture_bridge_4418eae3.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\menu_files.c">
       <ObjectFileName>$(IntDir)menu_files_7308bd79.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
@@ -5545,6 +6041,22 @@
       <AdditionalIncludeDirectories>$(HaloWin32BrowserIncludes)</AdditionalIncludeDirectories>
       <AdditionalOptions>$(HaloWin32BrowserOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\posix_mcc_preview.c">
+      <ObjectFileName>$(IntDir)posix_mcc_preview_3e049199.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\posix_steam_bridge.c">
+      <ObjectFileName>$(IntDir)posix_steam_bridge_0696f2ea.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\posix_ui_font.c">
       <ObjectFileName>$(IntDir)posix_ui_font_fadf9220.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformFontWarnings)</WarningLevel>
@@ -5552,6 +6064,14 @@
       <AdditionalIncludeDirectories>$(HaloPlatformFontIncludes)</AdditionalIncludeDirectories>
       <ForcedIncludeFiles>$(HaloPlatformFontForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloPlatformFontOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\retry_backoff.c">
+      <ObjectFileName>$(IntDir)retry_backoff_598665b8.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\save_folder.c">
       <ObjectFileName>$(IntDir)save_folder_ee391b31.obj</ObjectFileName>
@@ -5595,6 +6115,54 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\social.c">
       <ObjectFileName>$(IntDir)social_631ff8e0.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_api.c">
+      <ObjectFileName>$(IntDir)steam_bridge_api_3078a6ad.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_cmd.c">
+      <ObjectFileName>$(IntDir)steam_bridge_cmd_de494f1c.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_find.c">
+      <ObjectFileName>$(IntDir)steam_bridge_find_d37d1a4b.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_bridge_pipe.c">
+      <ObjectFileName>$(IntDir)steam_bridge_pipe_584812bb.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_client_bridge.c">
+      <ObjectFileName>$(IntDir)steam_client_bridge_0be37597.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\steam_workshop.c">
+      <ObjectFileName>$(IntDir)steam_workshop_4b96294b.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
@@ -5691,6 +6259,30 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\voice_jitter.c">
       <ObjectFileName>$(IntDir)voice_jitter_59ccfffb.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\workshop_browser.c">
+      <ObjectFileName>$(IntDir)workshop_browser_1d4780b3.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\workshop_collections.c">
+      <ObjectFileName>$(IntDir)workshop_collections_d44a8786.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\workshop_list.c">
+      <ObjectFileName>$(IntDir)workshop_list_cb0371c4.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
@@ -6609,6 +7201,20 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\windows\src\win32_posix.c">
       <ObjectFileName>$(IntDir)win32_posix_03686ab6.obj</ObjectFileName>
+      <WarningLevel>$(HaloWin32Warnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloWin32Defines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloWin32Includes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloWin32Options) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\windows\src\win32_steam_bridge.c">
+      <ObjectFileName>$(IntDir)win32_steam_bridge_0e7ad327.obj</ObjectFileName>
+      <WarningLevel>$(HaloWin32Warnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloWin32Defines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloWin32Includes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloWin32Options) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\windows\src\win32_steam_workshop.c">
+      <ObjectFileName>$(IntDir)win32_steam_workshop_7a654fce.obj</ObjectFileName>
       <WarningLevel>$(HaloWin32Warnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloWin32Defines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloWin32Includes)</AdditionalIncludeDirectories>

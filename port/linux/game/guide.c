@@ -129,6 +129,7 @@ DELTA counts what waits ("DELTA 2": invites and requests).
 #endif
 #include "../src/delta_input_rules.h"
 #include "guide_record.h"
+#include "guide_workshop.h"
 #include "report_player.h"
 
 #include <stdio.h>
@@ -316,6 +317,9 @@ enum
 	_target_prompt,
 	/* PLAYERS HERE's buttons: MUTE, ADD FRIEND */
 	_target_player_action,
+	/* WORKSHOP's PREV and NEXT (index 0 and 1), and Steam's sign-in window's button */
+	_target_page,
+	_target_modal,
 };
 
 /* RECENT's options on a player */
@@ -3242,6 +3246,8 @@ static short section_rows(short section)
 		return settings_rows();
 	case SOCIAL_SECTION_SERVICE_RECORD:
 		return guide_record_rows();
+	case SOCIAL_SECTION_WORKSHOP:
+		return guide_workshop_rows();
 	case SOCIAL_SECTION_PARTY:
 	{
 		struct party_item items[MAXIMUM_PARTY_ITEMS];
@@ -3266,9 +3272,21 @@ static short section_rows(short section)
 	}
 }
 
+/* whether a section's tab shows (WORKSHOP only with MCC on this computer) */
+static boolean section_shown(short section)
+{
+	return section != SOCIAL_SECTION_WORKSHOP || guide_workshop_shown();
+}
+
 static void section_go(short section)
 {
-	guide.section = (short)((section + NUMBER_OF_SOCIAL_SECTIONS) % NUMBER_OF_SOCIAL_SECTIONS);
+	/* (a section not shown is passed, the way the bumper went) */
+	short step = section < guide.section ? -1 : 1;
+
+	section = (short)((section + NUMBER_OF_SOCIAL_SECTIONS) % NUMBER_OF_SOCIAL_SECTIONS);
+	while (!section_shown(section))
+		section = (short)((section + step + NUMBER_OF_SOCIAL_SECTIONS) % NUMBER_OF_SOCIAL_SECTIONS);
+	guide.section = section;
 	guide.first_row = 0;
 	guide.options = FALSE;
 	guide.armed = NONE;
@@ -3282,6 +3300,8 @@ static void section_go(short section)
 		report_player_back();
 	if (guide.section == SOCIAL_SECTION_SERVICE_RECORD)
 		guide_record_open();
+	if (guide.section == SOCIAL_SECTION_WORKSHOP)
+		guide_workshop_open();
 }
 
 /* A on the chosen row */
@@ -3296,6 +3316,9 @@ static void activate(void)
 		return;
 	case SOCIAL_SECTION_SERVICE_RECORD:
 		guide_record_activate();
+		return;
+	case SOCIAL_SECTION_WORKSHOP:
+		guide_workshop_activate();
 		return;
 	case SOCIAL_SECTION_SETTINGS:
 		if (row >= settings_count())
@@ -3343,6 +3366,11 @@ static void move(short step)
 
 	if (rows <= 0)
 		return;
+	if (guide.section == SOCIAL_SECTION_WORKSHOP)
+	{
+		guide_workshop_move(step);
+		return;
+	}
 	if (guide.section == SOCIAL_SECTION_FRIENDS && friends_signed_in())
 	{
 		friends_move(step);
@@ -3442,6 +3470,13 @@ static void plasma_look(void)
 		platform_log("DELTA: no plasma map in ui.map; drawn from DELTA's own");
 }
 
+/* (WORKSHOP's rows and options, for the pointer) */
+static void workshop_target(float x0, float y0, float x1, float y1, short kind, short index)
+{
+	target_add(x0, y0, x1, y1, kind == GUIDE_WORKSHOP_TARGET_ROW ? _target_row : kind == GUIDE_WORKSHOP_TARGET_OPTION ?
+		_target_option : kind == GUIDE_WORKSHOP_TARGET_PAGE ? _target_page : _target_modal, index);
+}
+
 static void render_card(void)
 {
 	ui_style_card(CONTENT_LEFT, CONTENT_RIGHT, HEADER_Y, guide.name, guide.status, guide.color, "DELTA");
@@ -3451,14 +3486,23 @@ static void render_tabs(void)
 {
 	char const *names[NUMBER_OF_SOCIAL_SECTIONS];
 	float starts[NUMBER_OF_SOCIAL_SECTIONS], ends[NUMBER_OF_SOCIAL_SECTIONS];
-	short section;
+	short sections[NUMBER_OF_SOCIAL_SECTIONS];
+	short section, count = 0, selected = 0;
 
+	/* (the tabs shown: WORKSHOP only with MCC) */
 	for (section = 0; section < NUMBER_OF_SOCIAL_SECTIONS; section++)
-		names[section] = social_section_name(section);
-	ui_style_tabs(CONTENT_LEFT, CONTENT_RIGHT, TABS_Y, TABS_HEIGHT, names, NUMBER_OF_SOCIAL_SECTIONS, guide.section,
+	{
+		if (!section_shown(section))
+			continue;
+		if (section == guide.section)
+			selected = count;
+		sections[count] = section;
+		names[count++] = social_section_name(section);
+	}
+	ui_style_tabs(CONTENT_LEFT, CONTENT_RIGHT, TABS_Y, TABS_HEIGHT, names, count, selected,
 		"Q", "E", starts, ends);
-	for (section = 0; section < NUMBER_OF_SOCIAL_SECTIONS; section++)
-		target_add(starts[section], TABS_Y, ends[section], TABS_Y + TABS_HEIGHT, _target_tab, section);
+	for (section = 0; section < count; section++)
+		target_add(starts[section], TABS_Y, ends[section], TABS_Y + TABS_HEIGHT, _target_tab, sections[section]);
 }
 
 /* a player's row: their dot, tag, status line and platform's logo */
@@ -4139,10 +4183,26 @@ static void render_settings(void)
 		target_add(CONTENT_LEFT, y, CONTENT_RIGHT, y + SETTING_HEIGHT, _target_setting, setting);
 		y += SETTING_HEIGHT + ROW_GAP;
 	}
-	if (first + shown < rows)
-		ui_overlay_text(UI_FONT_MENU, 11.0f, CONTENT_RIGHT - 12, y - ROW_GAP + 1, UI_ALIGN_RIGHT, COLOR_LABEL, "MORE");
+	/* (more rows than show: a slim bar in the panel's edge beside them, where
+	no row's value is) */
+	if (shown < rows)
+	{
+		float track_top = BODY_Y, track_height = shown * (SETTING_HEIGHT + ROW_GAP) - ROW_GAP;
+		float thumb_height = MAX(12.0f, track_height * shown / rows);
+		float thumb_top = track_top + (track_height - thumb_height) * first / MAX(1, rows - shown);
+
+		ui_overlay_rect(CONTENT_RIGHT + 6, track_top, 3, track_height, 1.5f, 0xFFFFFF1A);
+		ui_overlay_rect(CONTENT_RIGHT + 6, thumb_top, 3, thumb_height, 1.5f, COLOR_LABEL);
+	}
 	if (guide.message[0] && system_milliseconds() - guide.message_time < MESSAGE_TIME)
 		ui_style_text(UI_TEXT_LINE, CONTENT_LEFT + 12, y + 4, UI_ALIGN_LEFT, guide.message);
+	/* (STEAM ACCOUNT's: where its sign-in is kept, when that's worth saying) */
+	else if (settings_row_at(SETTINGS_GROUP_GUIDE, chosen) &&
+		!strcmp(settings_row_key(settings_row_at(SETTINGS_GROUP_GUIDE, chosen)), "game.workshop_steam") &&
+		guide_workshop_link_note())
+	{
+		ui_style_text(UI_TEXT_LINE, CONTENT_LEFT, BODY_BOTTOM - 14, UI_ALIGN_LEFT, guide_workshop_link_note());
+	}
 #ifdef HALO_PORT_VOICE_AUDIO
 	else if (voice_setting_of(chosen) != NONE)
 		ui_style_text(UI_TEXT_LINE, CONTENT_LEFT, BODY_BOTTOM - 14, UI_ALIGN_LEFT, voice_help(voice_setting_of(chosen)));
@@ -4589,6 +4649,15 @@ static void render_prompts(void)
 	case SOCIAL_SECTION_SERVICE_RECORD:
 		word = guide_record_prompt();
 		break;
+	case SOCIAL_SECTION_WORKSHOP:
+		word = guide_workshop_prompt();
+		back = guide_workshop_in_page();
+		/* (Steam's list a page at a time: RT, Page Down on a keyboard) */
+		if (guide_workshop_page_offered(1))
+			prompt_add(prompts, &count, UI_BUTTON_RIGHT_TRIGGER, "PGDN", "NEXT PAGE");
+		else if (guide_workshop_page_offered(-1))
+			prompt_add(prompts, &count, UI_BUTTON_LEFT_TRIGGER, "PGUP", "PREVIOUS");
+		break;
 	case SOCIAL_SECTION_FRIENDS:
 		if (friends_signed_in())
 		{
@@ -4932,6 +5001,32 @@ void guide_open_party(void)
 		section_go(SOCIAL_SECTION_PARTY);
 }
 
+void guide_open_workshop(void)
+{
+	guide_open();
+	if (guide.open)
+		section_go(SOCIAL_SECTION_WORKSHOP);
+}
+
+void guide_open_setting(char const *key)
+{
+	short index;
+	struct settings_row const *row;
+
+	guide_open();
+	if (!guide.open)
+		return;
+	section_go(SOCIAL_SECTION_SETTINGS);
+	for (index = 0; (row = settings_row_at(SETTINGS_GROUP_GUIDE, index)) != NULL; index++)
+	{
+		if (!strcmp(settings_row_key(row), key))
+		{
+			guide.row[SOCIAL_SECTION_SETTINGS] = index;
+			break;
+		}
+	}
+}
+
 void guide_about_open(void)
 {
 	guide_open();
@@ -5041,6 +5136,10 @@ void guide_update(boolean menu_open)
 	recent_notice();
 	/* (a report's answer, and its clip: report_player.c) */
 	report_player_update();
+	/* (WORKSHOP's folders watched while it shows, or an item waits on Steam) */
+	guide_workshop_update(guide.open && guide.section == SOCIAL_SECTION_WORKSHOP);
+	if (guide.open && !section_shown(guide.section))
+		section_go((short)(guide.section + 1));
 	/* (a toast waits out the intro's video and a map's loading: its time
 	starts once it can show) */
 	if (guide.toast_shown && (bink_playback_active() || (!main_menu_is_active() && !game_map_loaded())))
@@ -5072,6 +5171,8 @@ void guide_update(boolean menu_open)
 		guide.row[guide.section] = (short)config_integer("debug.delta_row");
 		if (guide.section == SOCIAL_SECTION_FRIENDS)
 			chosen_remember();
+		if (guide.section == SOCIAL_SECTION_WORKSHOP)
+			guide_workshop_row_click(guide.row[guide.section], FALSE);
 	}
 	/* (debug.party_test: party steps, one after another as each is
 answered, for tests: "create,invite:grif") */
@@ -5153,7 +5254,7 @@ static void handle(unsigned int pressed);
 /* debug.delta_test: once the Guide opened by itself (debug.delta_open),
 its steps pressed one at a time, DEBUG_STEP_INTERVAL apart, from
 DEBUG_STEP_WAIT after it opened ("down;down;a":
-up, down, left, right, a, b, x, y, lb, rb). Debug builds only: a release
+up, down, left, right, a, b, x, y, lb, rb, start, back, lt, rt). Debug builds only: a release
 build never presses the Guide's buttons for anyone (accepting an invite,
 kicking from a clan) */
 #define DEBUG_STEP_INTERVAL 600
@@ -5165,7 +5266,10 @@ static void debug_steps(void)
 #else
 static void debug_steps(void)
 {
-	static char const *const words[] = { "up", "down", "left", "right", "a", "b", "x", "y", "lb", "rb" };
+	static char const *const words[] =
+	{
+		"up", "down", "left", "right", "a", "b", "x", "y", "lb", "rb", "start", "back", "lt", "rt",
+	};
 	char const *steps = config_string("debug.delta_test");
 	unsigned long now = system_milliseconds();
 	short step = 0, index;
@@ -5255,6 +5359,18 @@ static void handle_pressed(unsigned int pressed)
 			about_input(&guide.about_view, ABOUT_INPUT_A);
 		return;
 	}
+	/* (Steam's sign-in window: A its button, B back, nothing under it) */
+	if (guide_workshop_link_modal())
+	{
+		if (pressed & GUIDE_INPUT_A)
+			guide_workshop_link_modal_press();
+		else if (pressed & GUIDE_INPUT_B)
+			guide_workshop_link_modal_back();
+		return;
+	}
+	/* (WORKSHOP: LT and RT, Page Up and Page Down, a page of Steam's list on or back) */
+	if (guide.section == SOCIAL_SECTION_WORKSHOP && (pressed & (GUIDE_INPUT_LEFT_TRIGGER | GUIDE_INPUT_RIGHT_TRIGGER)))
+		guide_workshop_page_step((pressed & GUIDE_INPUT_RIGHT_TRIGGER) ? 1 : -1);
 	/* (PARTY's code being picked: the d-pad is its letters) */
 	if (guide.section == SOCIAL_SECTION_PARTY && guide.code_entry &&
 		!(pressed & (GUIDE_INPUT_LEFT_BUMPER | GUIDE_INPUT_RIGHT_BUMPER)))
@@ -5280,6 +5396,8 @@ static void handle_pressed(unsigned int pressed)
 			guide.options = FALSE;
 			guide.armed = NONE;
 		}
+		else if (guide.section == SOCIAL_SECTION_WORKSHOP && guide_workshop_back())
+			;
 		else if (guide.section == SOCIAL_SECTION_RECENT && guide.recent_options)
 		{
 			guide.recent_options = FALSE;
@@ -5368,6 +5486,20 @@ void guide_pointer(struct halo_ui_pointer const *pointer)
 		for (step = 0; step < ABS(pointer->wheel_steps); step++)
 			about_input(&guide.about_view, pointer->wheel_steps > 0 ? ABOUT_INPUT_UP : ABOUT_INPUT_DOWN);
 	}
+	/* (the wheel over a list: the d-pad, a row a notch, so the mouse reaches
+	every row, WORKSHOP's last with its pages too) */
+	/* (over a Workshop page's description: it scrolls, the focus kept) */
+	else if (pointer->wheel_steps && guide.section == SOCIAL_SECTION_WORKSHOP && !guide_workshop_link_modal() &&
+		guide_workshop_wheel(pointer->x, pointer->y, pointer->wheel_steps))
+	{
+	}
+	else if (pointer->wheel_steps && !guide_workshop_link_modal())
+	{
+		short step;
+
+		for (step = 0; step < ABS(pointer->wheel_steps); step++)
+			handle(pointer->wheel_steps > 0 ? GUIDE_INPUT_UP : GUIDE_INPUT_DOWN);
+	}
 	if (!pointer->left_clicks)
 		return;
 	if (guide.about && guide.about_view.licenses_x1 > guide.about_view.licenses_x0 &&
@@ -5375,6 +5507,12 @@ void guide_pointer(struct halo_ui_pointer const *pointer)
 		pointer->click_y >= guide.about_view.licenses_y0 && pointer->click_y < guide.about_view.licenses_y1)
 	{
 		about_input(&guide.about_view, ABOUT_INPUT_A);
+		return;
+	}
+	/* (a click on a Workshop page's description: its focus) */
+	if (guide.section == SOCIAL_SECTION_WORKSHOP && !guide_workshop_link_modal() &&
+		guide_workshop_click(pointer->click_x, pointer->click_y))
+	{
 		return;
 	}
 	for (index = 0; index < guide.target_count; index++)
@@ -5392,6 +5530,11 @@ void guide_pointer(struct halo_ui_pointer const *pointer)
 			section_go(target->index);
 			break;
 		case _target_row:
+			if (guide.section == SOCIAL_SECTION_WORKSHOP)
+			{
+				guide_workshop_row_click(target->index, pointer->touch);
+				break;
+			}
 			/* (a tap chooses the row; on the one chosen, it is its A) */
 			if (guide.section == SOCIAL_SECTION_CLAN)
 			{
@@ -5468,6 +5611,11 @@ void guide_pointer(struct halo_ui_pointer const *pointer)
 				setting_change(target->index, 1);
 			break;
 		case _target_option:
+			if (guide.section == SOCIAL_SECTION_WORKSHOP)
+			{
+				guide_workshop_option_click(target->index);
+				break;
+			}
 			if (guide.section == SOCIAL_SECTION_RECENT)
 			{
 				guide.recent_options = TRUE;
@@ -5500,9 +5648,18 @@ void guide_pointer(struct halo_ui_pointer const *pointer)
 		case _target_close:
 			guide_close();
 			break;
+		case _target_page:
+			guide_workshop_page_step(target->index == 2 ? 0 : target->index ? 1 : -1);
+			break;
+		case _target_modal:
+			guide_workshop_link_modal_press();
+			break;
 		}
 		return;
 	}
+	/* (Steam's sign-in window: a click beside it does nothing) */
+	if (guide_workshop_link_modal())
+		return;
 	/* (a click outside the panel closes it; outside the leader's offer,
 	nothing) */
 	if (guide.open && (pointer->click_x < PANEL_X || pointer->click_x >= PANEL_RIGHT || pointer->click_y < PANEL_Y ||
@@ -5556,6 +5713,9 @@ void guide_render(void)
 	case SOCIAL_SECTION_SERVICE_RECORD:
 		guide_record_render(CONTENT_LEFT, BODY_Y, CONTENT_RIGHT, BODY_BOTTOM, TRUE);
 		break;
+	case SOCIAL_SECTION_WORKSHOP:
+		guide_workshop_render(CONTENT_LEFT, BODY_Y, CONTENT_RIGHT, BODY_BOTTOM, workshop_target);
+		break;
 	case SOCIAL_SECTION_FRIENDS:
 		if (friends_signed_in())
 			render_friends();
@@ -5582,6 +5742,13 @@ void guide_render(void)
 		break;
 	}
 	render_prompts();
+	/* (Steam's sign-in window over it all: only its button takes a click) */
+	if (guide_workshop_link_modal())
+	{
+		guide.target_count = 0;
+		ui_overlay_layer(5);
+		guide_workshop_link_modal_render(PANEL_X, PANEL_Y, PANEL_RIGHT, PANEL_Y + PANEL_HEIGHT, workshop_target);
+	}
 	ui_overlay_layer(0);
 }
 

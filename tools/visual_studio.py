@@ -331,7 +331,12 @@ def main() -> None:
         if source.name in VERSION_SOURCES:
             add(source, "PlatformUpdater")
             continue
+        # (posix_mcc_preview.c: MCC map pictures read from disk, with
+        # Windows' own headers and without the game's prefix, as
+        # tools/windows_build.py builds it: under the prefix's Win32 names
+        # windows.h does not compile)
         add(source, {"posix_browser.c": "Win32Browser",
+                     "posix_mcc_preview.c": "Win32",
                      "posix_ui_font.c": "PlatformFont"}.get(source.name, "Platform"))
     # the game list's TLS (port/third_party/mbedtls; posix_browser.c)
     for source in sorted((MBEDTLS_DIR / "library").glob("*.c")):

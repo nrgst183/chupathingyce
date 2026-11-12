@@ -2094,9 +2094,44 @@ static boolean bot_move_travel_ladder(struct bot_mover *bot, struct bot_body con
 	real into = bot_wrap((real)atan2(-reach->face_j, -reach->face_i));
 	if (!move->reach_started)
 	{
-		if (bot_distance2d(position, &reach->edge) > 0.35f)
+		real to_foot = bot_distance2d(position, &reach->edge);
+		if (to_foot > 0.35f)
 		{
 			result->yaw = bot_yaw_to(position, &reach->edge);
+			/* (... onto its line first, from a couple of units out, to be
+			   square on to it for the jump) */
+			if (bot->fluency > 0.25f && !bot_env_off("ladderjump") && to_foot > 0.62f && to_foot < 2.2f)
+			{
+				real out = (position->x - reach->edge.x) * reach->face_i + (position->y - reach->edge.y) * reach->face_j;
+				if (out > 0.5f)
+				{
+					real_point3d on_line = reach->edge;
+					on_line.x += reach->face_i * out * 0.6f;
+					on_line.y += reach->face_j * out * 0.6f;
+					result->yaw = bot_yaw_to(position, &on_line);
+					if (bot_distance2d(position, &on_line) < 0.1f)
+						result->yaw = bot_yaw_to(position, &reach->edge);
+				}
+			}
+			/* (People jump onto a ladder at a run: off the floor two thirds of
+			   a unit short of it, at a full run straight at it, they take hold
+			   six tenths up, the bottom of the climb skipped, and are on their
+			   way up half a second sooner (the movement log, Longest). The
+			   better bots too: from a run straight at it, square on, half a unit or so out,
+			   the foot of it at their feet. HALO_BOT_OFF=ladderjump) */
+			if (bot->fluency > 0.25f && !bot_env_off("ladderjump") && body->can_jump && !body->airborne && to_foot > 0.45f &&
+				to_foot < 0.62f && fabs(position->z - reach->edge.z) < 0.3f &&
+				fabs(bot_angle_difference(result->yaw, into)) < 0.4f &&
+				/* (on its line, going along it: a bot that came at it from
+				   one side jumped past its rungs onto the wall by it and
+				   slid down, twice as slow as walking up to it) */
+				fabs((position->x - reach->edge.x) * reach->face_j - (position->y - reach->edge.y) * reach->face_i) < 0.12f &&
+				bot_move_speed_along(body, into) > 0.75f * BOT_RUN_SPEED * body->speed_scale)
+			{
+				result->jump = TRUE;
+				if (bot_logging() && getenv("HALO_BOT_REACHLOG"))
+					bot_log("bot%ld: onto ladder %ld at a jump, %.2f off its foot", bot->index, move->reach, to_foot);
+			}
 			return TRUE;
 		}
 		move->reach_started = TRUE;

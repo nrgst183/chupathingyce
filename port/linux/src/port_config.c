@@ -960,6 +960,11 @@ static const struct config_setting config_settings[] =
 		"is on. false waits for a second player, as on the Xbox." },
 	{ "game.unlock_all_levels", _config_boolean, "false", "HALO_UNLOCK_ALL_LEVELS", _environment_value, _platform_all | _platform_xbox,
 		"New profiles start with every campaign level unlocked." },
+	{ "game.cleanup_scale", _config_boolean, "true", "HALO_CLEANUP_SCALE", _environment_value, _platform_all | _platform_server,
+		"In a multiplayer game this machine hosts, clear away bodies and\n"
+		"dropped weapons sooner the more players and the more lying about,\n"
+		"down to 3 and 5 seconds, to keep the frame rate up in big games.\n"
+		"false keeps the Xbox's 30 seconds whatever the game." },
 	{ "game.vehicle_multiplier", _config_integer, "1", "HALO_VEHICLE_MULTIPLIER", _environment_value, _platform_all,
 		"How many of each of a map's vehicles the multiplayer games this\n"
 		"machine hosts have: 1 as the map has them, 2 to 4 that many of each,\n"

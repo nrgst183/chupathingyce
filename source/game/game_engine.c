@@ -3667,10 +3667,84 @@ static boolean find_closest_player_callback(
 	return result;
 }
 
+/* port: the cleanup of what lies about scaled to the game (game.cleanup_scale,
+HALO_CLEANUP_SCALE). On the Xbox, with 16 players at most, a weapon nobody
+has held for 30 seconds goes, and so does a body still for 30. With 32, 64,
+128 players and bots, that many seconds of a big fight leaves hundreds of
+bodies and dropped guns on the floor, each drawn, lit and simulated, and the
+frame rate goes. So, by how many players there are and how much is lying
+about (bodies against 12 at a time, dropped weapons against 40, players
+against 16, the most of the three), the time is cut: to half with twice as
+much, down to 5 seconds for a dropped weapon and 3 for a body. A weapon the
+map put there, waiting to be picked up, keeps its time: only one that has
+been held (dropped at a death, swapped, thrown down) is cut short. A game of
+16 or fewer with little lying about is as it was. */
+#define PURGE_TICKS 900
+#define PURGE_LEAST_ITEM_TICKS (5 * TICKS_PER_SECOND)
+#define PURGE_LEAST_BODY_TICKS (3 * TICKS_PER_SECOND)
+#define PURGE_EASY_PLAYERS 16.f
+#define PURGE_EASY_ITEMS 40.f
+#define PURGE_EASY_BODIES 12.f
+
+/* (each object index's item as last seen in a unit's hands: a datum index,
+salt and all, so a new item in its slot is not taken for it; host's only) */
+static long purge_held_items[MAXIMUM_OBJECTS_PER_MAP];
+static boolean purge_held_ready;
+
+int config_boolean(char const *name); /* port/linux/src/port_config.c */
+static boolean purge_scaled(void)
+{
+	return config_boolean("game.cleanup_scale") ? TRUE : FALSE;
+}
+
 static void game_engine_update_purge(
 	void)
 {
-	long cutoff_time = game_time_get() - 900;
+	long now = game_time_get();
+	long cutoff_time = now - PURGE_TICKS;
+	long item_ticks = PURGE_TICKS;
+	long body_ticks = PURGE_TICKS;
+	boolean scaled = purge_scaled();
+
+	if (scaled)
+	{
+		struct object_iterator iterator;
+		long dropped = 0, bodies = 0;
+		real players = player_data ? (real)player_data->actual_count : 0.f;
+		real load, body_load;
+
+		if (!purge_held_ready)
+		{
+			long index;
+
+			for (index = 0; index < MAXIMUM_OBJECTS_PER_MAP; index++)
+				purge_held_items[index] = NONE;
+			purge_held_ready = TRUE;
+		}
+		object_iterator_new(&iterator, _object_mask_item, 0);
+		while (object_iterator_next(&iterator))
+		{
+			struct item_datum *item = item_get(iterator.index);
+			long slot = DATUM_INDEX_TO_ABSOLUTE_INDEX(iterator.index);
+
+			if (slot < 0 || slot >= MAXIMUM_OBJECTS_PER_MAP)
+				continue;
+			if (TEST_FLAG(item->item.flags, _item_attached_to_unit_bit))
+				purge_held_items[slot] = iterator.index;
+			else if (purge_held_items[slot] == iterator.index)
+				dropped++;
+		}
+		object_iterator_new(&iterator, _object_mask_biped, 0);
+		while (object_iterator_next(&iterator))
+			if (TEST_FLAG(object_get(iterator.index)->object.damage_flags, _object_dead_bit))
+				bodies++;
+		load = MAX(players / PURGE_EASY_PLAYERS, (real)dropped / PURGE_EASY_ITEMS);
+		body_load = MAX(players / PURGE_EASY_PLAYERS, (real)bodies / PURGE_EASY_BODIES);
+		if (load > 1.f)
+			item_ticks = MAX(PURGE_LEAST_ITEM_TICKS, (long)((real)PURGE_TICKS / load));
+		if (body_load > 1.f)
+			body_ticks = MAX(PURGE_LEAST_BODY_TICKS, (long)((real)PURGE_TICKS / body_load));
+	}
 
 	/* (a client of the distributed netcode removes items when the host does,
 	port/linux/game/network_distributed.c) */
@@ -3682,13 +3756,22 @@ static void game_engine_update_purge(
 		while (object_iterator_next(&item_iterator))
 		{
 			struct item_datum *item = item_get(item_iterator.index);
+			long slot = DATUM_INDEX_TO_ABSOLUTE_INDEX(item_iterator.index);
+			long item_cutoff = cutoff_time;
 
-			if (item->item.last_owned_time < cutoff_time &&
+			/* (one that has been held: by the game's size) */
+			if (scaled && slot >= 0 && slot < MAXIMUM_OBJECTS_PER_MAP && purge_held_items[slot] == item_iterator.index)
+				item_cutoff = now - item_ticks;
+			if (item->item.last_owned_time < item_cutoff &&
 				!TEST_FLAG(item->item.flags, _item_attached_to_unit_bit))
 			{
 				long item_index = item_iterator.index;
 				if (can_delete_item(item_index))
+				{
+					if (scaled && slot >= 0 && slot < MAXIMUM_OBJECTS_PER_MAP)
+						purge_held_items[slot] = NONE;
 					object_delete(item_iterator.index);
+				}
 			}
 		}
 	}
@@ -3701,10 +3784,9 @@ static void game_engine_update_purge(
 		{
 			struct object_datum *object;
 
-			cutoff_time = 900;
 			object = object_get(biped_iterator.index);
 
-			if (object->object.idle_ticks > (short)cutoff_time &&
+			if (object->object.idle_ticks > (short)body_ticks &&
 				TEST_FLAG(object->object.damage_flags, _object_dead_bit))
 			{
 				object_delete(biped_iterator.index);
@@ -8215,6 +8297,8 @@ void game_engine_initialize(
 void game_engine_initialize_for_new_map(
 	void)
 {
+	/* port: the items held on the last map are the last map's indices */
+	purge_held_ready = FALSE;
 	if (game_engine)
 	{
 		game_engine_verify_current_map();

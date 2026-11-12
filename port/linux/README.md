@@ -3373,6 +3373,56 @@ and two kinds of walker); the wrecks of the others stayed.
   players, 12 bodies and 40 dropped weapons. With twice as much, half the
   time, down to 5 seconds for a weapon and 3 for a body. Weapons the map
   put out, waiting to be picked up, keep their time.
+- **Melee timed to land:** the blow lands 4 to 5 ticks after the button
+  and reaches a little over a unit. In logged games, a swing at someone who
+  would be within 0.9 units by then hit nine times in ten, and one beyond
+  1.2 units hit one time in five. Bots now swing when the target will be
+  within 1.15 units, at about the same height (`meleelead`). Hits went from
+  64% of swings to 80%. They swing less often, but kills rose a little.
+- **Third-partying:** a new trait, `opportunist`, makes a bot prefer
+  enemies who are busy fighting someone else and enemies with nearly no
+  shields, from far off as well as near. Better bots do it more
+  (`thirdparty`).
+- **Two more new traits:** `flanker` makes a bot come round the side more
+  often and by a longer way, from where the enemy isn't looking
+  (`flanker`). `lurk` makes a camping bot wait somewhere few of the map's
+  busy places can see but that still sees where people come from, and
+  makes it likelier to wait round a corner for someone coming
+  (`lurkspot`). Hit-and-run bots lean flanker and opportunist; lurkers
+  lean lurk. A bot on its way to a perch or a lurking spot no longer
+  drops it to chase someone out of sight; a gun lying near still takes it
+  off.
+- **Fighting up to the high ground:** a bot heading to a perch with a
+  rifle or a pistol and its shields above 40% keeps going up through a
+  close fight, shooting on the way, within 15 units of the spot.
+- **What the enemy holds:** bots now note the enemy's gun at all but the
+  lowest levels, and the better the bot, the more often it acts on it.
+  Against a rocket launcher at arm's length they go in for the melee (the
+  rocket would kill its own user), and from a few units off they back out
+  of the blast. Against a sniper far away they close in when their own gun
+  doesn't reach (`foegun`).
+- **The game's rules:** in a rocket launchers game, bots keep 7 units
+  apart and melee at arm's length. In a sniper game they keep their range
+  and melee anyone who comes within 3 units. With no shields, a melee is a
+  kill, so they go in from 3.5 units. When a suicide costs 10 seconds or
+  more (Slayer Pro's is 15), they fire no rocket closer than 2.6 units.
+- **Grenades off the walls:** when there's no clear lob to the target,
+  better bots try throws at nine angles and six heights. Each throw is
+  followed the way the game moves a frag (gravity, and the bounce off
+  whatever it hits, by the grenade's own friction values), and the bot
+  takes the one that ends within 1.5 units of the target after a bounce.
+  Plasma grenades stick, so they aren't banked (`nadebank`). Of 11
+  banked throws in test games, 5 went off within 1.5 units of where the bot
+  meant and 6 within 2.2; the rest were 3 to 10 units out.
+- **CTF:** while our flag is away and more than 15 units from our base,
+  the team's keenest defender (on a side of four or more) stays at the
+  base and the rest chase (`stayhome`). A bot that can see our flag's
+  carrier calls out where the flag is going: left, right, mid, by our base
+  or to their base (`flagcall`).
+- **Game sense by level:** power weapon timing now starts at level 4,
+  rough and late, and gets sharper up to level 8. Good bots take cover
+  sooner, once their shields are gone and they're well behind on shields.
+  Poor bots seldom think of cover (`senseramp`).
 - **Bots swear when they're losing:** killed again while their side is
   well behind (or after three deaths in a row without a kill), a bot may
   say something like "damn it" or "this is bullshit" to everyone. The

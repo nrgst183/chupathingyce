@@ -3423,6 +3423,35 @@ and two kinds of walker); the wrecks of the others stayed.
   rough and late, and gets sharper up to level 8. Good bots take cover
   sooner, once their shields are gone and they're well behind on shields.
   Poor bots seldom think of cover (`senseramp`).
+- **Health and grenades picked up:** a bot now tops up its health
+  from a pack within 20 units when its body is below 85%, not only below
+  50%, and better bots more readily. Every bot wants grenades when it has
+  none or one, the better the bot the more (`pickups`).
+- **Who to shoot first, by what they hold:** someone with a rocket
+  launcher, a sniper rifle or a fuel rod gun comes before the others, and
+  someone with nothing to shoot comes after; the one carrying the flag or
+  the ball is never put off for it. In a game where everyone has the same
+  gun, it makes no difference. Better bots mind it more (`foepriority`).
+- **Out of a far sniper's sight:** against a sniper more than 22 units
+  off, a bot whose own gun doesn't reach that far goes behind cover if
+  there is some near, and otherwise closes in (`snipercover`).
+- **Jumps over railings:** the jump scan now looks past the foot of a
+  railing on the far side of a drop for room to land (`pastrail`). Where
+  the only thing in the way is up at head height, such as a bar across a
+  gap in a railing, the jump is checked along its own arc (`arcclear`).
+  On Longest the bots now take the jumps through the railing from the
+  middle platform to the walkways, as the movement logs show people
+  doing: 54 made, none failed, and those trips went from 12.6 s and
+  11.8 s to 3.0 s and 2.7 s.
+- **Checked across every game type:** slayer, team slayer, CTF, king,
+  team king, oddball, team oddball, race, team race and infection, against
+  the build from two days before. Kills, scores and stuck counts per 1000
+  ticks came out the same or better, except oddball's total time held,
+  about a tenth less. That is expected: a bot carrying the ball must now
+  keep it in hand (the flag rule above), so carriers fight with the ball
+  and die more often. `HALO_BOT_LOWTURN=<throttle>` is a test hook for the
+  throttle in a sharp turn from a crawl (0.5 and 0.6 as before); 0.85
+  helped on one seed and hurt on another, so it isn't the default.
 - **Bots swear when they're losing:** killed again while their side is
   well behind (or after three deaths in a row without a kill), a bot may
   say something like "damn it" or "this is bullshit" to everyone. The

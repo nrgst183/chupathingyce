@@ -3262,6 +3262,32 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 			score *= 0.5f;
 		else if (finishing && !(distance < BOT_PRESS_THREAT && bot_unit_aiming_at(player->unit_index, eye, 0.97f)))
 			score *= 1.f + 2.f * press;
+		/* (what they hold: the rocket launcher, the sniper rifle, the fuel
+		   rod, the ones who kill fastest, first; the one with nothing to
+		   shoot, last. The better the bot the more it minds. A single
+		   weapon game, everyone the same: no difference.
+		   HALO_BOT_OFF=foepriority) */
+		if (!bot_env_off("foepriority") && player->unit_index != current && unit->object.parent_object_index == NONE)
+		{
+			struct unit_datum *holder = unit_try_and_get(player->unit_index);
+			short slot = holder ? holder->unit.current_weapon_index : NONE;
+			long theirs = slot >= 0 && slot < MAXIMUM_WEAPONS_PER_UNIT ? holder->unit.weapon_object_indices[slot] : NONE;
+			real mind = 0.6f * PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f);
+			if (theirs != NONE && object_try_and_get(theirs) && mind > 0.f)
+			{
+				struct bot_weapon gun;
+				bot_weapon_describe(theirs, &gun);
+				/* (the flag or the ball in hand is nothing to shoot with, but
+				   the one carrying it is the game: not put off) */
+				if (gun.none && !bot_name_has(object_get(theirs)->definition_index, "flag") &&
+					!bot_name_has(object_get(theirs)->definition_index, "ball"))
+				{
+					score *= 1.f + 0.5f * mind;
+				}
+				else if (gun.kind == _bot_gun_rocket || gun.kind == _bot_gun_sniper || gun.kind == _bot_gun_fuel_rod)
+					score *= 1.f - 0.45f * mind;
+			}
+		}
 		/* help a teammate: gang up on whoever they're fighting */
 		if (game_engine_has_teams() && bot_targeted_by(player->unit_index, my_team, my_unit))
 			score *= 1.f - 0.45f * bot_finding_teamwork;
@@ -7298,15 +7324,30 @@ static void bot_goal_items(struct bot_goal_pass *g)
 					score = 0.f;
 			}
 			else if (bot_name_has(object->definition_index, "health"))
+			{
 				/* health: the more hurt, the more it's worth (it heals the
 				   body, not the shields) */
 				score = unit->object.body_vitality < 0.5f ?
 					(2.f + 8.f * (1.f - unit->object.body_vitality)) * (1.3f - 0.6f * bot->personality.aggression) : 0.f;
+				/* (a good player tops up from a little hurt too, when it is
+				   near: the body does not come back on its own as the shields
+				   do, and the next fight starts with less. HALO_BOT_OFF=pickups) */
+				if (!bot_env_off("pickups") && score <= 0.f && unit->object.body_vitality < 0.85f && distance < 20.f)
+					score = (1.5f + 4.f * (0.85f - unit->object.body_vitality) / 0.35f) * (0.4f + 0.6f * bot_skill_fraction());
+			}
 			else if (bot_name_has(object->definition_index, "grenade"))
 			{
 				/* grenade lovers stock up */
 				long carried = unit->unit.grenade_counts[bot_name_has(object->definition_index, "plasma") ? 1 : 0]; /* (its own kind: a stack of frags is no reason to leave plasmas) */
 				score = carried >= 4 ? 0.f : (1.f + 4.f * bot->personality.grenade_happy) / (1.f + carried);
+				/* (... and everyone, the better the more, when it has none
+				   at all, or one: grenades win fights. HALO_BOT_OFF=pickups) */
+				if (!bot_env_off("pickups") && carried < 4)
+				{
+					long all = unit->unit.grenade_counts[0] + unit->unit.grenade_counts[1];
+					real want = (all == 0 ? 4.f : all <= 1 ? 2.5f : 1.f) * (0.5f + bot_skill_fraction());
+					score = MAX(score, want / (1.f + 0.5f * carried));
+				}
 			}
 			else
 				score = 1.f;
@@ -16605,7 +16646,24 @@ static void bot_fight_foe_gun(struct bot_think *t, struct bot_fight *f)
 			f->forward = -1.f;
 	}
 	else if (bot->foe_kind == _bot_gun_sniper && target_distance > 14.f && !mine_reaches && !f->closing)
+	{
+		/* (out of its sight if there is a wall near, else in at them)
+		   HALO_BOT_OFF=snipercover */
+		if (!bot_env_off("snipercover") && target_distance > 22.f && !bot->in_cover && --bot->cover_check_ticks <= 0)
+		{
+			bot->cover_check_ticks = 15;
+			if (bot_find_cover(bot, &t->body, &bot->last_seen, t->me->unit_index, &bot->cover_spot))
+			{
+				bot->in_cover = TRUE;
+				bot->cover_until = game_time_get() + BOT_SECONDS(3.f + 3.f * bot_random(bot));
+				if (bot_logging())
+					bot_log("bot%ld t%ld out of the sniper's sight: cover %.1f off", t->player_absolute_index, game_time_get(),
+						bot_distance2d(&t->position, &bot->cover_spot));
+				return;
+			}
+		}
 		f->forward = 1.f;
+	}
 	if (set == 6 /* rocket launchers */ && !f->closing)
 	{
 		if (target_distance < 2.6f && weapon->kind == _bot_gun_rocket)

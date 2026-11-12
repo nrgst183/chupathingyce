@@ -21519,6 +21519,7 @@ enum
 	_bot_call_backup,
 	_bot_call_kill,
 	_bot_call_death,
+	_bot_call_rage,
 	_bot_call_kinds
 };
 static struct bot_chat_side
@@ -21921,6 +21922,32 @@ static void bot_chat_bot(struct bot_think *t)
 	}
 }
 
+/* Losing, and killed again: a word to everyone, not a polite one. Its side
+   (or, with no sides, itself) well behind (bots.balance's lead, under -0.3),
+   or dead three times running without a kill; the hotter its temper and the
+   worse it is going, the likelier, and the bots who keep their cool hardly
+   ever. Never more than once in 20 s for the whole game, by the side's
+   chat's rules. HALO_BOT_OFF=swear: none. */
+static int bot_chat_rage(long index, struct bot_state *bot, struct player_datum *me)
+{
+	static char const *const rage[] =
+	{
+		"damn it", "shit", "are you kidding me", "oh come on", "this is bullshit", "wtf", "god damn it", "fuck this map",
+		"fucking lag", "bs spawn", "hell no", "ffs", "you've got to be shitting me", "screw this", "fuck", "what the hell was that",
+	};
+	real lead = bot_balance_lead(index);
+	long streak = bot->personality.death_streak;
+	real losing, chance;
+	if (bot_env_off("swear"))
+		return FALSE;
+	losing = MAX(PIN((-lead - 0.3f) / 0.7f, 0.f, 1.f), streak >= 3 ? PIN((real)(streak - 2) / 3.f, 0.f, 1.f) : 0.f);
+	if (losing <= 0.f)
+		return FALSE;
+	/* (temper -1 .. 1: the cool 0.05 of it, the hot all of it) */
+	chance = (0.25f + 0.5f * losing) * PIN(0.525f + 0.475f * bot->personality.temper, 0.05f, 1.f);
+	return bot_chat_say(index, bot, me, _bot_call_rage, chance, 20, BOT_CHAT_LINES(rage), NULL, 0, NULL, FALSE);
+}
+
 /* Dead: now and then a word on it. That whoever did it is nearly done
    (their shields down, hurt) is worth telling the side; otherwise seldom
    anything, and short. */
@@ -21952,7 +21979,7 @@ static void bot_chat_dead(long index, struct bot_state *bot, struct player_datum
 		bot_chat_say(index, bot, me, _bot_call_death, 0.45f, 25, BOT_CHAT_LINES(low), BOT_CHAT_LINES(low_at), bot_chat_place(me->team_index, &at),
 			TRUE);
 	}
-	else
+	else if (!bot_chat_rage(index, bot, me))
 		bot_chat_say(index, bot, me, _bot_call_death, 0.06f, 30, BOT_CHAT_LINES(died), NULL, 0, NULL, TRUE);
 }
 

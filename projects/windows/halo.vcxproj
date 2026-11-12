@@ -6043,11 +6043,10 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\posix_mcc_preview.c">
       <ObjectFileName>$(IntDir)posix_mcc_preview_3e049199.obj</ObjectFileName>
-      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
-      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
-      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
-      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+      <WarningLevel>$(HaloWin32Warnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloWin32Defines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloWin32Includes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloWin32Options) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\posix_steam_bridge.c">
       <ObjectFileName>$(IntDir)posix_steam_bridge_0696f2ea.obj</ObjectFileName>

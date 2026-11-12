@@ -473,6 +473,7 @@ void game_time_update(
 			{
 				long final_local_time;
 				long maximum_possible_server_time;
+				long server_time_before = game_time_globals->server_time;
 
 				final_local_time = game_time_globals->local_time + ticks_elapsed;
 				switch (game_connection())
@@ -524,7 +525,12 @@ void game_time_update(
 				}
 				else
 					maximum_possible_server_time = update_client_get_maximum_possible_server_time();
-				game_time_ticks_waiting = maximum_possible_server_time <= game_time_globals->server_time;
+				/* (and none ran: a host in a game has run its ticks one by one
+				above, each update built just before it, and has none left
+				here; taken for waiting, every frame of the host's was drawn
+				on the last tick, as at 30 frames a second) */
+				game_time_ticks_waiting = maximum_possible_server_time <= game_time_globals->server_time &&
+					game_time_globals->server_time == server_time_before;
 				if (maximum_possible_server_time > game_time_globals->server_time)
 				{
 					long final_server_time = MIN(maximum_possible_server_time, final_local_time);

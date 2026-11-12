@@ -3336,6 +3336,36 @@ and two kinds of walker); the wrecks of the others stayed.
   unit from it, at a full run or back for another run, and not from a walk
   (another way, if there is no run to be had). Not by default: on six such
   ledges the ways round them were as quick or quicker.
+- **Onto ladders at a jump:** at higher difficulties, bots jump onto a
+  ladder at a run from about two thirds of a unit out, as the movement logs
+  show people doing on Longest. They grab it about six tenths up and skip
+  the bottom of the climb (`ladderjump`).
+- **The high ground in slayer:** now and then a bot with a gun that reaches
+  goes up to a high place that sees a lot, holds it a while, and shoots
+  down from there. These include the roofs of Battle Creek's bases and,
+  for a bot holding the sniper rifle, the rifle's own spawn when it is up
+  off the floor. The spot must be higher than the bot, within 45 units and
+  in sight of the nearest enemy. Campers and better bots do it more often
+  (`perch`). A fight still comes first, so in a crowded game they seldom
+  get up there; it shows more with fewer players about.
+- **Better melee:** good bots now go in for a beatdown whatever their
+  habits: when the target's shields are nearly gone a few steps away, at
+  arm's length when no shotgun blast is ready, and from anywhere near with
+  nothing to shoot (`meleeplus`). They run straight in rather than on the
+  slant of a strafe (`meleerun`), and swing a moment sooner when closing
+  fast (`meleelead`). In four free-for-alls, melee hits went from 57 to 75.
+- **Rockets up close:** bots fire the rocket launcher down to 1.5 units
+  when their shields can take the blast or the target's shields are almost
+  gone (2.2 when theirs are low; it was 2.8 always), at the body rather
+  than the floor inside 4 units, and no longer swap away from it or back
+  off at 3 units (`rocketclose`).
+- **Bodies and dropped weapons cleared by the game's size**
+  (`game.cleanup_scale`, on by default): in a game this machine hosts, the
+  Xbox's 30 seconds before a body or a dropped weapon is cleared is cut by
+  how many players there are and how much is lying about, against 16
+  players, 12 bodies and 40 dropped weapons. With twice as much, half the
+  time, down to 5 seconds for a weapon and 3 for a body. Weapons the map
+  put out, waiting to be picked up, keep their time.
 - **Bots swear when they're losing:** killed again while their side is
   well behind (or after three deaths in a row without a kill), a bot may
   say something like "damn it" or "this is bullshit" to everyone. The

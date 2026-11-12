@@ -12,6 +12,7 @@ models chrome).
 Each console is preprocessed here with only the defines its build gives the
 shared headers, as its prefix header and build.py set them, and the switches
 it gets are compared."""
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,6 +58,7 @@ XBOX_EXPECTED = {
     "HALO_CONSOLE_NO_TITLE_CHOICE",
     "HALO_CONSOLE_NO_GUIDE",
     "HALO_CONSOLE_NO_SHADER_PREP",
+    "HALO_CONSOLE_NO_STUBBS",
 }
 
 
@@ -71,6 +73,100 @@ def gates(defines):
     result = subprocess.run(command, input=source, capture_output=True, text=True, check=True)
     names = {line.split()[1] for line in result.stdout.splitlines() if line.startswith("#define ")}
     return {name for name in names if name.startswith("HALO_CONSOLE_NO_")} - PLATFORM_GATES
+
+
+def mcc(defines):
+    """HALO_MCC as the shared headers set it for these defines (1: Halo MCC
+    maps built in, 0: left out)"""
+    compiler = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+    if not compiler:
+        pytest.skip("no C compiler")
+    source = '#include "{}"\n#include "{}"\nint halo_mcc = HALO_MCC;\n'.format(
+        (INCLUDE / "halo_console_features.h").as_posix(), (INCLUDE / "halo_port_features.h").as_posix())
+    command = [compiler, "-E", "-P", "-x", "c", "-"] + ["-D" + define for define in defines]
+    result = subprocess.run(command, input=source, capture_output=True, text=True, check=True)
+    line = [line for line in result.stdout.splitlines() if "halo_mcc" in line][-1]
+    return int(line.split("=")[1].strip(" ;"))
+
+
+@pytest.mark.parametrize("console", sorted(CONSOLES))
+def test_no_console_builds_mcc_maps(console):
+    """Halo MCC maps are the desktop's and Android's: a console's build
+    leaves their hooks out (HALO_MCC 0), whichever switches it sets"""
+    assert mcc(CONSOLES[console]) == 0, "{} builds Halo MCC maps".format(console)
+
+
+def test_the_desktop_builds_mcc_maps():
+    assert mcc(DESKTOP) == 1
+    assert mcc(["HALO_ANDROID", "HALO_GAME_BROWSER"]) == 1
+
+
+# the MCC Workshop and the Steam link (the game's own Steam content client):
+# MCC-only sources that build to nothing at HALO_MCC 0
+WORKSHOP_SOURCES = sorted(
+    [*(ROOT / "port" / "linux" / "src" / "steam_content").glob("*.c"),
+     *(ROOT / "port" / "linux" / "src").glob("steam_*.c"),
+     *(ROOT / "port" / "linux" / "src").glob("workshop_*.c"),
+     ROOT / "port" / "linux" / "src" / "posix_steam_bridge.c",
+     ROOT / "port" / "windows" / "src" / "win32_steam_bridge.c",
+     ROOT / "port" / "linux" / "game" / "guide_workshop.c"])
+
+# what the shared code (browser_screen.c, guide.c, settings_rows.c) calls
+# of them: no-ops on a console
+WORKSHOP_HOOKS = {
+    "port/linux/src/workshop_browser.h": ["workshop_browser_offered", "workshop_browser_picture_of",
+                                          "workshop_browser_cached_picture", "workshop_join_setting",
+                                          "workshop_join_set_setting", "workshop_join_start", "workshop_join_poll",
+                                          "workshop_join_cancel", "workshop_join_check", "workshop_join_checked"],
+    "port/linux/src/steam_client_bridge.h": ["steam_link_available", "steam_link_linked", "steam_link_start",
+                                             "steam_link_poll", "steam_link_cancel", "steam_link_set_armed",
+                                             "steam_link_armed", "steam_link_unlink", "steam_link_store_secure"],
+    "port/linux/game/guide_workshop.h": ["guide_workshop_shown", "guide_workshop_link_modal",
+                                         "guide_workshop_link_modal_press", "guide_workshop_link_modal_back",
+                                         "guide_workshop_link_modal_render", "guide_workshop_link_note",
+                                         "guide_workshop_page_step", "guide_workshop_pages",
+                                         "guide_workshop_page_offered", "guide_workshop_render",
+                                         "guide_workshop_update"],
+}
+
+
+def test_workshop_sources_build_to_nothing_on_a_console():
+    """each Workshop and Steam link source is inside HALO_MCC's gate, from
+    before its first include to its end"""
+    assert len(WORKSHOP_SOURCES) > 15
+    for source in WORKSHOP_SOURCES:
+        text = source.read_text(encoding="utf-8")
+        gate = text.find("#if !defined(HALO_MCC) || HALO_MCC")
+        # (the feature switch's own header may come first, so the gate sees HALO_MCC)
+        include = next((match.start() for match in re.finditer(r"#include ([^\n]*)", text)
+                        if "halo_port_features.h" not in match.group(1)), -1)
+        assert gate >= 0 and (include < 0 or gate < include), "{} isn't gated".format(source.relative_to(ROOT))
+        assert text.rstrip().endswith("#endif /* HALO_MCC */"), "{} isn't gated to its end".format(
+            source.relative_to(ROOT))
+
+
+def hooks_left(header, names, defines):
+    """the hooks that stay calls (not the header's no-op macros) with these defines"""
+    compiler = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+    if not compiler:
+        pytest.skip("no C compiler")
+    source = 'typedef unsigned char boolean;\n#include "{}"\n#include "{}"\n#include "{}"\n'.format(
+        (INCLUDE / "halo_console_features.h").as_posix(), (INCLUDE / "halo_port_features.h").as_posix(),
+        (ROOT / header).as_posix())
+    command = [compiler, "-E", "-dM", "-x", "c", "-", "-DHALO_GUIDE"] + ["-D" + define for define in defines]
+    result = subprocess.run(command, input=source, capture_output=True, text=True, check=True)
+    macros = {line.split()[1].split("(")[0] for line in result.stdout.splitlines() if line.startswith("#define ")}
+    return [name for name in names if name not in macros]
+
+
+@pytest.mark.parametrize("console", sorted(CONSOLES))
+@pytest.mark.parametrize("header", sorted(WORKSHOP_HOOKS))
+def test_no_console_calls_the_workshop(console, header):
+    """the shared code's calls into the Workshop and the Steam link are
+    no-op macros on every console, and real calls on the desktop"""
+    names = WORKSHOP_HOOKS[header]
+    assert hooks_left(header, names, CONSOLES[console]) == [], "{} calls the Workshop".format(console)
+    assert hooks_left(header, names, DESKTOP) == names
 
 
 def test_the_xbox_leaves_out_what_halo_console_leaves_out():
@@ -106,3 +202,44 @@ def test_the_consoles_on_halo_console_agree(console):
 def test_the_desktop_leaves_nothing_out():
     assert not gates(DESKTOP)
     assert not gates([])
+
+
+def test_mcc_network_hooks_are_halo_mccs():
+    """the MCC network code (the 43 host switch, a server's playlist check,
+    the digest hooks, the mcc_maps capability) builds only with HALO_MCC 1:
+    a console offers no mcc_maps and calls none of it"""
+    server = (ROOT / "source" / "networking" / "network_server_manager.c").read_text()
+    start = server.index("static void network_game_server_mcc_version(")
+    gate = server.rfind("#if defined(HALO_MCC) && HALO_MCC", 0, start)
+    assert gate != -1 and server.find("#endif", gate) > start
+    assert "#define network_game_server_mcc_version(map_name) ((void)sizeof(map_name))" in server
+    identity = (ROOT / "port" / "linux" / "game" / "mcc_identity.h").read_text()
+    for hook in ("mcc_identity_host_overlay(", "mcc_identity_wire_record("):
+        assert "#define " + hook in identity
+    peer = (ROOT / "port" / "linux" / "src" / "delta_peer_game.c").read_text()
+    offer = peer.index("local.capabilities |= (delta_u32)1 << _delta_capability_mcc_maps;")
+    assert peer.rfind("#if defined(HALO_MCC) && HALO_MCC", 0, offer) > peer.rfind("#endif", 0, offer)
+
+
+def test_workshop_play_hooks_are_the_guides():
+    """the Delta Guide's Workshop PLAY's hooks in the shared code (the
+    pause menu's QUIT, a lobby ended, a solo campaign, the screen it opened)
+    build only where the Guide and MCC maps are: no console builds them"""
+    gate = "#if defined(HALO_GUIDE) && (!defined(HALO_MCC) || HALO_MCC)"
+    for path, names in (("source/interface/ui_widget_event_handler_functions.c",
+                         ("void ui_widget_port_quit_to_main_menu(", "void ui_widget_port_end_network_game(",
+                          "void ui_widget_port_campaign_solo(")),
+                        ("source/interface/ui_widget.c",
+                         ("long ui_widget_port_active_screen_tag(", "boolean ui_widget_port_screen_shown_or_behind(")),
+                        ("port/linux/game/menu_functions.c",
+                         ("boolean pc_menu_workshop_play(", "void pc_menu_workshop_play_update("))):
+        text = (ROOT / path).read_text(encoding="latin-1")
+        for name in names:
+            at = text.index(name)
+            start = text.rfind(gate, 0, at)
+            assert start != -1, "{} in {} isn't gated".format(name, path)
+            # (the gate still open at the function: its own #if ... #endif inside it counted)
+            depth = 0
+            for directive in re.findall(r"^\s*#\s*(if|ifdef|ifndef|endif)\b", text[start:at], re.M):
+                depth += -1 if directive == "endif" else 1
+                assert depth > 0, "{} in {} isn't gated".format(name, path)

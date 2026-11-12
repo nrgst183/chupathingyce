@@ -701,6 +701,17 @@ static void guide_keyboard(const struct platform_input_state *input, XINPUT_GAME
 {
 	const unsigned char *k = input->keys;
 
+	/* (a text box of the Guide's: the letters type, so only the arrows,
+	enter and escape are the Guide's) */
+	if (text_typing)
+	{
+		if (k[SDL_SCANCODE_UP]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_UP;
+		if (k[SDL_SCANCODE_DOWN]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
+		pad->bAnalogButtons[XINPUT_GAMEPAD_A] |= analog(k[SDL_SCANCODE_RETURN] || k[SDL_SCANCODE_KP_ENTER]);
+		pad->bAnalogButtons[XINPUT_GAMEPAD_B] |= analog(k[SDL_SCANCODE_ESCAPE]);
+		return;
+	}
+
 	if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_W]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_UP;
 	if (k[SDL_SCANCODE_DOWN] || k[SDL_SCANCODE_S]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
 	if (k[SDL_SCANCODE_LEFT] || k[SDL_SCANCODE_A]) pad->wButtons |= XINPUT_GAMEPAD_DPAD_LEFT;
@@ -715,6 +726,8 @@ static void guide_keyboard(const struct platform_input_state *input, XINPUT_GAME
 	pad->bAnalogButtons[XINPUT_GAMEPAD_Y] |= analog(k[SDL_SCANCODE_TAB]);
 	pad->bAnalogButtons[XINPUT_GAMEPAD_WHITE] |= analog(k[SDL_SCANCODE_Q]);
 	pad->bAnalogButtons[XINPUT_GAMEPAD_BLACK] |= analog(k[SDL_SCANCODE_E]);
+	pad->bAnalogButtons[XINPUT_GAMEPAD_LEFT_TRIGGER] |= analog(k[SDL_SCANCODE_PAGEUP]);
+	pad->bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER] |= analog(k[SDL_SCANCODE_PAGEDOWN]);
 }
 
 /* (an analog button counts as held past a third of its travel) */
@@ -744,6 +757,8 @@ static void guide_take(XINPUT_GAMEPAD *pad)
 		if (pad->bAnalogButtons[XINPUT_GAMEPAD_Y] > GUIDE_ANALOG_HELD) held |= GUIDE_INPUT_Y;
 		if (pad->bAnalogButtons[XINPUT_GAMEPAD_WHITE] > GUIDE_ANALOG_HELD) held |= GUIDE_INPUT_LEFT_BUMPER;
 		if (pad->bAnalogButtons[XINPUT_GAMEPAD_BLACK] > GUIDE_ANALOG_HELD) held |= GUIDE_INPUT_RIGHT_BUMPER;
+		if (pad->bAnalogButtons[XINPUT_GAMEPAD_LEFT_TRIGGER] > GUIDE_ANALOG_HELD) held |= GUIDE_INPUT_LEFT_TRIGGER;
+		if (pad->bAnalogButtons[XINPUT_GAMEPAD_RIGHT_TRIGGER] > GUIDE_ANALOG_HELD) held |= GUIDE_INPUT_RIGHT_TRIGGER;
 		guide_held = held;
 		/* (and what is held as it closes, up afterwards) */
 		guide_released_buttons = pad->wButtons;
@@ -2389,7 +2404,7 @@ DWORD WINAPI XInputDebugGetKeystroke(PXINPUT_DEBUG_KEYSTROKE keystroke)
 		included (chat.c: it closes them) */
 #ifdef HALO_GUIDE
 		/* (the Guide takes the keys: only their key ups pass) */
-		if (guide_capture && !key_up && !console_is_active())
+		if (guide_capture && !key_up && !console_is_active() && !text_typing)
 			continue;
 #endif
 		if (key_up || next.virtual_key == VK_OEM_3_BACKQUOTE || console_is_active() || chat_typing ||

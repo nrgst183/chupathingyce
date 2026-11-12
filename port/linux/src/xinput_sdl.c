@@ -45,6 +45,7 @@ drive the controller.
 #include "halo_keyboard.h"
 #ifdef HALO_GUIDE
 #include "guide_input.h"
+#include "delta_input_rules.h"
 #endif
 #ifdef HALO_CAPTURE
 #include "capture.h"
@@ -55,6 +56,8 @@ drive the controller.
 #if defined(SDL_PLATFORM_LINUX) && !defined(HALO_ANDROID)
 #include "halo_xbox_pad_buttons.h"
 #endif
+#define HALO_PROMPT_SCHEME_FUNCTIONS
+#include "halo_prompt_schemes.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,8 +223,9 @@ int halo_linux_mouse_aiming(short gamepad_index)
 }
 
 /* the device the player last used (Controls Setup's page, and the button
-prompts: platform_prompt_scheme): 0 the keyboard (or mouse), 1 an Xbox-like
-pad, 2 a PlayStation pad, 3 a Nintendo pad */
+prompts: platform_prompt_scheme): halo_prompt_schemes.h's, 0 the keyboard
+(or mouse), 1 an Xbox-like pad, 2 a PlayStation pad, 3 a Nintendo pad, 4 a
+Steam Deck, 6 a Steam Controller */
 static int last_input_scheme = 1;
 static BOOL last_input_seen = FALSE;
 /* (the kind of pad used last, for prompts that never show keys) */
@@ -251,29 +255,48 @@ config.toml alone: the menus no longer have it) never the keyboard: the
 controller's buttons always, as that setting's false was */
 int platform_prompt_scheme(void)
 {
-	int scheme = platform_input_scheme();
+	static int forced = -2;
+	int scheme;
+
+	/* (debug.prompt_device: one device's prompts whatever is used, for
+	screenshots and tests) */
+	if (forced == -2 && config_loaded_yet())
+		forced = prompt_scheme_named(config_string("debug.prompt_device"));
+	if (forced >= 0)
+		return forced;
+	scheme = platform_input_scheme();
 
 	if (scheme == 0 && !config_boolean("input.keyboard_prompts"))
 		return last_pad_scheme;
 	return scheme;
 }
 
+/* a pad's scheme: by its type, but the Steam Deck's and the Steam
+Controller's by Valve's numbers (halo_prompt_schemes.h) */
 static int scheme_of(SDL_Gamepad *gamepad)
 {
+	int by_type;
+	const char *steam_deck = SDL_getenv("SteamDeck");
+
 	switch (SDL_GetGamepadType(gamepad))
 	{
 	case SDL_GAMEPAD_TYPE_PS3:
 	case SDL_GAMEPAD_TYPE_PS4:
 	case SDL_GAMEPAD_TYPE_PS5:
-		return 2;
+		by_type = PROMPT_SCHEME_PLAYSTATION;
+		break;
 	case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
 	case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
 	case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
 	case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
-		return 3;
+		by_type = PROMPT_SCHEME_NINTENDO;
+		break;
 	default:
-		return 1;
+		by_type = PROMPT_SCHEME_XBOX;
+		break;
 	}
+	return prompt_scheme_of_pad(by_type, SDL_GetGamepadVendor(gamepad), SDL_GetGamepadProduct(gamepad),
+		steam_deck && !strcmp(steam_deck, "1"));
 }
 
 void platform_input_scheme_used(void *gamepad)
@@ -512,21 +535,36 @@ int platform_guide_toggles(void)
 	return toggles;
 }
 
-/* controls.delta's key, read again when config.toml changes (-1: none) */
-static int guide_key(void)
+/* controls.delta's keys, read again when config.toml changes: whether one
+of them is down now */
+static BOOL guide_key_down(const struct platform_input_state *input)
 {
 	static unsigned long read_at = (unsigned long)-1;
-	static int key = -1;
+	static int keys[DELTA_KEYS_MOST], key_count;
+	int index;
 
 	if (read_at != config_changes())
 	{
+		char names[DELTA_KEYS_MOST][DELTA_KEY_NAME_SIZE];
+		int count = delta_keys_split(config_string("controls.delta"), names, DELTA_KEYS_MOST);
+
 		read_at = config_changes();
-		key = halo_input_from_name(config_string("controls.delta"));
-		/* (a key alone, not a mouse button) */
-		if (key < 0 || key >= SDL_SCANCODE_COUNT)
-			key = -1;
+		key_count = 0;
+		for (index = 0; index < count; index++)
+		{
+			int key = halo_input_from_name(names[index]);
+
+			/* (a key alone, not a mouse button; never the console's `) */
+			if (key >= 0 && key < SDL_SCANCODE_COUNT && key != SDL_SCANCODE_GRAVE)
+				keys[key_count++] = key;
+		}
 	}
-	return key;
+	for (index = 0; index < key_count; index++)
+	{
+		if (input->keys[keys[index]])
+			return TRUE;
+	}
+	return FALSE;
 }
 
 /* the asks to open or close the Guide this poll: its key and the Guide
@@ -534,14 +572,20 @@ button pressed, Back held in the menus with delta.hold_back (pad: port 0's,
 everything merged). The Guide is the first player's: only their gamepads
 (port 0's, and those sharing its player) ask, never split screen's others,
 and nothing opens it over chat's or a field's typing */
+#ifdef HALO_CAPTURE
+/* capture_asks': the capture buttons' Back and a stick held, taken from the
+menus (and from DELTA's hold of Back) */
+static BOOL capture_combination;
+#endif
+
 static void guide_asks(const struct platform_input_state *input, SDL_Gamepad *gamepads[], int count,
-	const XINPUT_GAMEPAD *pad)
+	XINPUT_GAMEPAD *pad)
 {
-	static BOOL key_was, button_was, back_asked;
-	static Uint64 back_since;
-	int key = guide_key(), index;
+	static BOOL key_was, button_was;
+	static struct delta_back_hold back_hold;
+	int index, back;
 	BOOL typing_free = guide_capture || (!chat_typing && !text_typing);
-	BOOL key_down = key >= 0 && input->keys[key] && !console_is_active() && typing_free;
+	BOOL key_down = !console_is_active() && typing_free && guide_key_down(input);
 	BOOL button_down = FALSE;
 
 	if (key_down && !key_was)
@@ -556,22 +600,23 @@ static void guide_asks(const struct platform_input_state *input, SDL_Gamepad *ga
 		guide_toggles++;
 	button_was = button_down;
 	/* (Back held in the menus, once a hold; never in a game, where Back is
-	the scoreboard) */
-	if (!guide_capture && input->menus && (pad->wButtons & XINPUT_GAMEPAD_BACK) && config_boolean("delta.hold_back"))
-	{
-		if (!back_since)
-			back_since = SDL_GetTicks();
-		else if (!back_asked && SDL_GetTicks() - back_since >= GUIDE_HOLD_BACK)
-		{
-			back_asked = TRUE;
-			guide_toggles++;
-		}
-	}
+	the scoreboard. While it is down the menus don't get it: a tap reaches
+	them once let go, a hold never, so the main menu's Back doesn't quit
+	under DELTA) */
+#ifdef HALO_CAPTURE
+	/* (Back taken by the capture buttons: their press is no hold and no tap,
+	cleared from the pad before this read it) */
+	if (capture_combination)
+		delta_back_hold_cancel(&back_hold);
+#endif
+	back = delta_back_hold_step(&back_hold, (pad->wButtons & XINPUT_GAMEPAD_BACK) != 0,
+		!guide_capture && input->menus && config_boolean("delta.hold_back"), (unsigned long)SDL_GetTicks());
+	if (back & DELTA_BACK_OPEN)
+		guide_toggles++;
+	if (back & DELTA_BACK_PASS)
+		pad->wButtons |= XINPUT_GAMEPAD_BACK;
 	else
-	{
-		back_since = 0;
-		back_asked = FALSE;
-	}
+		pad->wButtons &= (WORD)~XINPUT_GAMEPAD_BACK;
 }
 
 #ifdef HALO_CAPTURE
@@ -607,7 +652,8 @@ them (pad) */
 static void capture_asks(const struct platform_input_state *input, SDL_Gamepad *gamepads[], int count,
 	XINPUT_GAMEPAD *pad)
 {
-	static BOOL shot_was, clip_was, combination;
+	static BOOL shot_was, clip_was;
+	BOOL combination = capture_combination;
 	BOOL back_held = FALSE;
 	int shot_key = capture_key(0), clip_key = capture_key(1), index;
 	BOOL typing = chat_typing || text_typing || console_is_active();
@@ -638,6 +684,7 @@ static void capture_asks(const struct platform_input_state *input, SDL_Gamepad *
 	}
 	if (!back_held)
 		combination = FALSE;
+	capture_combination = combination;
 	if (combination)
 		pad->wButtons &= (WORD)~(XINPUT_GAMEPAD_BACK | XINPUT_GAMEPAD_LEFT_THUMB | XINPUT_GAMEPAD_RIGHT_THUMB);
 	if (shot_down && !shot_was)
@@ -782,6 +829,9 @@ static const struct
 	at commas, cannot hold) */
 	{ "Comma", SDL_SCANCODE_COMMA },
 	{ "Keypad Comma", SDL_SCANCODE_KP_COMMA },
+	/* (SDL's is "\\", which a TOML string holds only escaped: controls.delta's
+	Mac default names it) */
+	{ "Backslash", SDL_SCANCODE_BACKSLASH },
 	{ "Mouse Left", INPUT_MOUSE + SDL_BUTTON_LEFT },
 	{ "Mouse Right", INPUT_MOUSE + SDL_BUTTON_RIGHT },
 	{ "Mouse Middle", INPUT_MOUSE + SDL_BUTTON_MIDDLE },
@@ -2043,9 +2093,12 @@ static DWORD connected_gamepads(void)
 }
 
 /* the gamepads on each port, in the game's log (debug.txt: the 32-bit builds'
-platform_log reaches standard error alone), when they change (Android's
-guest has neither SDL_GetGamepadID nor SDL_GetGamepadName) */
-#ifndef HALO_ANDROID
+platform_log reaches standard error alone), when they change, each with
+SDL's mapping on a line of its own: which of the device's axes are the
+sticks (a stick that turns too slowly on one axis, Android's #977, shows
+there). Android's 32-bit guest has neither SDL_GetGamepadID nor
+SDL_GetGamepadName; the native 64-bit build has SDL itself */
+#if !defined(HALO_ANDROID) || defined(HALO_64BIT)
 static void gamepads_log(void)
 {
 	static SDL_JoystickID logged[PORT_COUNT];
@@ -2081,6 +2134,15 @@ static void gamepads_log(void)
 	}
 #ifdef HALO_64BIT
 	platform_log("%s", line);
+	for (port = 0; port < PORT_COUNT; port++)
+	{
+		SDL_Gamepad *gamepad = port_gamepad(gamepads, count, port);
+		char *mapping = gamepad ? SDL_GetGamepadMapping(gamepad) : NULL;
+
+		if (mapping)
+			platform_log("gamepads: port %d's mapping: %s", port + 1, mapping);
+		SDL_free(mapping);
+	}
 #else
 	{
 		void error(short priority, const char *format, ...);
@@ -2102,7 +2164,7 @@ BOOL WINAPI XGetDeviceChanges(PXPP_DEVICE_TYPE device_type, PDWORD insertions, P
 
 		*insertions = connected & ~reported_gamepads;
 		*removals = reported_gamepads & ~connected;
-#ifndef HALO_ANDROID
+#if !defined(HALO_ANDROID) || defined(HALO_64BIT)
 		gamepads_log();
 #endif
 		reported_gamepads = connected;
@@ -2234,7 +2296,9 @@ DWORD WINAPI XInputGetState(HANDLE device, PXINPUT_STATE state)
 					own[own_count++] = port_gamepad(gamepads, count, other);
 			}
 #ifdef HALO_CAPTURE
-			/* (first: a capture's Back is not DELTA's hold) */
+			/* (first: a capture's Back is not DELTA's hold, nor, cleared from
+			the pad, a release that would make a tap: guide_asks cancels the
+			hold while capture_combination is set) */
 			capture_asks(&input, own, own_count, &state->Gamepad);
 #endif
 			guide_asks(&input, own, own_count, &state->Gamepad);

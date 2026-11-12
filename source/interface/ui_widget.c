@@ -3633,9 +3633,17 @@ enum
 	/* MAP BROWSER, a second copy of System Link's, under ONLINE GAMES
 	(port/xbox/game/xbox_maps_screen.c) */
 	MAP_BROWSER_POSITION = ONLINE_GAMES_POSITION + 1,
-	ONLINE_GAMES_ITEMS_ADDED = 2,
+	ONLINE_GAMES_MAP_BROWSER_ADDED = 1,
 #else
-	ONLINE_GAMES_ITEMS_ADDED = 1,
+	ONLINE_GAMES_MAP_BROWSER_ADDED = 0,
+#endif
+#ifdef HALO_GUIDE
+	/* DELTA (port/linux/game/guide.c), another copy, last, with
+	delta.menu_item (as it is when the tags load: online_games.added) */
+	DELTA_ITEM_POSITION = ONLINE_GAMES_POSITION + 1 + ONLINE_GAMES_MAP_BROWSER_ADDED,
+	ONLINE_GAMES_ITEMS_MOST = 2 + ONLINE_GAMES_MAP_BROWSER_ADDED,
+#else
+	ONLINE_GAMES_ITEMS_MOST = 1 + ONLINE_GAMES_MAP_BROWSER_ADDED,
 #endif
 	/* the items' spacing (their vertical offset, -33) */
 	ONLINE_GAMES_ROW = 33,
@@ -3650,7 +3658,16 @@ static struct
 #ifdef HALO_CONSOLE_MAP_BROWSER
 	boolean map_browser_described;
 #endif
+#ifdef HALO_GUIDE
+	boolean delta_described;
+	/* the DELTA row is in the list */
+	boolean delta;
+#endif
+	/* the items added (ONLINE GAMES, MAP BROWSER, DELTA) */
+	short added;
 } online_games = { NONE, NONE, NULL, FALSE };
+
+#define ONLINE_GAMES_ITEMS_ADDED online_games.added
 
 #ifdef HALO_GAME_BROWSER
 static void ui_widget_setup_entry_tags_loaded(void);
@@ -3682,7 +3699,18 @@ void ui_widget_online_games_tags_loaded(
 	/* (the tags are loaded again with each map: the last copy goes) */
 	if (online_games.children)
 		system_free(online_games.children);
-	children = system_malloc((ONLINE_GAMES_MENU_ITEMS + ONLINE_GAMES_ITEMS_ADDED) * sizeof(*children));
+#ifdef HALO_GUIDE
+	{
+		/* (menu_tags.c's: delta.menu_item, the menus' DELTA rows) */
+		extern boolean pc_menu_delta_item_offered(void);
+
+		online_games.delta = pc_menu_delta_item_offered();
+	}
+	online_games.added = (short)(ONLINE_GAMES_ITEMS_MOST - (online_games.delta ? 0 : 1));
+#else
+	online_games.added = ONLINE_GAMES_ITEMS_MOST;
+#endif
+	children = system_malloc((ONLINE_GAMES_MENU_ITEMS + ONLINE_GAMES_ITEMS_MOST) * sizeof(*children));
 	online_games.children = children;
 	if (!children)
 		return;
@@ -3691,6 +3719,10 @@ void ui_widget_online_games_tags_loaded(
 	children[ONLINE_GAMES_POSITION] = old_children[ONLINE_GAMES_SYSTEM_LINK];
 #ifdef HALO_CONSOLE_MAP_BROWSER
 	children[MAP_BROWSER_POSITION] = old_children[ONLINE_GAMES_SYSTEM_LINK];
+#endif
+#ifdef HALO_GUIDE
+	if (online_games.delta)
+		children[DELTA_ITEM_POSITION] = old_children[ONLINE_GAMES_SYSTEM_LINK];
 #endif
 	csmemcpy(&children[ONLINE_GAMES_POSITION + ONLINE_GAMES_ITEMS_ADDED], &old_children[ONLINE_GAMES_POSITION],
 		(ONLINE_GAMES_MENU_ITEMS - ONLINE_GAMES_POSITION) * sizeof(*children));
@@ -3890,6 +3922,17 @@ boolean ui_widget_online_games_item(
 		ui_widget_list_position(widget) == ONLINE_GAMES_POSITION;
 }
 
+#ifdef HALO_GUIDE
+/* the Multiplayer menu's DELTA (a copy of System Link's item) */
+boolean ui_widget_delta_item(
+	struct widget_instance *widget)
+{
+	return online_games.list_tag != NONE && online_games.delta && widget && widget->parent &&
+		widget->parent->definition_tag_index == online_games.list_tag &&
+		ui_widget_list_position(widget) == DELTA_ITEM_POSITION;
+}
+#endif
+
 #ifdef HALO_CONSOLE_ONLINE_GAMES
 #ifdef HALO_CONSOLE_MAP_BROWSER
 boolean ui_widget_map_browser_item(
@@ -3961,6 +4004,9 @@ short ui_widget_online_games_description(
 #ifdef HALO_CONSOLE_MAP_BROWSER
 	online_games.map_browser_described = FALSE;
 #endif
+#ifdef HALO_GUIDE
+	online_games.delta_described = FALSE;
+#endif
 	if (online_games.list_tag == NONE || list_widget->definition_tag_index != online_games.list_tag)
 		return index;
 	if (index == ONLINE_GAMES_POSITION)
@@ -3972,6 +4018,13 @@ short ui_widget_online_games_description(
 	if (index == MAP_BROWSER_POSITION)
 	{
 		online_games.map_browser_described = TRUE;
+		return ONLINE_GAMES_SYSTEM_LINK;
+	}
+#endif
+#ifdef HALO_GUIDE
+	if (online_games.delta && index == DELTA_ITEM_POSITION)
+	{
+		online_games.delta_described = TRUE;
 		return ONLINE_GAMES_SYSTEM_LINK;
 	}
 #endif
@@ -4004,6 +4057,29 @@ static void event_handler_dispatch(
 		browser_screen_open();
 		return;
 	}
+	/* (Gearbox's SERVER BROWSER too: one game list in every menu set, not
+	Halo PC's own Server Browser screen. Its LAN and DIRECT LINK keep their
+	Join Game screen) */
+	if (widget->name && pc_menu_tag(widget->definition_tag_index) &&
+		strstr(widget->name, "multiplayer_type_join_internet") &&
+		(handler->event_type == _gamepad_analog_button_a || handler->event_type == _gamepad_binary_button_start))
+	{
+		ui_play_audio_feedback_sound(_ui_audio_feedback_forward);
+		browser_screen_open();
+		return;
+	}
+#ifdef HALO_GUIDE
+	/* DELTA (System Link's item copied): DELTA over the menu, on PARTY */
+	if (ui_widget_delta_item(widget) &&
+		(handler->event_type == _gamepad_analog_button_a || handler->event_type == _gamepad_binary_button_start))
+	{
+		extern void guide_open_party(void);
+
+		ui_play_audio_feedback_sound(_ui_audio_feedback_forward);
+		guide_open_party();
+		return;
+	}
+#endif
 #ifdef HALO_GAME_BROWSER
 	/* SETUP (CHANGE COLOR's row copied): the setup screen, none of CHANGE
 	COLOR's */
@@ -6114,6 +6190,12 @@ static void widget_instance_render_text_box(
 		/* (ONLINE GAMES' item and description share System Link's tags) */
 		if (ui_widget_online_games_item(widget))
 			string = L"ONLINE GAMES";
+#ifdef HALO_GUIDE
+		else if (ui_widget_delta_item(widget))
+			string = L"DELTA";
+		else if (online_games.delta_described && widget->definition_tag_index == online_games.description_text_tag)
+			string = L"Start a party, invite your \r\nfriends and bring them to \r\nyour game.";
+#endif
 #ifdef HALO_GAME_BROWSER
 		else if (ui_widget_setup_entry_item(widget))
 			string = L"SETUP";

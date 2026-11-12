@@ -2070,6 +2070,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\delta_compat.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\delta_input_rules.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\delta_maps.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>

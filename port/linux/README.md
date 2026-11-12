@@ -3336,6 +3336,12 @@ and two kinds of walker); the wrecks of the others stayed.
   unit from it, at a full run or back for another run, and not from a walk
   (another way, if there is no run to be had). Not by default: on six such
   ledges the ways round them were as quick or quicker.
+- **Bots swear when they're losing:** killed again while their side is
+  well behind (or after three deaths in a row without a kill), a bot may
+  say something like "damn it" or "this is bullshit" to everyone. The
+  hotter its temper, the likelier. Like the other chat lines, it is held
+  to the side's chat limits. `HALO_BOT_OFF=swear` turns it off, and
+  `HALO_BOT_CHAT=0` turns off all bot chat.
 - **The flag stays in hand:** a person can't put the flag (or the ball)
   away, but a bot's choice of weapon went past that rule, so a carrier that
   switched to its shotgun put the flag away. The flag then stayed hidden

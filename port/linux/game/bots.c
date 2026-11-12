@@ -8378,7 +8378,10 @@ static int bot_goal_perch(struct bot_goal_pass *g)
 	if (me < 0 || me >= BOT_MAXIMUM_PLAYERS)
 		return FALSE;
 	/* (on one: kept on it while it lasts) */
-	if (bot->goal_perch && bot->goal_ticks > 0 && (bot->goal_kind == _bot_goal_roam || bot->goal_kind == _bot_goal_hold))
+	/* (... and there: held. Getting there ends the walk, its ticks
+	   gone, which ended the perch with it before it was ever held) */
+	if (bot->goal_perch && (bot->goal_kind == _bot_goal_roam || bot->goal_kind == _bot_goal_hold) &&
+		(bot->goal_ticks > 0 || (bot->goal_kind == _bot_goal_roam && bot_distance2d(position, &bot->goal) < 2.f)))
 	{
 		if (bot->goal_kind == _bot_goal_roam && bot_distance2d(position, &bot->goal) < 2.f)
 		{
@@ -8435,7 +8438,14 @@ static int bot_goal_perch(struct bot_goal_pass *g)
 				if (!bot_line_clear(bot_sight_flags, &eye, &them, NONE))
 					continue;
 			}
-			score = distance3d(position, &spot) * (0.6f + 0.8f * bot_random(bot)) - 2.f * (spot.z - position->z);
+			/* (near by the way there: one a long way round was given up on
+			   the way, for a fight or a gun, nearly every time) */
+			{
+				float time = aas_ready() ? aas_travel_time(AAS_FOOT, position, &spot) : -1.f;
+				if (time < 0.f || time > 10.f)
+					continue;
+				score = time * (0.6f + 0.8f * bot_random(bot)) - 0.6f * (spot.z - position->z);
+			}
 			if (score < best)
 			{
 				best = score;
@@ -16436,6 +16446,39 @@ static void bot_fight_sniper_spot(struct bot_think *t, struct bot_fight *f)
 	struct bot_state *bot = t->bot;
 	real target_distance = t->target_distance;
 	real_point3d const *position = &t->position;
+	/* (up high in slayer with a gun that reaches, bot_goal_perch: a fight
+	   from up there, at range, is the point of it. Kept to the spot while
+	   they are a way off or below, and on up to it while they are far,
+	   shooting on the way. Picking off the ones fighting each other down
+	   there is what a perch is for. HALO_BOT_OFF=perchfight) */
+	int reaches = t->weapon.precision || t->weapon.kind == _bot_gun_pistol || t->weapon.kind == _bot_gun_sniper ||
+		(t->weapon.kind == _bot_gun_assault_rifle && target_distance < 18.f) || t->weapon.kind == _bot_gun_rocket;
+	if (bot->goal_perch && reaches && !f->closing && !f->hurt && !t->moved && !bot_env_off("perchfight") && t->target != NONE &&
+		object_try_and_get(t->target))
+	{
+		real below = position->z - object_get(t->target)->object.position.z;
+		if (bot->goal_kind == _bot_goal_hold && bot_distance2d(position, &bot->goal) < 3.f && (target_distance > 6.f || below > 1.5f))
+		{
+			real side = bot->strafe_sign != 0.f ? bot->strafe_sign : 1.f;
+			t->move_yaw = bot_distance2d(position, &bot->goal) > 1.2f ? bot_yaw_to(position, &bot->goal) : bot_wrap(f->to_target + side * BOT_PI * 0.5f);
+			t->move_speed = 0.6f;
+			t->moving = TRUE;
+			t->moved = TRUE;
+			return;
+		}
+		if (bot->goal_kind == _bot_goal_roam && target_distance > 12.f)
+		{
+			bot_go(bot, &t->body, &bot->goal, _bot_move_goal_position, 1.f, &t->result);
+			if (t->result.moving)
+			{
+				t->move_yaw = t->result.yaw;
+				t->move_speed = t->result.speed;
+				t->moving = TRUE;
+				t->moved = TRUE;
+				return;
+			}
+		}
+	}
 
 	/* a sniper at their spot stays put and shoots */
 	if (bot->role == _bot_role_sniper && bot->goal_kind == _bot_goal_hold && bot_distance2d(position, &bot->goal) < 2.f &&

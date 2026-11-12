@@ -3346,8 +3346,15 @@ and two kinds of walker); the wrecks of the others stayed.
   for a bot holding the sniper rifle, the rifle's own spawn when it is up
   off the floor. The spot must be higher than the bot, within 45 units and
   in sight of the nearest enemy. Campers and better bots do it more often
-  (`perch`). A fight still comes first, so in a crowded game they seldom
-  get up there; it shows more with fewer players about.
+  (`perch`). With a gun that reaches (a pistol, a sniper rifle, a rocket
+  launcher, a rifle under 18 units), a bot up there fights from there while
+  its target is 6 or more units off or well below, and keeps climbing to it
+  while they are far (`perchfight`). Only spots within 10 seconds' walk
+  are chosen. A close fight still comes first, so in a crowded game they
+  seldom get up there.
+- **Rockets in a big game:** in two 30-bot rocket games on Derelict, bots
+  fired 210 rockets from 1.5 to 2.8 units (none before), 28% more rockets
+  in all, and kills rose by about a quarter.
 - **Better melee:** good bots now go in for a beatdown whatever their
   habits: when the target's shields are nearly gone a few steps away, at
   arm's length when no shotgun blast is ready, and from anywhere near with

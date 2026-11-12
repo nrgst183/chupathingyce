@@ -691,6 +691,7 @@ struct map_leaf;
 struct map_leaf_face;
 struct mass_point_datum;
 struct mass_point_definition;
+struct match_light_limits;
 struct material_definition;
 struct material_effect;
 struct material_effect_material;

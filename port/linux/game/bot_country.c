@@ -4851,12 +4851,19 @@ static void country_handling(struct country_drive *drive)
 	most = hovers ? 3.2f : speed > 11.f * pace ? 0.22f : speed > 8.f * pace ? 0.32f : speed > 5.f * pace ? 0.5f : 3.2f;
 	/* (full lock under power is the tail round, on snow: round a tight
 	   turn on little of it) */
-	if (fabs(wanted) > 1.2f)
-		drive->throttle = MIN(drive->throttle, speed > 4.5f * pace ? -0.4f : speed > 2.5f * pace ? 0.15f : 0.5f);
-	else if (fabs(wanted) > 0.6f)
-		drive->throttle = MIN(drive->throttle, speed > 7.f * pace ? -0.2f : speed > 4.5f * pace ? 0.3f : 0.6f);
-	else if (fabs(wanted) > 0.3f && speed > 10.f * pace)
-		drive->throttle = MIN(drive->throttle, 0.3f);
+	/* (testing, HALO_BOT_LOWTURN=<throttle>: what a sharp turn from a crawl is
+	   given, as against 0.5 and 0.6) */
+	{
+		static real low = -1.f;
+		if (low < 0.f)
+			low = getenv("HALO_BOT_LOWTURN") ? (real)atof(getenv("HALO_BOT_LOWTURN")) : 0.f;
+		if (fabs(wanted) > 1.2f)
+			drive->throttle = MIN(drive->throttle, speed > 4.5f * pace ? -0.4f : speed > 2.5f * pace ? 0.15f : low > 0.f ? low : 0.5f);
+		else if (fabs(wanted) > 0.6f)
+			drive->throttle = MIN(drive->throttle, speed > 7.f * pace ? -0.2f : speed > 4.5f * pace ? 0.3f : low > 0.f ? MAX(low, 0.6f) : 0.6f);
+		else if (fabs(wanted) > 0.3f && speed > 10.f * pace)
+			drive->throttle = MIN(drive->throttle, 0.3f);
+	}
 	if (fall < -0.25f && speed > 8.f * pace)
 		drive->throttle = MIN(drive->throttle, 0.f);
 	if (fabs(wanted) > most)

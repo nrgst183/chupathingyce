@@ -68,7 +68,7 @@ there. Reachabilities that bots keep failing at cost more (learned).
 #define AAS_FOOT_SPEED 2.25f
 #define AAS_VEHICLE_SPEED 6.f
 #define AAS_CACHES 96
-#define AAS_CACHE_VERSION 50 /* (50: jumps up to 0.92 with a run at them, HALO_BOT_HIGHRISE; 49: banks slid down, HALO_BOT_SLIDES; 48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
+#define AAS_CACHE_VERSION 51 /* (51: past the foot of a railing for a floor to land on; 50: jumps up to 0.92 with a run at them, HALO_BOT_HIGHRISE; 49: banks slid down, HALO_BOT_SLIDES; 48: slots too narrow for an area walked through; 47: slanted ways for the long ones only; 46: jumps up from further off, people's way; 45: ledges looked out from at sixteen ways, not eight; 44: a crouch jump's cost what a person's loses of the run; 43: crouch jumps to 0.84; 42: level across a dip too deep to climb out of; 41: run-ups at a slant; 40: gaps up to a jump's height, the legs tucked; 33: teleporter pads reached from the floor round them; 34: no vehicle areas under deep water; 35: ledges away from their ends; 36: up across a dip; 37: no areas a cell or two wide with no way out; 38: strips joined; 39: a doorway an edge) */
 #define AAS_DEAD_FAILURES 4 /* failed this often: not a way */
 #define AAS_CACHE_MAGIC 0x53414148UL /* HAAS */
 #define AAS_MAXIMUM_PLACES 256
@@ -1357,6 +1357,7 @@ struct aas_ledge_state
 	boolean opening; /* room to walk off here */
 	boolean crossed_floor; /* floor at our height passed over on the way out */
 	float dropped_floor; /* (the pit's floor: that's no ledge) */
+	long past_rail; /* cells gone on past floor hard against a rail, for room to stand (aas_ledge_scan) */
 };
 
 /* what one column of the scan holds */
@@ -1518,7 +1519,9 @@ static void aas_ledge_classify(long type, long s, long d, long k, long u, struct
 		 (rise >= -NAVM_STEP && state->dropped && other->floor > state->dropped_floor + aas_jump_rise() && !aas_gap_level_off())) &&
 		(rise <= AAS_GAP_RISE || (!aas_gap_tall_off() && rise <= MIN(aas_crouch_rise(), AAS_CROUCH_RISE))) &&
 		rise >= -3.5f && (!state->dropped || rise >= -NAVM_JUMP || other->floor > state->dropped_floor + NAVM_JUMP) && column->found == NONE &&
-		other->wall >= 20)
+		/* (past a rail: a body comes down beside it, a little nearer the
+		   wall, as people do on Longest's walkways) */
+		other->wall >= (state->past_rail > 0 ? 15 : 20))
 	{
 		/* a gap: far enough to need a jump, near enough to make (over
 		   to the same height, or across and down onto something
@@ -1720,7 +1723,7 @@ static void aas_slide_scan(long type, struct aas_candidates *list, long s, long 
 static void aas_ledge_scan(long type, struct aas_candidates *list, long s, long d)
 {
 	long const reach_cells = NAVM_CELLS(3.2f); /* how far out from a ledge to look */
-	struct aas_ledge_state state = { FALSE, FALSE, FALSE, TRUE, FALSE, 0.f };
+	struct aas_ledge_state state = { FALSE, FALSE, FALSE, TRUE, FALSE, 0.f, 0 };
 	long k;
 	long a = NONE;
 	long a_span = NONE;
@@ -1790,6 +1793,23 @@ static void aas_ledge_scan(long type, struct aas_candidates *list, long s, long 
 		}
 		/* (a sliver of floor at our height between us and a step up,
 		   too near the wall to stand in: on over it for the step) */
+		/* (... and a floor across a gap that is only the foot of a railing
+		   or a wall, hard against it, too near to stand on: on a little
+		   further for room to stand past it. Longest's walkways, over the
+		   rail from the middle platform, as people jump: the scan stopped at
+		   the rail's foot and found no way. HALO_BOT_OFF=pastrail) */
+		/* (... only out over a drop: past floor of our own by a wall it
+		   made level hops of a unit across where the floor goes on, 376
+		   on Hang 'em High, slower than the walk) */
+		if (column.level && !column.level_open && type == AAS_FOOT && k > NAVM_CELLS(0.8f) && (state.below || state.dropped) &&
+			!bot_env_off("pastrail"))
+		{
+			if (++state.past_rail > NAVM_CELLS(0.5f))
+				break;
+			state.below |= column.below;
+			state.step_below |= column.step_below;
+			continue;
+		}
 		if (column.level && (column.level_open || k > NAVM_CELLS(0.8f) || type != AAS_FOOT))
 			break;
 		state.below |= column.below;
@@ -1907,6 +1927,34 @@ static boolean aas_gap_has_runup(struct aas_candidate const *candidate)
 	return FALSE;
 }
 
+/* (a running jump's own arc from one floor to another: the feet and the
+   head along it, in eight pieces, against what is in the way. The feet go
+   up and come down as a jump at a run does, 0.69 at the top across a gap
+   to about the same height) */
+static boolean aas_gap_arc_clear(unsigned long flags, real_point3d const *from, real_point3d const *to)
+{
+	real const parts[2] = { 0.15f, 0.62f }; /* (the shins, and the top of the head under a jump's top) */
+	long p, k;
+	for (p = 0; p < 2; p++)
+	{
+		real_point3d last = *from;
+		last.z += parts[p];
+		for (k = 1; k <= 8; k++)
+		{
+			real f = (real)k / 8.f;
+			real_point3d at;
+			struct collision_result collision;
+			at.x = from->x + (to->x - from->x) * f;
+			at.y = from->y + (to->y - from->y) * f;
+			at.z = from->z + (to->z - from->z) * f + 4.f * 0.69f * f * (1.f - f) + parts[p];
+			if (aas_ray_blocked(flags, &last, &at, &collision))
+				return FALSE;
+			last = at;
+		}
+	}
+	return TRUE;
+}
+
 /* a gap's jump: whether it is clear of anything in the way (and, in *barrier,
    whether something knee high stands in it) */
 static boolean aas_gap_clear(struct aas_candidate const *candidate, boolean *barrier)
@@ -1973,6 +2021,14 @@ static boolean aas_gap_clear(struct aas_candidate const *candidate, boolean *bar
 		b.z += heights[h];
 		if (aas_ray_blocked(flags, &a, &b, &collision))
 		{
+			/* (blocked over the top only, at the head's height at the top of
+			   the jump: a bar across a gap in a railing, the underside of
+			   something over the way. Under it, if the jump's own arc goes
+			   under it, the body's height above the feet all the way:
+			   Longest's walkways from the middle platform, through the
+			   gap in the rail, as people jump. HALO_BOT_OFF=arcclear) */
+			if (h == 2 && !bot_env_off("arcclear") && aas_gap_arc_clear(flags, &from, &to))
+				continue;
 			clear = FALSE;
 			if (getenv("HALO_BOT_GAPLOG"))
 				bot_log("gap %ld->%ld blocked at h %.2f: %.2f %.2f %.2f -> %.2f %.2f %.2f hit %.2f %.2f %.2f", candidate->from, candidate->to,
@@ -1995,7 +2051,12 @@ static boolean aas_gap_clear(struct aas_candidate const *candidate, boolean *bar
 			a.z += 1.0f;
 			b.z += 1.0f;
 			if (aas_ray_blocked(flags, &a, &b, &collision))
+			{
 				clear = FALSE;
+				if (getenv("HALO_BOT_GAPLOG"))
+					bot_log("gap %ld->%ld narrow at side %ld: hit %.2f %.2f %.2f", candidate->from, candidate->to, side,
+						collision.point.x, collision.point.y, collision.point.z);
+			}
 		}
 	}
 	/* across to about the same height, and not a pit between but
@@ -2012,6 +2073,9 @@ static boolean aas_gap_clear(struct aas_candidate const *candidate, boolean *bar
 			b.z += lows[h];
 			if (aas_ray_blocked(flags, &a, &b, &collision))
 			{
+				if (getenv("HALO_BOT_GAPLOG"))
+					bot_log("gap %ld->%ld low at %.2f: %.2f %.2f %.2f -> %.2f %.2f %.2f hit %.2f %.2f %.2f", candidate->from, candidate->to,
+						lows[h], a.x, a.y, a.z, b.x, b.y, b.z, collision.point.x, collision.point.y, collision.point.z);
 				if (h == 0)
 					clear = FALSE;
 				else

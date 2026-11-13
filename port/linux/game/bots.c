@@ -4603,6 +4603,16 @@ void bot_record_state(long player_index, char *goal, long goal_size, char *via, 
 	bot = &bot_states[index];
 	snprintf(goal, (size_t)goal_size, "%s%s%s", bot->goal_kind >= 0 && bot->goal_kind < (long)NUMBEROF(goals) ? goals[bot->goal_kind] : "?",
 		bot->goal_perch ? "+perch" : "", bot->goal_lurk ? "+lurk" : "");
+	/* (an item or a vehicle: which, "item:rocket launcher") */
+	if ((bot->goal_kind == _bot_goal_item || bot->goal_kind == _bot_goal_vehicle) && bot->goal_object != NONE)
+	{
+		struct object_datum *object = (struct object_datum *)object_try_and_get(bot->goal_object);
+		char const *name = object ? tag_get_name(object->definition_index) : NULL;
+		char const *last = name ? strrchr(name, '\\') : NULL;
+		long used = (long)strlen(goal);
+		if (name && used < goal_size - 2)
+			snprintf(goal + used, (size_t)(goal_size - used), ":%s", last ? last + 1 : name);
+	}
 	reach = bot->mover.move.reach;
 	if (aas_ready() && reach >= 0 && reach < aas_reach_count(AAS_FOOT))
 	{

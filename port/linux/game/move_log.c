@@ -548,6 +548,18 @@ static void move_record_open(char const *map, long now)
 	snprintf(folder, sizeof(folder), "%s", platform_folder(_port_folder_logs));
 	snprintf(path, sizeof(path), "%s/game_%04d-%02d-%02d_%02d-%02d-%02d_%s_%s.csv", folder, local ? local->tm_year + 1900 : 0, local ? local->tm_mon + 1 : 0,
 		local ? local->tm_mday : 0, local ? local->tm_hour : 0, local ? local->tm_min : 0, local ? local->tm_sec : 0, word, kind);
+	/* (two games begun in the same second on the same map: the second
+	   one's file has a number after it, not the first one's overwritten) */
+	{
+		FILE *there;
+		long n;
+		size_t end = strlen(path) - 4; /* (before ".csv") */
+		for (n = 2; n < 100 && (there = fopen(path, "r")) != NULL; n++)
+		{
+			fclose(there);
+			snprintf(path + end, sizeof(path) - end, "_%ld.csv", n);
+		}
+	}
 	move_record.file = fopen(path, "w");
 	snprintf(move_record.map, sizeof(move_record.map), "%s", map);
 	move_record.began = move_record.last = now;

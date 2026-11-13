@@ -112,6 +112,17 @@ def measure(path):
                 if mates:
                     b["near_mate"] += min(math.dist((r["x"], r["y"]), (o["x"], o["y"])) for o in mates)
                     b["mate_samples"] += 1
+            # a fight begun: from where, against which way they were looking
+            if fighting and r["target"] in alive and prev and p in prev and prev[p]["target"] in ("", "-1", None):
+                o = alive[r["target"]]
+                try:
+                    to_bot = math.atan2(r["y"] - o["y"], r["x"] - o["x"])
+                    b["fight_starts"] += 1
+                    b["start_flank"] += angle_between(to_bot, float(o["aim_yaw"])) > math.radians(60)
+                    b["start_dist"] += math.dist((r["x"], r["y"], r["z"]), (o["x"], o["y"], o["z"]))
+                    b["start_higher"] += r["z"] - o["z"] > 1.0
+                except (ValueError, TypeError):
+                    pass
             if fighting and r["target"] in alive:
                 o = alive[r["target"]]
                 b["fight_dist"] += math.dist((r["x"], r["y"], r["z"]), (o["x"], o["y"], o["z"]))
@@ -157,7 +168,7 @@ def measure(path):
                 to_killer = math.atan2(kr["y"] - vr["y"], kr["x"] - vr["x"])
                 try:
                     b["kill_flank"] += angle_between(to_killer, float(vr["aim_yaw"])) > math.radians(60)
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
                 b["kill_busy"] += vr["target"] not in ("", "-1", k)
                 b["kill_fresh"] += t - spawned.get(v, -99) < 5.0
@@ -205,6 +216,10 @@ def measure(path):
             "kills on the just spawned %": 100 * b["kill_fresh"] / b["kills_seen"] if b["kills_seen"] else float("nan"),
             "deaths where it died before %": 100 * b["death_again"] / b["deaths_seen"] if b["deaths_seen"] else float("nan"),
             "deaths to a third party %": 100 * b["death_by_other"] / b["deaths_seen"] if b["deaths_seen"] else float("nan"),
+            "fights begun from side/behind %": 100 * b["start_flank"] / b["fight_starts"] if b["fight_starts"] else float("nan"),
+            "fights begun at distance": b["start_dist"] / b["fight_starts"] if b["fight_starts"] else float("nan"),
+            "fights begun from above %": 100 * b["start_higher"] / b["fight_starts"] if b["fight_starts"] else float("nan"),
+            "fights begun/min": b["fight_starts"] / alive_s * 60,
             "kills per 30 s, spread": (st.pstdev(w) / st.mean(w)) if len(w) > 2 and st.mean(w) > 0 else float("nan"),
         }
         out[p] = res

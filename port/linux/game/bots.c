@@ -1398,9 +1398,9 @@ static void bot_skill_traits(struct bot_personality *personality)
 	   HALO_BOT_OFF=spread: as it was */
 	if (!bot_env_off("spread"))
 	{
-		personality->accuracy *= 1.2f - 0.4f * personality->accuracy_luck;
-		personality->reaction *= 1.2f - 0.4f * personality->reaction_luck;
-		personality->agility = PIN(personality->agility + 0.3f * (personality->agility_luck - 0.5f), 0.1f, 1.f);
+		personality->accuracy *= 1.4f - 0.8f * personality->accuracy_luck;
+		personality->reaction *= 1.4f - 0.8f * personality->reaction_luck;
+		personality->agility = PIN(personality->agility + 0.6f * (personality->agility_luck - 0.5f), 0.1f, 1.f);
 	}
 }
 
@@ -1571,9 +1571,10 @@ static struct bot_trait_name
 };
 
 /* (testing, HALO_BOT_TRAIT="flanker=0/1 lurk=1": a trait pinned for every
-   bot, or with "low/high" the low for the bots of even slots and the high
-   for the odd ones, so that a game of them shows what the trait does, one
-   half against the other; "style=<0..3>" and "signature=<0..5>" too) */
+   bot, or with "low/high" the low for the bots of slots 0, 1, 4, 5, 8, 9 ...
+   and the high for 2, 3, 6, 7 ..., so that a game of them shows what the
+   trait does, one half against the other, and either side of a team game
+   has both; "style=<0..3>" and "signature=<0..5>" too) */
 static void bot_skill_traits(struct bot_personality *personality);
 static real bot_own_aggression(struct bot_personality const *personality);
 static void bot_pin_traits(long slot, struct bot_personality *personality)
@@ -1596,7 +1597,7 @@ static void bot_pin_traits(long slot, struct bot_personality *personality)
 			continue;
 		*equals = '\0';
 		slash = strchr(equals + 1, '/');
-		value = (real)atof(slash && (slot & 1) ? slash + 1 : equals + 1);
+		value = (real)atof(slash && ((slot >> 1) & 1) ? slash + 1 : equals + 1);
 		if (!strcmp(word, "aggression"))
 		{
 			/* (its own draw, which what it is at any moment comes from,
@@ -1690,7 +1691,7 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	personality->sneak = BOT_TRAIT(0.f, 1.f);
 	personality->streaky = BOT_TRAIT(0.f, 1.f);
 	personality->streak_phase = BOT_TRAIT(0.f, 6.2832f);
-	personality->streak_period = BOT_TRAIT(60.f, 150.f);
+	personality->streak_period = BOT_TRAIT(40.f, 90.f);
 	/* (a style is a lean of the traits it goes with, too) */
 	switch (personality->style)
 	{
@@ -3109,10 +3110,10 @@ static int bot_notices(struct bot_state *bot, long player_absolute_index, long u
 		   and then: someone near, off to the side or behind, caught in a
 		   glance. HALO_BOT_OFF=vigilance) */
 		else if (!bot_env_off("vigilance") && bot->target_unit != NONE && unit_index != bot->target_unit && length < 12.f &&
-			((now / 6 + player_absolute_index * 7 + (long)(bot - bot_states) * 3) % 10) < (long)(7.f * bot_knack(bot->personality.vigilance, 2.f) + 0.5f))
+			((now / 6 + player_absolute_index * 7 + (long)(bot - bot_states) * 3) % 10) < (long)(10.f * bot_knack(bot->personality.vigilance, 2.f) + 0.5f))
 		{
 			angle = BOT_VIEW_HALF_ANGLE;
-			behind = 1.3f;
+			behind = 1.f;
 		}
 		else
 		{
@@ -3460,9 +3461,13 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 			{
 				real taste = bot->personality.opportunist * (0.4f + 0.6f * PIN((bot_skill_now - 2.f) / 3.f, 0.f, 1.f));
 				if (bot_unit_busy(player->unit_index, eye))
-					score *= 1.f - 0.4f * taste;
+					score *= 1.f - 0.7f * taste;
 				if (unit->object.shield_vitality < 0.35f)
-					score *= 1.f - 0.35f * taste * (1.f - PIN(unit->object.shield_vitality, 0.f, 0.35f) / 0.35f);
+					score *= 1.f - 0.6f * taste * (1.f - PIN(unit->object.shield_vitality, 0.f, 0.35f) / 0.35f);
+				/* (and the straight sort the other way: whoever is fresh and
+				   free, before the one someone else is on) */
+				else if (bot->personality.opportunist < 0.3f && bot_unit_busy(player->unit_index, eye))
+					score *= 1.f + 0.6f * (0.3f - bot->personality.opportunist) / 0.3f;
 			}
 			/* whoever leads: everyone's business */
 			if ((ffa = bot_ffa_pro(BOT_G_LEADER)) > 0.f && index == bot_ffa_top() && index != (long)(bot - bot_states))
@@ -3518,7 +3523,7 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 			real_vector3d const *v = &unit->object.translational_velocity;
 			real closing = (v->i * (eye->x - unit->object.position.x) + v->j * (eye->y - unit->object.position.y)) / distance * BOT_TICKS_PER_SECOND;
 			if (closing > 0.5f)
-				score *= 1.f - 0.4f * bot_knack(bot->personality.vigilance, 2.f) * PIN(closing / 2.f, 0.f, 1.f) * (1.f - distance / 12.f);
+				score *= 1.f - 0.75f * bot_knack(bot->personality.vigilance, 2.f) * PIN(closing / 1.5f, 0.f, 1.f) * (1.f - distance / 14.f);
 		}
 		/* rockets are for vehicles */
 		if (prefer_vehicles && unit->object.parent_object_index != NONE)
@@ -5760,7 +5765,7 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 					if (!driver_player || bot_is_enemy((short)player->team_index, driver_player))
 						continue;
 				}
-				bot_consider(best, ride * (waits ? MAX(score, 12.f) * 1.5f : score * (0.9f + 0.8f * bot->personality.vehicle_love)) / (1.f + to_vehicle / (waits ? 80.f : 40.f)),
+				bot_consider(best, ride * (waits ? MAX(score, 12.f) * 1.5f : score * (0.4f + 1.8f * bot->personality.vehicle_love)) / (1.f + to_vehicle / (waits ? 80.f : 40.f)),
 					_bot_goal_vehicle, &entry, iterator.index, 20 * BOT_TICKS_PER_SECOND, TRUE);
 			}
 		}
@@ -6953,6 +6958,28 @@ static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const 
 	real_point3d best = *enemy;
 	real best_score = -1.0e9f;
 	long sample;
+	/* (which way whoever is there is looking, when someone is: the flanker
+	   comes from where they aren't. HALO_BOT_OFF=flanker) */
+	real looking = 0.f;
+	int looking_known = FALSE;
+	real reach = 14.f + (bot_env_off("flanker") ? 0.f : 10.f * bot->personality.flanker);
+	if (!bot_env_off("flanker"))
+	{
+		struct data_iterator iterator;
+		struct player_datum *player;
+		data_iterator_new(&iterator, player_data);
+		while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+		{
+			struct unit_datum *them = player->unit_index != NONE ? unit_try_and_get(player->unit_index) : NULL;
+			if (them && bot_unit_alive(player->unit_index) && player->unit_index != bot->unit_index &&
+				distance3d(&them->object.position, enemy) < 4.f)
+			{
+				looking = (real)atan2(them->unit.aiming_vector.j, them->unit.aiming_vector.i);
+				looking_known = TRUE;
+				break;
+			}
+		}
+	}
 	best.x += (bot_random(bot) - 0.5f) * 10.f;
 	best.y += (bot_random(bot) - 0.5f) * 10.f;
 	if (!aas_ready())
@@ -6962,13 +6989,20 @@ static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const 
 		real_point3d spot = *enemy;
 		long area;
 		real score;
-		spot.x += (bot_random(bot) - 0.5f) * 14.f;
-		spot.y += (bot_random(bot) - 0.5f) * 14.f;
+		spot.x += (bot_random(bot) - 0.5f) * reach;
+		spot.y += (bot_random(bot) - 0.5f) * reach;
 		area = aas_nearest_area(AAS_FOOT, &spot, 4.f, &spot);
 		if (area == NONE || spot.z > enemy->z + 4.f)
 			continue;
 		/* higher is better; so is from the side we're coming from */
 		score = MIN(spot.z - enemy->z, 3.f) - 0.1f * bot_distance2d(&spot, from) / 10.f + bot_random(bot);
+		/* (the flanker: from where they aren't looking, round the side or
+		   behind them; the straight-in sort, from in front) */
+		if (looking_known)
+		{
+			real off = bot_angle_difference(looking, bot_yaw_to(enemy, &spot));
+			score += 3.f * (bot->personality.flanker - 0.35f) * (1.f - (real)cos(off)) * 0.5f;
+		}
 		if (score > best_score)
 		{
 			best_score = score;
@@ -7516,7 +7550,7 @@ static void bot_goal_items(struct bot_goal_pass *g)
 				   than a fight with the rifle), the greedy most of all */
 				/* (only one we'd take: not one we'd drop something as good for) */
 				if (value >= 7.f && (bot_weapons_held(unit) < 2 || theirs > worst + 1.f))
-					score += (7.f + 6.f * bot->personality.greed) * (held >= 7.f ? 0.3f : 1.f); /* (less so with one already) */
+					score += (3.f + 14.f * bot->personality.greed) * (held >= 7.f ? 0.3f : 1.f); /* (less so with one already) */
 				/* (the biggest of them, to a good player: worth more than
 				   the hunt, lying there as it is when it is about to come
 				   (bot_consider_spawns). On Battle Creek the rocket
@@ -7548,7 +7582,7 @@ static void bot_goal_items(struct bot_goal_pass *g)
 			{
 				/* overshield, camouflage: worth going a long way for, and
 				   worth having before a fight */
-				score = (7.f + 9.f * bot->personality.greed) * (1.f + distance / 20.f) / (1.f + distance / 30.f);
+				score = (3.f + 17.f * bot->personality.greed) * (1.f + distance / 20.f) / (1.f + distance / 30.f);
 				/* already powered up: not now */
 				if (unit->object.shield_vitality > 1.05f || unit->unit.active_camouflage > 0.5f)
 					score = 0.f;
@@ -7747,7 +7781,7 @@ static void bot_goal_vehicles(struct bot_goal_pass *g)
 					score *= 0.3f; /* not our job */
 				/* a race is won on wheels */
 				if (game_engine == &race_engine)
-					score = (20.f + 10.f * bot->personality.vehicle_love) / (1.f + distance / 60.f);
+					score = (8.f + 34.f * bot->personality.vehicle_love) / (1.f + distance / 60.f);
 				/* a person waiting in it for a driver: before anything but a fight */
 				if (person_waits && !(game_engine == &ctf_engine && bot_ctf_defender(bot, player)))
 					score = MAX(score, (40.f + 10.f * bot->personality.vehicle_love) / (1.f + distance / 40.f));
@@ -9322,8 +9356,12 @@ static void bot_goal_spawnwatch(struct bot_goal_pass *g)
 		return;
 	}
 	distance = distance3d(&at, position);
-	if (distance > 45.f || distance < 8.f || due > BOT_SECONDS(6.f))
+	/* (the spawn readers from further, and for a longer wait) */
+	if (distance > 45.f + (bot_env_off("spawnread") ? 0.f : 25.f * bot->personality.spawn_read) || distance < 8.f ||
+		due > BOT_SECONDS(6.f + (bot_env_off("spawnread") ? 0.f : 6.f * bot->personality.spawn_read)))
+	{
 		return;
+	}
 	/* (the one it chose for, still on: the same spot) */
 	if (!(labs(bot->spawnwatch_until) > now && bot->spawnwatch_victim == victim && distance3d(&bot->spawnwatch_guess, &at) < 1.f))
 	{
@@ -12872,7 +12910,7 @@ static real bot_grenade_keenness(struct bot_state const *bot, struct bot_weapon 
 	struct bot_personality const *personality = &bot->personality;
 	/* until a few have been thrown, a guess of one in three */
 	real hit_rate = (personality->grenades_hit + 1.f) / (personality->grenades_thrown + 3.f);
-	real keen = personality->grenade_happy * (0.4f + 1.8f * hit_rate);
+	real keen = personality->grenade_happy * (0.4f + 1.8f * hit_rate) * (bot_env_off("grenadehappy") ? 1.f : 0.4f + 1.6f * personality->grenade_happy);
 	if (!weapon->none && (weapon->value >= 6.f || weapon->precision) && target_distance < weapon->range)
 		keen *= 0.25f;
 	else if (weapon->none || (weapon->uses_ammunition && weapon->rounds_loaded == 0))
@@ -16810,6 +16848,20 @@ static void bot_fight_cover_check(struct bot_think *t, struct bot_fight *f)
 				bot_random(bot) < bot_ffa_pro(BOT_G_SPAWNWISE))) &&
 			mine < 0.4f && !finishing && !f->closing &&
 			!bot_on_objective(bot); /* (its way of fighting is for its own time) */
+		/* (a survivor: off into cover as its shields go, the sooner the
+		   more of one, against anyone no worse off; a brawler (under a
+		   quarter) never, to the last of its health. HALO_BOT_OFF=survivor) */
+		if (!bot_env_off("survivor"))
+		{
+			real sv = bot->personality.survivor;
+			if (sv < 0.25f)
+				broken = breaking_off = FALSE;
+			else if (!finishing && !f->closing && !bot_on_objective(bot) && mine < 0.1f + 0.6f * (sv - 0.25f) / 0.75f &&
+				(losing || sv > 0.7f))
+			{
+				breaking_off = TRUE;
+			}
+		}
 		if (!bot->in_cover && (broken || breaking_off) && !bot_holds_named(unit, "flag") && !bot_holds_named(unit, "ball") &&
 			/* (a good player, more readily: one shot from dead and
 			   losing, round a corner is where he goes) */
@@ -19631,7 +19683,7 @@ static void bot_aim_lob(struct bot_think *t)
 			bot->grenade_pitch = t->desired_pitch;
 		}
 		bot->grenade_pending_ticks = 0;
-		bot->grenade_cooldown = (long)((7.f - 4.f * bot->personality.grenade_happy) * BOT_TICKS_PER_SECOND);
+		bot->grenade_cooldown = (long)((bot_env_off("grenadehappy") ? 7.f - 4.f * bot->personality.grenade_happy : 10.f - 8.f * bot->personality.grenade_happy) * BOT_TICKS_PER_SECOND);
 		/* (whether it told: from now, not from when we started lining
 		   it up, while the rifle was doing the damage) */
 		bot_grenade_watch(bot, bot->grenade_watch_unit);
@@ -21256,7 +21308,7 @@ static void bot_grenade_at_target(struct bot_think *t)
 			if (!ours && (crowd > 0 || fight || (bot->personality.sporting < 0.75f && bot_unit_busy(target, eye))))
 			{
 				bot->crowd_grenade_time = game_time_get() + BOT_SECONDS(2.5f);
-				chance = MAX(chance, ((crowd > 0 ? 0.5f : 0.3f) + 0.4f * bot->personality.grenade_happy) * (far_throw ? 0.8f : 1.f) *
+				chance = MAX(chance, ((crowd > 0 ? 0.35f : 0.15f) + 0.75f * bot->personality.grenade_happy) * (far_throw ? 0.8f : 1.f) *
 					(1.f + 0.4f * crowd_ffa));
 				if (bot_logging())
 					bot_log("bot%ld t%ld a fight to throw into: %ld more of them there, %.1f away%s", t->player_absolute_index, game_time_get(), crowd, target_distance,
@@ -21591,7 +21643,7 @@ static int bot_check_threat(struct bot_state *bot, struct bot_skill_parameters c
 	if (health < bot->last_health - 0.01f)
 	{
 		/* (hit: its aim jolted, as far as it lacks the composure) */
-		real jolt = skill->aim_error * (1.f - bot->personality.composure) * bot_shown(2.5f, 3.5f);
+		real jolt = (skill->aim_error * bot_shown(2.5f, 3.5f) + (bot_env_off("composure") ? 0.f : 0.05f)) * (1.f - bot->personality.composure);
 		bot->aim_error_yaw += (bot_random(bot) - 0.5f) * 2.f * jolt;
 		bot->aim_error_pitch += (bot_random(bot) - 0.5f) * jolt;
 		bot->hit_ticks = 45;
@@ -23270,7 +23322,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	if (bot_states[player_absolute_index].has_personality && !bot_env_off("streaky"))
 	{
 		struct bot_personality const *personality = &bot_states[player_absolute_index].personality;
-		real form = 0.6f * personality->streaky * (real)sin(personality->streak_phase +
+		real form = 1.f * personality->streaky * (real)sin(personality->streak_phase +
 			6.2832f * (real)game_time_get() / (MAX(personality->streak_period, 30.f) * BOT_TICKS_PER_SECOND));
 		bot_skill_now = PIN(bot_skill_now + form, 1.f, 5.f);
 	}
@@ -23362,6 +23414,9 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		(bot->carrying_objective && BOT_ON(BOT_F_COSTSLOT)) ||
 		/* (a free-for-all, hurt: by the ways nobody is watching, BOT_G_ROUTES) */
 		(bot_ffa_pro(BOT_G_ROUTES) > 0.5f && (unit->object.shield_vitality < 0.5f || unit->object.body_vitality < 0.5f)) ||
+		/* (dying again where it died: round the danger for a while, where
+		   its own side has died among it. bot_adapt_to_death) */
+		(!bot_env_off("adapts") && game_time_get() < bot->memory.avoid_until) ||
 		/* (the better, in a game of teams: round where they know the enemy is,
 		   on foot or driving) */
 		/* (the better, hurt, in a game of teams: round where they know the

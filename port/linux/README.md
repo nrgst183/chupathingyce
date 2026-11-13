@@ -3544,6 +3544,31 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Every game recorded:** `debug.record_games = true` in config.toml (or
+  `HALO_RECORD_GAMES=1`) writes each multiplayer game to a file of its own in
+  the logs folder, `game_<date>_<time>_<map>_<game type>.csv`: every player in
+  it, bots and people, five times a second (where they are, how fast, which
+  way they face and aim, in the air or not, the vehicle and seat, health,
+  shields, the gun, kills and deaths), and for a bot its goal (`enemy`,
+  `item`, `vehicle`, `roam`, `hold`, with `+perch` or `+lurk`), the way it is
+  on that is no walk (`jump`, `drop`, `gap`, `ladder`, `teleport`) and who
+  it is fighting. The top lines name the build (its commit), the map, the
+  game type and the bot settings. About 3 MB for ten minutes with eight
+  players. `python tools/game_recording.py logs/game_*.csv` sums each one
+  up: how far the bots and the people went each 5 seconds alive, how much
+  of the time they stood still, jumps a minute, the time spent fighting,
+  kills and deaths a minute, and the bots' goals. A game that felt good and
+  one that felt bad can then be told apart in numbers, and a build tested
+  against them.
+- **What the bots learn kept or not:** `bots.learn` (`HALO_BOT_LEARN`),
+  false by default. The bots find out within a game which jumps, gaps and
+  drops they keep failing at and how long each really takes; with it true,
+  that is kept from game to game in `navcache\<map>_<bsp>.aasfail` in the
+  save folder, as before. False, every game begins from what the code
+  knows, the same on every machine and every build, so that two builds are
+  compared fairly; the files are left as they are. (What was kept was
+  little: a few dozen ways a map, and lost each time the navigation's
+  version changed.)
 - **A log of how a person moves:** `debug.move_log = true` in config.toml
   (or `HALO_MOVE_LOG=1`) writes this copy's own players' movement down, for
   teaching the bots to move as people do; the bots' navigation is built for

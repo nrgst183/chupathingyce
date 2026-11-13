@@ -3544,6 +3544,20 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Traits by their routes:** a flanker more than 15 units from whoever it
+  hunts plans a way round, by up to twelve tries, each route's areas looked
+  at for how much of them that one sees (in front of them, within 25 units,
+  in their line of sight), the least seen taken, up to twice the length of
+  the quickest (`HALO_BOT_OFF=flankroute`). adapts: a quickest way past
+  where it died in the last two minutes is a reason for a way round, and
+  the ways round are weighed by how near they pass those places
+  (`HALO_BOT_OFF=adaptroute`). intercept, a new trait: to where they will
+  be, by how they are going, up to three seconds ahead, not where they are
+  (`HALO_BOT_OFF=intercept`). Tested, eight and twelve games, on Damnation
+  with four and six bots and on Chill Out with ten: the flankers do plan
+  their ways round more (two to three times as many), but they are a few
+  fights in a game, and the fights begun from the side or behind, the
+  kills and the fights begun could not be told from chance.
 - **Three traits cut, four worked over, three tested again:** accuracy_luck,
   agility_luck and composure are the level's now, the same for every bot
   (`HALO_BOT_OFF=cutluck`: its own). flanker looks for its spot on a ring

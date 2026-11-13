@@ -1090,6 +1090,7 @@ struct bot_personality
 	real survivor;      /* 0 a brawler, to the last of its health .. 1 backs off to recharge as its shields go */
 	real sneak;         /* how readily it creeps the last stretch up on someone, at a crouch walk, off their tracker */
 	real streaky;       /* 0 the same all game .. 1 hot and cold spells, a level or so either way */
+	real intercept;     /* 0 goes to where they are .. 1 to where they will be: heads them off on their way */
 	real streak_phase;  /* (where in its spells it starts, and how long one is) */
 	real streak_period;
 	long style;         /* how it fights (_bot_style_*) */
@@ -1564,7 +1565,7 @@ static struct bot_trait_name
 	BOT_TRAIT_NAME(taunt), BOT_TRAIT_NAME(grudge), BOT_TRAIT_NAME(temper), BOT_TRAIT_NAME(swagger), BOT_TRAIT_NAME(wander),
 	BOT_TRAIT_NAME(sticks), BOT_TRAIT_NAME(opportunist), BOT_TRAIT_NAME(flanker), BOT_TRAIT_NAME(lurk),
 	BOT_TRAIT_NAME(vigilance), BOT_TRAIT_NAME(timer), BOT_TRAIT_NAME(spawn_read), BOT_TRAIT_NAME(adapts), BOT_TRAIT_NAME(bait),
-	BOT_TRAIT_NAME(survivor), BOT_TRAIT_NAME(sneak), BOT_TRAIT_NAME(streaky),
+	BOT_TRAIT_NAME(survivor), BOT_TRAIT_NAME(sneak), BOT_TRAIT_NAME(streaky), BOT_TRAIT_NAME(intercept),
 	BOT_TRAIT_NAME(discipline), BOT_TRAIT_NAME(melee), BOT_TRAIT_NAME(vengeful), BOT_TRAIT_NAME(composure), BOT_TRAIT_NAME(loyalty),
 	BOT_TRAIT_NAME(sporting), BOT_TRAIT_NAME(showboat), BOT_TRAIT_NAME(camping), BOT_TRAIT_NAME(herd),
 #undef BOT_TRAIT_NAME
@@ -1692,6 +1693,7 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	personality->streaky = BOT_TRAIT(0.f, 1.f);
 	personality->streak_phase = BOT_TRAIT(0.f, 6.2832f);
 	personality->streak_period = BOT_TRAIT(40.f, 90.f);
+	personality->intercept = BOT_TRAIT(0.f, 1.f);
 	/* (cut: its aim's and its feet's luck, and its composure, made no
 	   difference to be told in twelve games of each against each other, at
 	   twice the spread; the level sets them, the same for every bot. Still
@@ -1968,6 +1970,7 @@ struct bot_state
 	real_point3d spawnwatch_spot; /* ... and where it watches from */
 	real_point3d spawnwatch_shun; /* (hurt: where not to go, bot_consider_shun) */
 	long flank_until; /* going round someone to come at them from where they aren't looking: by the ways out of their sight till then */
+	long intercepting_until; /* on its way to head someone off (bot_intercept_point) */
 	int moved_how; /* which part of the movement had the last tick (1: the fight, 2: travel, 3: lying in wait, 0: none of them) */
 	/* (testing: how it has moved in its fights, bot_logging) */
 	long stat_fight, stat_still, stat_side, stat_turns, stat_air;
@@ -6972,6 +6975,44 @@ static real bot_advantage(struct player_datum *player, real_point3d const *posit
 /* somewhere near an enemy to come at them from: off to one side, higher
    ground when there is some (not far above them: somewhere that's theirs
    to hold) */
+/* Where someone near this point (one we know of) will be by the time we get
+   there, going as they are going: ahead of them on their way, on the floor
+   there, as far ahead as the interceptor reckons (the more of one, the
+   further: up to three seconds of their going). Unchanged when nobody is
+   there, or they are standing. */
+static void bot_intercept_point(struct bot_state *bot, real_point3d *point, real_point3d const *from)
+{
+	struct data_iterator iterator;
+	struct player_datum *player;
+	data_iterator_new(&iterator, player_data);
+	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		struct object_datum *them = player->unit_index != NONE ? object_try_and_get(object_get_ultimate_parent(player->unit_index)) : NULL;
+		real_vector3d const *v;
+		real speed, ahead, mine;
+		real_point3d lead, spot;
+		if (!them || player->unit_index == bot->unit_index || !bot_unit_alive(player->unit_index) || distance3d(&them->object.position, point) > 4.f)
+			continue;
+		v = &them->object.translational_velocity;
+		speed = (real)sqrt(v->i * v->i + v->j * v->j) * BOT_TICKS_PER_SECOND;
+		if (speed < 0.8f)
+			return;
+		/* (as long as it would take us to get to where they are now, by
+		   a straight line, and no more than three seconds) */
+		mine = distance3d(from, &them->object.position) / 2.25f;
+		ahead = MIN(mine, 1.f + 2.f * bot->personality.intercept) * bot->personality.intercept;
+		lead = them->object.position;
+		lead.x += v->i * BOT_TICKS_PER_SECOND * ahead;
+		lead.y += v->j * BOT_TICKS_PER_SECOND * ahead;
+		if (aas_ready() && aas_nearest_area(AAS_FOOT, &lead, 4.f, &spot) != NONE)
+		{
+			*point = spot;
+			bot->intercepting_until = game_time_get() + BOT_SECONDS(3.f);
+		}
+		return;
+	}
+}
+
 static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const *enemy, real_point3d const *from)
 {
 	real_point3d best = *enemy;
@@ -9046,6 +9087,18 @@ static void bot_goal_idle(struct bot_goal_pass *g)
 			distance = distance3d(&point, position);
 		if ((known || bot_nearest_enemy(player, position, &point, &distance)) && distance > 8.f)
 		{
+			/* (the interceptor: to where they will be, on their way, not
+			   where they are: heads them off. HALO_BOT_OFF=intercept) */
+			if (!bot_env_off("intercept") && bot->personality.intercept > 0.4f)
+				bot_intercept_point(bot, &point, position);
+			/* (a flanker, far enough off for a way round: after them, by a
+			   way they see least of, bot_plan_via) */
+			if (!bot_env_off("flankroute") && !bot_env_off("flanker") && bot->personality.flanker > 0.45f && distance > 15.f &&
+				bot_within_reach(&point))
+			{
+				bot_set_goal(bot, _bot_goal_enemy, &point, NONE, 8 * BOT_TICKS_PER_SECOND);
+				return;
+			}
 			/* not straight at them: somewhere near, so they're met from an
 			   angle, and from above when there's high ground there */
 			point = bot_approach_spot(bot, &point, position);
@@ -10600,6 +10653,9 @@ static long bot_people_in_game(void)
 }
 
 /* whether to look for one, and what for: the tries follow, one a tick */
+static long bot_route_deaths(struct bot_state const *bot, long const *areas, long count);
+static real bot_route_exposure(long const *areas, long count, long quarry);
+
 static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, long player_index)
 {
 	real_point3d const *from = &body->position;
@@ -10668,6 +10724,14 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 	}
 	if (bot->personality.route_died && objective)
 		chance = MAX(chance, 0.9f); /* (not that way again) */
+	/* (a flanker, by the routes themselves: always a way round, and as long
+	   a one as it takes. HALO_BOT_OFF=flankroute) */
+	int flank_routes = flank && !carrying && !bot_env_off("flankroute") && !bot_env_off("flanker") && bot->personality.flanker > 0.45f;
+	if (flank_routes)
+	{
+		chance = MAX(chance, 0.4f + 0.6f * bot->personality.flanker);
+		slack = MAX(slack, 1.4f + 0.6f * bot->personality.flanker);
+	}
 	/* (its own way more often, the more it wanders: one in five trips more
 	   for the middling, two in five for the most) */
 	if (!carrying && !bot_env_off("wander"))
@@ -10676,11 +10740,21 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 	   against; and a busy one is a reason to take another) */
 	bot->via_plan.direct_count = 0;
 	bot->via_plan.best_count = 0;
-	if (!bot_env_off("routes") && !carrying && !flank)
+	if (!bot_env_off("routes") && !carrying && (!flank || flank_routes))
 	{
 		bot->via_plan.direct_count = bot_route_areas(from, &bot->goal, bot->via_plan.direct_areas, BOT_ROUTE_MOST);
 		if (bot->via_plan.direct_count > 0)
 			chance = MIN(0.85f, chance + 0.3f * MIN(1.f, bot_traffic_along(bot->via_plan.direct_areas, bot->via_plan.direct_count) / 3.f));
+		/* (the quickest way passes where it died lately, and it learns:
+		   another way, the more it adapts the likelier. HALO_BOT_OFF=adaptroute) */
+		if (bot->via_plan.direct_count > 0 && !bot_env_off("adapts") && !bot_env_off("adaptroute") &&
+			bot_route_deaths(bot, bot->via_plan.direct_areas, bot->via_plan.direct_count) > 0)
+		{
+			chance = MAX(chance, bot_knack(bot->personality.adapts, 1.5f));
+			slack = MAX(slack, 1.5f);
+		}
+		if (flank_routes)
+			chance = MAX(chance, 0.4f + 0.6f * bot->personality.flanker);
 	}
 	if (bot_random(bot) > chance)
 	{
@@ -10720,7 +10794,7 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 			}
 		}
 	}
-	bot->via_plan.samples = objective ? 8 : bot->via_plan.direct_count > 0 ? 8 : 4;
+	bot->via_plan.samples = flank_routes ? 12 : objective ? 8 : bot->via_plan.direct_count > 0 ? 8 : 4;
 	bot->via_plan.objective = objective;
 	bot->via_plan.carrying = carrying;
 	bot->via_plan.flank = flank;
@@ -10766,6 +10840,69 @@ static void bot_plan_via_finish(struct bot_state *bot, long player_index)
 			bot->via_plan.best_side, bot->via_point.x, bot->via_point.y, bot->goal.x, bot->goal.y,
 			bot->via_plan.best_count > 0 ? bot_route_shared(bot->via_plan.best_areas, bot->via_plan.best_count, bot->via_plan.direct_areas, bot->via_plan.direct_count) : -1.f,
 			bot->via_plan.best_count, bot->via_plan.direct_count);
+}
+
+/* How much of a route (its areas, from the start, up to the last stretch
+   before the end, where the fight is anyway) someone can see coming: in
+   front of them (within some 70 degrees of where they look), within 25
+   units and in their line of sight. 0 none of it .. 1 all. A dozen of its
+   areas at the most are looked at. (bot_plan_via_step: a flanker's way
+   round is the one they see least of) */
+static real bot_route_exposure(long const *areas, long count, long quarry)
+{
+	struct unit_datum *enemy = quarry != NONE ? unit_try_and_get(quarry) : NULL;
+	real_point3d eye;
+	long i, step, looked = 0, seen = 0;
+	long upto = count - count / 4;
+	if (!enemy || upto < 2)
+		return 0.f;
+	eye = enemy->object.bounding_sphere_center;
+	step = MAX(1, upto / 12);
+	for (i = 0; i < upto; i += step)
+	{
+		struct aas_area const *area = aas_area(AAS_FOOT, areas[i]);
+		real_point3d at;
+		real dx, dy, length;
+		if (!area)
+			continue;
+		at = area->center;
+		at.z += 0.6f;
+		dx = at.x - eye.x;
+		dy = at.y - eye.y;
+		length = (real)sqrt(dx * dx + dy * dy);
+		looked++;
+		if (length > 25.f || length < 0.5f)
+			continue;
+		if ((enemy->unit.aiming_vector.i * dx + enemy->unit.aiming_vector.j * dy) / length < 0.35f)
+			continue;
+		if (bot_line_clear(bot_sight_flags, &eye, &at, quarry))
+			seen++;
+	}
+	return looked ? (real)seen / (real)looked : 0.f;
+}
+
+/* how many of a route's areas pass within 5 units of where it died lately
+   (the last two minutes: bot_adapt_to_death) */
+static long bot_route_deaths(struct bot_state const *bot, long const *areas, long count)
+{
+	long now = game_time_get();
+	long i, k, n = MIN(bot->memory.death_count, 4), hits = 0;
+	if (n <= 0)
+		return 0;
+	for (i = 0; i < count; i += 2)
+	{
+		struct aas_area const *area = aas_area(AAS_FOOT, areas[i]);
+		if (!area)
+			continue;
+		for (k = 0; k < n; k++)
+			if (now - bot->memory.death_tick[k] < BOT_SECONDS(120.f) && now >= bot->memory.death_tick[k] &&
+				distance3d(&area->center, &bot->memory.death_at[k]) < 5.f)
+			{
+				hits++;
+				break;
+			}
+	}
+	return hits;
 }
 
 /* one place tried: somewhere off to a side of the straight way, the way
@@ -10852,6 +10989,9 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 		/* an ordinary trip: of the places that will do, an empty one, by
 		   chance among the emptier, and not much the longer */
 		score = 0.35f * bot_place_crowd(bot, &via) + 0.6f * bot_random(bot) + 0.8f * ((first + second) / direct - 1.f);
+		/* (not by where it died lately: as much as it learns) */
+		if (routes && !bot_env_off("adapts") && !bot_env_off("adaptroute"))
+			score += 0.6f * bot_knack(bot->personality.adapts, 1.5f) * (real)bot_route_deaths(bot, route, route_count);
 		/* (by its route: the less of the quickest it shares, and the less
 		   busy, the better) */
 		if (routes)
@@ -10912,6 +11052,12 @@ static void bot_plan_via_step(struct bot_state *bot, struct bot_body const *body
 		}
 		if (side == bot->flank_side && game_time_get() - bot->flank_time < 6 * BOT_TICKS_PER_SECOND)
 			score -= 0.6f;
+		/* (a flanker: the way they see least of, all the way in, worth a
+		   good deal of a longer way. HALO_BOT_OFF=flankroute) */
+		if (routes && quarry != NONE && bot->personality.flanker > 0.45f && !bot_env_off("flankroute") && !bot_env_off("flanker"))
+			score += 3.f * bot->personality.flanker * bot_route_exposure(route, route_count, quarry);
+		if (routes && !bot_env_off("adapts") && !bot_env_off("adaptroute"))
+			score += 0.6f * bot_knack(bot->personality.adapts, 1.5f) * (real)bot_route_deaths(bot, route, route_count);
 	}
 	if (objective && side == bot->personality.route_side)
 		score += bot->personality.route_died ? 1.5f : 0.25f;

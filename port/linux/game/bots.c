@@ -1692,6 +1692,17 @@ static void bot_make_personality(long slot, struct bot_personality *personality)
 	personality->streaky = BOT_TRAIT(0.f, 1.f);
 	personality->streak_phase = BOT_TRAIT(0.f, 6.2832f);
 	personality->streak_period = BOT_TRAIT(40.f, 90.f);
+	/* (cut: its aim's and its feet's luck, and its composure, made no
+	   difference to be told in twelve games of each against each other, at
+	   twice the spread; the level sets them, the same for every bot. Still
+	   drawn, so the traits drawn after are as they were. HALO_BOT_OFF=cutluck:
+	   its own again) */
+	if (!bot_env_off("cutluck"))
+	{
+		personality->accuracy_luck = 0.5f;
+		personality->agility_luck = 0.5f;
+		personality->composure = 0.5f;
+	}
 	/* (a style is a lean of the traits it goes with, too) */
 	switch (personality->style)
 	{
@@ -1956,6 +1967,7 @@ struct bot_state
 	real_point3d spawnwatch_guess; /* ... where it expects them, */
 	real_point3d spawnwatch_spot; /* ... and where it watches from */
 	real_point3d spawnwatch_shun; /* (hurt: where not to go, bot_consider_shun) */
+	long flank_until; /* going round someone to come at them from where they aren't looking: by the ways out of their sight till then */
 	int moved_how; /* which part of the movement had the last tick (1: the fight, 2: travel, 3: lying in wait, 0: none of them) */
 	/* (testing: how it has moved in its fights, bot_logging) */
 	long stat_fight, stat_still, stat_side, stat_turns, stat_air;
@@ -3491,6 +3503,13 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 				/* whoever just killed one of ours */
 				if (index == bot->avenge_player && game_time_get() < bot->avenge_until)
 					score *= 0.55f;
+				/* (the spawn readers: whoever is only just back, first, before
+				   they have their bearings. HALO_BOT_OFF=spawnread) */
+				if (!bot_env_off("spawnread") && player->unit_index != current &&
+					game_time_get() - bots_spawned_time[index] < BOT_SECONDS(3.f) && game_time_get() >= bots_spawned_time[index])
+				{
+					score *= 1.f - 0.5f * bot_knack(bot->personality.spawn_read, 2.7f);
+				}
 				/* someone only just back in the game, who has not fired
 				   yet: the sporting give them a moment (not when they are
 				   the one shooting at us) */
@@ -5173,8 +5192,8 @@ static int bot_consider(struct bot_candidate *best, real score, long kind, real_
 		score *= 0.1f;
 	if (bot_consider_shun && !objective && distance3d(point, bot_consider_shun) < BOT_SPAWNWATCH_SHUN)
 		score *= 0.25f;
-	if (bot_consider_avoid && !objective && distance3d(point, bot_consider_avoid) < 6.f)
-		score *= 0.3f;
+	if (bot_consider_avoid && !objective && distance3d(point, bot_consider_avoid) < 10.f)
+		score *= 0.1f;
 	if (score > best->score)
 	{
 		best->score = score;
@@ -6963,6 +6982,7 @@ static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const 
 	real looking = 0.f;
 	int looking_known = FALSE;
 	real reach = 14.f + (bot_env_off("flanker") ? 0.f : 10.f * bot->personality.flanker);
+	long ring = 0;
 	if (!bot_env_off("flanker"))
 	{
 		struct data_iterator iterator;
@@ -6984,13 +7004,27 @@ static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const 
 	best.y += (bot_random(bot) - 0.5f) * 10.f;
 	if (!aas_ready())
 		return best;
-	for (sample = 0; sample < 8; sample++)
+	/* (a flanker, knowing which way they look: six more, on a ring round
+	   them, off to the side and behind) */
+	if (looking_known && bot->personality.flanker > 0.45f)
+		ring = 6;
+	for (sample = 0; sample < 8 + ring; sample++)
 	{
 		real_point3d spot = *enemy;
 		long area;
 		real score;
-		spot.x += (bot_random(bot) - 0.5f) * reach;
-		spot.y += (bot_random(bot) - 0.5f) * reach;
+		if (sample >= 8)
+		{
+			real yaw = looking + BOT_PI + (bot_random(bot) - 0.5f) * 2.4f;
+			real out = 7.f + 4.f * bot_random(bot);
+			spot.x += (real)cos(yaw) * out;
+			spot.y += (real)sin(yaw) * out;
+		}
+		else
+		{
+			spot.x += (bot_random(bot) - 0.5f) * reach;
+			spot.y += (bot_random(bot) - 0.5f) * reach;
+		}
 		area = aas_nearest_area(AAS_FOOT, &spot, 4.f, &spot);
 		if (area == NONE || spot.z > enemy->z + 4.f)
 			continue;
@@ -7001,7 +7035,7 @@ static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const 
 		if (looking_known)
 		{
 			real off = bot_angle_difference(looking, bot_yaw_to(enemy, &spot));
-			score += 3.f * (bot->personality.flanker - 0.35f) * (1.f - (real)cos(off)) * 0.5f;
+			score += 5.f * (bot->personality.flanker - 0.35f) * (1.f - (real)cos(off)) * 0.5f;
 		}
 		if (score > best_score)
 		{
@@ -7009,6 +7043,9 @@ static real_point3d bot_approach_spot(struct bot_state *bot, real_point3d const 
 			best = spot;
 		}
 	}
+	/* (on its way round them: by where they can't see, for a while) */
+	if (looking_known && bot->personality.flanker > 0.45f && !bot_env_off("flanker"))
+		bot->flank_until = game_time_get() + BOT_SECONDS(6.f);
 	return best;
 }
 
@@ -9491,7 +9528,7 @@ static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum 
 	g.best.hunted = NONE;
 	bot_hunches_begin(bot, me);
 	bot_spawnwatch_begin(bot, me, player, unit, position);
-	bot_consider_avoid = game_time_get() < bot->memory.avoid_until && game_time_get() >= bot->memory.avoid_until - BOT_SECONDS(70.f) ?
+	bot_consider_avoid = game_time_get() < bot->memory.avoid_until && game_time_get() >= bot->memory.avoid_until - BOT_SECONDS(100.f) ?
 		&bot->memory.avoid_at : NULL;
 	/* (a very large map: the part we are in, or were last, in the air) */
 	bot_consider_region = NONE;
@@ -9717,7 +9754,7 @@ static void bot_adapt_to_death(struct bot_state *bot)
 	if (!again || bot_env_off("adapts") || bot_random(bot) >= bot_knack(bot->personality.adapts, 1.5f))
 		return;
 	bot->memory.avoid_at = at;
-	bot->memory.avoid_until = now + BOT_SECONDS(20.f + 40.f * bot_knack(bot->personality.adapts, 1.5f));
+	bot->memory.avoid_until = now + BOT_SECONDS(40.f + 50.f * bot_knack(bot->personality.adapts, 1.5f));
 	bot->memory.meet_turn++;
 	if (bot_logging())
 		bot_log("bot%ld t%ld died at %.1f %.1f %.1f again: keeps off it for %.0f s", (long)(bot - bot_states), now, at.x, at.y, at.z,
@@ -16840,6 +16877,10 @@ static void bot_fight_cover_check(struct bot_think *t, struct bot_fight *f)
 			/* (... or anyone hurt with three or more of them on its tracker
 			   close by: not a fight to stand in) */
 			(BOT_ON(BOT_F_RADAR) && bot_blips_near(bot, &t->position, 15.f) >= 3) ||
+			/* (... or the vigilant, with a second one closing in while it
+			   fights the first: not a fight to stand in, two on one.
+			   HALO_BOT_OFF=vigilance) */
+			(!bot_env_off("vigilance") && bot_knack(bot->personality.vigilance, 2.f) > 0.5f && bot_blips_near(bot, &t->position, 15.f) >= 2) ||
 			/* (... or in a free-for-all, someone just born, all their
 			   shields, and none of its own: BOT_G_SPAWNWISE) */
 			(bot_ffa_pro(BOT_G_SPAWNWISE) > 0.f && target != NONE && object_try_and_get(target) &&
@@ -23417,6 +23458,8 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		/* (dying again where it died: round the danger for a while, where
 		   its own side has died among it. bot_adapt_to_death) */
 		(!bot_env_off("adapts") && game_time_get() < bot->memory.avoid_until) ||
+		/* (a flanker on its way round them: by where they can't see) */
+		(game_time_get() < bot->flank_until) ||
 		/* (the better, in a game of teams: round where they know the enemy is,
 		   on foot or driving) */
 		/* (the better, hurt, in a game of teams: round where they know the

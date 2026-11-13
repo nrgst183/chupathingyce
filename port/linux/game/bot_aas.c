@@ -3286,6 +3286,14 @@ static void aas_failures_path(char *path, long size, unsigned long *signature)
 static char aas_failures_saved_path[512];
 static unsigned long aas_failures_saved_signature[4];
 
+/* bots.learn: what was found out kept from game to game (off: each game
+   begins from the code's own, so that builds are compared fairly) */
+static boolean aas_failures_kept(void)
+{
+	extern int config_boolean(const char *name);
+	return config_boolean("bots.learn") != 0;
+}
+
 static void aas_failures_save(void)
 {
 	char path[512];
@@ -3294,7 +3302,7 @@ static void aas_failures_save(void)
 	FILE *file;
 	long type;
 	/* (baking: one bot's moment in a map teaches nothing worth keeping) */
-	if (!aas_is_ready || getenv("HALO_BOT_NOCACHE") || navm_is_baking() || !aas_failures_saved_path[0])
+	if (!aas_is_ready || getenv("HALO_BOT_NOCACHE") || navm_is_baking() || !aas_failures_saved_path[0] || !aas_failures_kept())
 		return;
 	memcpy(path, aas_failures_saved_path, sizeof(path));
 	memcpy(signature, aas_failures_saved_signature, sizeof(signature));
@@ -3393,6 +3401,8 @@ static void aas_failures_load(void)
 	aas_failures_path(path, sizeof(path), signature);
 	memcpy(aas_failures_saved_path, path, sizeof(aas_failures_saved_path));
 	memcpy(aas_failures_saved_signature, signature, sizeof(aas_failures_saved_signature));
+	if (!aas_failures_kept())
+		return;
 	file = fopen(path, "rb");
 	if (!file)
 		return;

@@ -93,6 +93,7 @@ begin again.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "../src/port_folders.h"
 #include "bot_internal.h"
@@ -485,12 +486,185 @@ static void move_log_drive_end(short local, struct move_player *mp)
 	move_log_line(move_log.drives, line);
 }
 
+/* ---- debug.record_games: every game written down, every player in it,
+   bots and people, five times a second, in a file of its own in the logs
+   folder (game_<date>_<time>_<map>_<game type>.csv), with the build it was
+   played on at the top: for telling one build's bots from another's by
+   the games people played with them, not only by the lab's */
+
+void bot_record_state(long player_index, char *goal, long goal_size, char *via, long via_size, long *target); /* bots.c */
+const char *build_identity(void); /* build_identity.c */
+long config_integer(const char *name);
+
+#define MOVE_RECORD_EVERY 6 /* ticks between lines: five a second */
+
+static struct
+{
+	int asked;
+	int on;
+	FILE *file;
+	char map[128];
+	long began; /* the game's time when it was begun (a new game on the same map starts it again) */
+	long last;
+	int failed; /* the file for this game could not be written: not tried again every tick */
+} move_record;
+
+static void move_record_close(char const *how)
+{
+	if (!move_record.file)
+		return;
+	fprintf(move_record.file, "# ended: %s, at %.1f s\n", how, (move_record.last - move_record.began) / (real)TICKS_PER_SECOND);
+	fclose(move_record.file);
+	move_record.file = NULL;
+}
+
+/* a short name, for a file name or a column: the last part of a path, and
+   nothing but letters, digits, '-' and '_' */
+static void move_record_word(char *to, long size, char const *from)
+{
+	char const *last = from ? strrchr(from, '\\') : NULL;
+	long n = 0;
+	from = last ? last + 1 : from ? from : "-";
+	for (; *from && n < size - 1; from++)
+		to[n++] = (char)((*from >= 'a' && *from <= 'z') || (*from >= 'A' && *from <= 'Z') || (*from >= '0' && *from <= '9') || *from == '-' ? *from : '_');
+	to[n] = '\0';
+}
+
+static void move_record_open(char const *map, long now)
+{
+	static char const *const engines[] = { "none", "ctf", "slayer", "oddball", "king", "race", "bomb" };
+	struct game_variant const *variant = game_engine_get_variant();
+	long engine = variant ? variant->game_engine_index : 0;
+	char folder[400], path[640], word[64], kind[24], description[16];
+	time_t clock = time(NULL);
+	struct tm *local = localtime(&clock);
+	long k;
+	snprintf(kind, sizeof(kind), "%s", engine >= 0 && engine < (long)NUMBEROF(engines) ? engines[engine] : "other");
+	for (k = 0; variant && k < 12 && variant->human_readable_game_description[k]; k++)
+		description[k] = variant->human_readable_game_description[k] < 128 && variant->human_readable_game_description[k] != ',' ?
+			(char)variant->human_readable_game_description[k] : '_';
+	description[variant ? k : 0] = '\0';
+	move_record_word(word, sizeof(word), map);
+	snprintf(folder, sizeof(folder), "%s", platform_folder(_port_folder_logs));
+	snprintf(path, sizeof(path), "%s/game_%04d-%02d-%02d_%02d-%02d-%02d_%s_%s.csv", folder, local ? local->tm_year + 1900 : 0, local ? local->tm_mon + 1 : 0,
+		local ? local->tm_mday : 0, local ? local->tm_hour : 0, local ? local->tm_min : 0, local ? local->tm_sec : 0, word, kind);
+	move_record.file = fopen(path, "w");
+	snprintf(move_record.map, sizeof(move_record.map), "%s", map);
+	move_record.began = move_record.last = now;
+	move_record.failed = !move_record.file;
+	if (!move_record.file)
+	{
+		platform_log("move: could not write the game's recording to %s", path);
+		return;
+	}
+	fprintf(move_record.file, "# build: %s\n", build_identity());
+	fprintf(move_record.file, "# started: %04d-%02d-%02d %02d:%02d:%02d\n", local ? local->tm_year + 1900 : 0, local ? local->tm_mon + 1 : 0,
+		local ? local->tm_mday : 0, local ? local->tm_hour : 0, local ? local->tm_min : 0, local ? local->tm_sec : 0);
+	fprintf(move_record.file, "# map: %s\n# game: %s \"%s\"\n", map, kind, description);
+	fprintf(move_record.file, "# bots: count %ld, fill %ld, skill %ld, skill_spread %ld, learn %s\n", config_integer("bots.count"),
+		config_integer("bots.fill"), config_integer("bots.skill"), config_integer("bots.skill_spread"), config_boolean("bots.learn") ? "on" : "off");
+	fprintf(move_record.file, "t,player,name,bot,team,alive,x,y,z,speed,vz,yaw,aim_yaw,aim_pitch,airborne,crouch,vehicle,seat,health,shield,weapon,"
+		"kills,deaths,goal,via,target\n");
+	platform_log("move: recording this game in %s", path);
+}
+
+static void move_record_tick(void)
+{
+	struct data_iterator iterator;
+	struct player_datum *player;
+	long now = game_time_get();
+	char const *map;
+
+	if (!move_record.asked)
+	{
+		move_record.asked = TRUE;
+		move_record.on = config_boolean("debug.record_games");
+	}
+	if (!move_record.on)
+		return;
+	/* (multiplayer games only: not the campaign, nor the menus' own map) */
+	if (!game_in_progress() || !game_engine)
+	{
+		move_record_close("the game was left");
+		move_record.failed = FALSE;
+		return;
+	}
+	map = move_log_map();
+	if (!map)
+		map = "-";
+	/* (another map, or the same one again: the game's clock went back) */
+	if (move_record.file && (strcmp(map, move_record.map) || now < move_record.last))
+		move_record_close(now < move_record.last ? "a new game began" : "another map");
+	if (!move_record.file)
+	{
+		/* (tried once a game: a file that could not be written is not
+		   asked for again every tick) */
+		if (move_record.failed && !strcmp(map, move_record.map) && now >= move_record.last)
+		{
+			move_record.last = now;
+			return;
+		}
+		move_record_open(map, now);
+		if (!move_record.file)
+			return;
+	}
+	move_record.last = now;
+	if ((now - move_record.began) % MOVE_RECORD_EVERY)
+		return;
+	/* (written out every few seconds: a game that crashes keeps its recording up to then) */
+	if ((now - move_record.began) % (MOVE_RECORD_EVERY * 25) == 0)
+		fflush(move_record.file);
+	data_iterator_new(&iterator, player_data);
+	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		long index = DATUM_INDEX_TO_ABSOLUTE_INDEX(iterator.datum_index);
+		char name[16], goal[32], via[16];
+		long target, k;
+		int is_bot = bot_player_is_bot(iterator.datum_index);
+		struct unit_datum *unit = player->unit_index != NONE ? (struct unit_datum *)object_try_and_get(player->unit_index) : NULL;
+		struct biped_datum *biped = player->unit_index != NONE ? biped_try_and_get(player->unit_index) : NULL;
+		for (k = 0; k < 11 && player->name[k]; k++)
+			name[k] = player->name[k] >= 32 && player->name[k] < 127 && player->name[k] != ',' && player->name[k] != '"' ? (char)player->name[k] : '_';
+		name[k] = '\0';
+		bot_record_state(iterator.datum_index, goal, sizeof(goal), via, sizeof(via), &target);
+		if (!unit || !biped || unit->object.body_vitality <= 0.f)
+		{
+			fprintf(move_record.file, "%.1f,%ld,%s,%d,%ld,0,,,,,,,,,,,,,,,,%d,%d,%s,,\n", (now - move_record.began) / (real)TICKS_PER_SECOND, index, name,
+				is_bot, player->team_index, player->statistics.kills[0], player->statistics.deaths, goal);
+			continue;
+		}
+		{
+			boolean riding = biped->object.parent_object_index != NONE;
+			long root_index = object_get_ultimate_parent(player->unit_index);
+			struct object_datum *root = object_get(root_index);
+			real_point3d const *at = riding ? &root->object.position : &biped->object.position;
+			real_vector3d const *velocity = riding ? &root->object.translational_velocity : &biped->object.translational_velocity;
+			char seat = '-';
+			long held = unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT ?
+				unit->unit.weapon_object_indices[unit->unit.current_weapon_index] : NONE;
+			struct object_datum *weapon = held != NONE ? (struct object_datum *)object_try_and_get(held) : NULL;
+			if (riding)
+				seat = unit_seat_is_driver(root_index, unit->unit.parent_seat_index) ? 'd' :
+					unit_seat_is_gunner(root_index, unit->unit.parent_seat_index) ? 'g' : 'p';
+			fprintf(move_record.file, "%.1f,%ld,%s,%d,%ld,1,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%s,%c,%.2f,%.2f,%s,%d,%d,%s,%s,%ld\n",
+				(now - move_record.began) / (real)TICKS_PER_SECOND, index, name, is_bot, player->team_index, at->x, at->y, at->z,
+				move_log_ground_speed(velocity), velocity->k * TICKS_PER_SECOND,
+				(real)atan2(biped->unit.desired_facing_vector.j, biped->unit.desired_facing_vector.i),
+				(real)atan2(biped->unit.aiming_vector.j, biped->unit.aiming_vector.i), (real)asin(PIN(biped->unit.aiming_vector.k, -1.f, 1.f)),
+				!riding && TEST_FLAG(biped->biped.flags, _biped_airborne_bit) != 0, biped->biped.crouch, riding ? move_log_short_name(root->definition_index) : "-",
+				seat, unit->object.body_vitality, unit->object.shield_vitality, weapon ? move_log_short_name(weapon->definition_index) : "-",
+				player->statistics.kills[0], player->statistics.deaths, goal, via, target);
+		}
+	}
+}
+
 void move_log_tick(void)
 {
 	struct data_iterator iterator;
 	struct player_datum *player;
 	long now = game_time_get();
 
+	move_record_tick();
 	if (!move_log.asked)
 		move_log_open();
 	if (!move_log.on || !game_in_progress())

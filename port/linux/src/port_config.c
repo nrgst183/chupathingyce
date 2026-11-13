@@ -1422,6 +1422,12 @@ static const struct config_setting config_settings[] =
 		"drawn for the game from that many levels under bots.skill up to it\n"
 		"(skill 10 with a spread of 4: bots from 6 to 10). 0: every bot at\n"
 		"bots.skill (the console's \"bot_skill_spread <n>\")." },
+	{ "bots.learn", _config_boolean, "false", "HALO_BOT_LEARN", _environment_value, _platform_all,
+		"Keep what the bots find out about each map from game to game: which\n"
+		"jumps, gaps and drops they keep failing at and how long each really\n"
+		"takes, in navcache\\<map>.aasfail in the save folder. false: every game\n"
+		"begins from what the code knows, the same on every machine and every\n"
+		"build, for comparing builds (they still find these out within a game)." },
 	{ "bots.balance", _config_boolean, "false", "HALO_BOTS_BALANCE", _environment_value, _platform_all,
 		"Keep the games close: true moves each bot's skill within\n"
 		"bots.skill_spread as the score goes, the bots of a side that is ahead\n"
@@ -1523,6 +1529,14 @@ static const struct config_setting config_settings[] =
 		"Write this copy's players' movement down, a line a tick, in logs/move_log.csv,\n"
 		"and each jump worked out (how high, what the crouch did, the speed it\n"
 		"cost) in logs/move_jumps.txt: for teaching the bots to jump as people do." },
+	{ "debug.record_games", _config_boolean, "false", "HALO_RECORD_GAMES", _environment_set_is_true,
+		_platform_all | _platform_server,
+		"Write every game down, in a file of its own in the logs folder\n"
+		"(game_<date>_<time>_<map>_<game type>.csv): where every player in it is,\n"
+		"bots and people, five times a second, what they hold, their kills and\n"
+		"deaths, and what each bot is about, with the build and the bot settings\n"
+		"at the top. A ten minute game with eight players is about 3 MB. For\n"
+		"telling how one build's bots play from another's." },
 	{ "debug.random_seed", _config_integer, "0", "HALO_RANDOM_SEED", _environment_value,
 		_platform_all | _platform_server,
 		"A hosted game's random seed, and its bots': the same game every time\n"

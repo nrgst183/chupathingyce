@@ -4583,6 +4583,36 @@ int bot_player_is_bot(long player_index)
 	return index >= 0 && index < BOT_MAXIMUM_PLAYERS && bot_states[index].has_personality;
 }
 
+/* what a bot is about, for the game recordings (move_log.c,
+   debug.record_games): its goal ("enemy", "item", "vehicle", "roam",
+   "hold" or "none", with "+perch" or "+lurk"), the way it is on that is no
+   walk ("jump", "drop", "gap", "ladder", "teleport"), and the player it is
+   fighting (-1: nobody). Empty for a player who is no bot. */
+void bot_record_state(long player_index, char *goal, long goal_size, char *via, long via_size, long *target)
+{
+	static char const *const goals[] = { "none", "enemy", "item", "vehicle", "roam", "hold" };
+	static char const *const ways[] = { "walk", "jump", "drop", "gap", "ladder", "teleport" };
+	long index = player_index != NONE ? DATUM_INDEX_TO_ABSOLUTE_INDEX(player_index) : NONE;
+	struct bot_state const *bot;
+	long reach;
+	goal[0] = '\0';
+	via[0] = '\0';
+	*target = NONE;
+	if (index < 0 || index >= BOT_MAXIMUM_PLAYERS || !bot_states[index].has_personality)
+		return;
+	bot = &bot_states[index];
+	snprintf(goal, (size_t)goal_size, "%s%s%s", bot->goal_kind >= 0 && bot->goal_kind < (long)NUMBEROF(goals) ? goals[bot->goal_kind] : "?",
+		bot->goal_perch ? "+perch" : "", bot->goal_lurk ? "+lurk" : "");
+	reach = bot->mover.move.reach;
+	if (aas_ready() && reach >= 0 && reach < aas_reach_count(AAS_FOOT))
+	{
+		long travel = aas_reach(AAS_FOOT, reach)->travel;
+		if (travel > 0 && travel < (long)NUMBEROF(ways))
+			snprintf(via, (size_t)via_size, "%s", ways[travel]);
+	}
+	*target = bot->target_unit != NONE && unit_try_and_get(bot->target_unit) && bot->target_unit != bot->unit_index ? bot->target_player : NONE;
+}
+
 static int bot_unit_is_bot(long unit_index)
 {
 	struct unit_datum *unit = unit_try_and_get(unit_index);

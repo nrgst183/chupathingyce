@@ -5302,6 +5302,30 @@ static int bot_ctf_push_wait(struct bot_state *bot, struct player_datum *player,
 	return TRUE;
 }
 
+/* capture the flag: how near the other side's flag is, lying (at their base
+   or dropped) and not carried (-1: not lying, or not a CTF game). A bot that
+   has got that far on its own takes it; it does not stop for a better gun,
+   go after someone off to one side, or lie in wait. Chill Out's bots went
+   right up to the flag in the red base and then went for the sniper
+   rifle there, or crouched behind the wall for the one coming.
+   HALO_BOT_OFF=flagfirst */
+static real bot_ctf_their_flag_near(struct player_datum const *player, real_point3d const *position)
+{
+	extern struct game_engine ctf_engine;
+	long their_flag;
+	real_point3d their_base;
+	struct object_datum *theirs;
+	if (game_engine != &ctf_engine || bot_env_off("flagfirst") || player->team_index < 0 || player->team_index > 1 ||
+		!ctf_bot_flag(1 - player->team_index, &their_flag, &their_base) || their_flag == NONE)
+	{
+		return -1.f;
+	}
+	theirs = (struct object_datum *)object_try_and_get(their_flag);
+	if (!theirs || theirs->object.parent_object_index != NONE)
+		return -1.f;
+	return distance3d(&theirs->object.position, position);
+}
+
 static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *player, struct unit_datum *unit,
 	real_point3d const *position, real held, struct bot_candidate *best)
 {
@@ -5513,6 +5537,11 @@ static void bot_ctf_candidates(struct bot_state *bot, struct player_datum *playe
 		   the way too */
 		real distance = distance3d(&theirs->object.position, position);
 		real score = armed * focus * (20.f + 10.f * bot->personality.aggression) / (1.f + distance / (120.f * bot_ctf_far()));
+		/* (right by it: it, before anyone off to one side and whatever
+		   gun is in hand; a carrier has only the flag in its hands.
+		   HALO_BOT_OFF=flagfirst) */
+		if (distance < 10.f && !bot_env_off("flagfirst"))
+			score = MAX(score, focus * (30.f + 10.f * bot->personality.aggression)) * (1.f + 2.f * (1.f - distance / 10.f));
 		/* (an escort a moment ago, and it fell close by: up with it again) */
 		if (bot->escort_tick != 0 && game_time_get() >= bot->escort_tick && game_time_get() - bot->escort_tick < BOT_SECONDS(6.f) && distance < 30.f &&
 			distance3d(&theirs->object.position, &their_base) > 2.f)
@@ -18424,6 +18453,10 @@ static void bot_swap_poor_gun(struct bot_think *t)
 		long best_item = NONE;
 		/* (on the game's business: only one that is right by the way) */
 		int busy = bot_on_objective(bot);
+		/* (their flag just there for the taking: not now) */
+		real flag_near = bot_ctf_their_flag_near(t->me, position);
+		if (flag_near >= 0.f && flag_near < 10.f)
+			want_proper = want_power = FALSE;
 		real best_d = all_poor && !busy ? 12.f : 7.f;
 		object_iterator_new(&nearby, _object_mask_weapon, 0);
 		while ((item = (struct object_datum *)object_iterator_next(&nearby)) != NULL)
@@ -18696,6 +18729,12 @@ static void bot_ambush_engage(struct bot_think *t, struct bot_ambush_foe *a)
 	   someone they were not going to shoot) */
 	if (bot_env_set("HALO_BOT_PEACE"))
 		return;
+	/* (their flag just there for the taking: that, not a wait) */
+	{
+		real flag_near = bot_ctf_their_flag_near(me, position);
+		if (flag_near >= 0.f && flag_near < 10.f)
+			return;
+	}
 	/* (coming this way: at a walk or better, and more at us than not) */
 	if (length > 0.5f && (going->i * dx + going->j * dy) / length > 0.025f)
 	{

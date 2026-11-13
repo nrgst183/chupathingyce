@@ -3544,6 +3544,16 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Their flag first, when they've got to it:** in capture the flag, a bot
+  within 10 units of the other side's flag lying there (at their base or
+  dropped) goes for it before anyone off to one side, doesn't break off for a
+  better gun lying near, and doesn't stop to lie in wait for someone coming.
+  On Chill Out they had gone right up to the flag in the red base and then
+  taken the sniper rifle there or crouched behind the wall for the one
+  coming. Four- and eight-bot games there, skill 10: the time an attacker
+  spent by a flag it hadn't taken went from 19 to 14-16 seconds a minute,
+  and the flag was taken 15-20% more often (`HALO_BOT_OFF=flagfirst`: as it
+  was).
 - **Every game recorded:** `debug.record_games = true` in config.toml (or
   `HALO_RECORD_GAMES=1`) writes each multiplayer game to a file of its own in
   the logs folder, `game_<date>_<time>_<map>_<game type>.csv`: every player in
@@ -3557,7 +3567,8 @@ and two kinds of walker); the wrecks of the others stayed.
   players. `python tools/game_recording.py logs/game_*.csv` sums each one
   up: how far the bots and the people went each 5 seconds alive, how much
   of the time they stood still, jumps a minute, the time spent fighting,
-  kills and deaths a minute, and the bots' goals. A game that felt good and
+  kills and deaths a minute, and the bots' goals. Two games begun in the same second on the same map get `_2`, `_3` after
+  the name. A game that felt good and
   one that felt bad can then be told apart in numbers, and a build tested
   against them.
 - **What the bots learn kept or not:** `bots.learn` (`HALO_BOT_LEARN`),

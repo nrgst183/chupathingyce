@@ -3544,6 +3544,12 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **A new random seed every game:** the host drew a game's random seed once,
+  when it began hosting, and every game after played from it: the same
+  spawns and the same first moves each time (on Longest two bots met and
+  meleed at the start of every game). Now each game gets a new one, sent in
+  the settings every machine copies when the game starts. `debug.random_seed`
+  still gives the same games every time.
 - **Their flag first, when they've got to it:** in capture the flag, a bot
   within 10 units of the other side's flag lying there (at their base or
   dropped) goes for it before anyone off to one side, doesn't break off for a

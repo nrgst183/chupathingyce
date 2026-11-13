@@ -2175,6 +2175,25 @@ boolean network_game_server_start_network_game(
 		struct message_server_begin_game begin_game = { 0 };
 		void *message;
 
+		/* port: a new random seed for every game, not the one drawn when
+		the server was made: every game of a session began the same, the
+		same spawns and the same first moves (two bots on Longest met and
+		meleed at the start of every game). It goes out in the settings
+		record that follows, which every machine copies whole, so they all
+		play from it. debug.random_seed (the same games every time, to
+		compare builds) keeps its own. */
+		{
+			long config_integer(char const *name);
+
+			if (!config_integer("debug.random_seed"))
+			{
+				unsigned long high = seed_random(get_global_local_random_seed_address());
+				unsigned long low = seed_random(get_global_local_random_seed_address());
+
+				server->game.random_seed = ((high << 16) | low) ^ system_milliseconds() ^ ((unsigned long)system_seconds() * 2654435761UL);
+				network_event("this game's random seed: a new one");
+			}
+		}
 		/* the settings record goes out in pieces */
 		/* port: once the settings are out, the start is sent once: a machine
 		that missed it (its connection failed, and is closed) is dropped, and

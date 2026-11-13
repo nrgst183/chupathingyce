@@ -3544,6 +3544,23 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Traits made to tell:** after the test of every trait (twelve games of
+  each), the ones that showed nothing were made stronger: greed (the
+  greedy go for the power weapons and powerups, the rest much less),
+  grenade_happy (throws three times as many as the least), vehicle_love
+  (in a vehicle 13% of the time against 19%), the luck of its aim,
+  reactions and feet (twice the spread), composure (a hit throws
+  everyone's aim a little, the rattled most), survivor (off into cover as
+  its shields go; a brawler never), opportunist, flanker (comes at them
+  from where they aren't looking), vigilance, spawn_read (from further,
+  for a longer wait), adapts (round the danger for a while after dying
+  where it died) and streaky (bigger, shorter spells). The test's halves
+  are now within each team (slots 0, 1, 4, 5 ... against 2, 3, 6, 7 ...).
+  Eight games of each again, level 8: clear now, greed, reaction_luck,
+  grenade_happy, vehicle_love, survivor (deaths 4.9 a minute against 4.5),
+  and herd and sticks (nearer their side). Still nothing to be told from
+  chance: accuracy_luck, agility_luck, composure, flanker, opportunist,
+  streaky, vigilance, spawn_read, adapts, bait, focus.
 - **Eight more traits, and a test of every trait:** four knacks, which the
   level sets (at level 10 every bot has all of each; below it the trait makes
   one bot of a level a little better at it than another): `timer` (there as

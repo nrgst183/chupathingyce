@@ -3544,6 +3544,17 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Three traits cut, four worked over, three tested again:** accuracy_luck,
+  agility_luck and composure are the level's now, the same for every bot
+  (`HALO_BOT_OFF=cutluck`: its own). flanker looks for its spot on a ring
+  behind and beside them by which way they face, and goes there by the ways
+  they can't see; vigilance breaks off a fight when a second one comes
+  onto its tracker; adapts keeps further off where it keeps dying, and for
+  up to a minute and a half; spawn_read takes whoever is only just back
+  first. Eight games of each, level 8, with bait in team slayer on
+  Damnation and Hang 'em High, focus in CTF on Blood Gulch and streaky in
+  games twice as long: none of these could be told from chance in what was
+  measured.
 - **Traits made to tell:** after the test of every trait (twelve games of
   each), the ones that showed nothing were made stronger: greed (the
   greedy go for the power weapons and powerups, the rest much less),

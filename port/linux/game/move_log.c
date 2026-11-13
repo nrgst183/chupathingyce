@@ -618,7 +618,7 @@ static void move_record_tick(void)
 	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
 	{
 		long index = DATUM_INDEX_TO_ABSOLUTE_INDEX(iterator.datum_index);
-		char name[16], goal[32], via[16];
+		char name[16], goal[64], via[16];
 		long target, k;
 		int is_bot = bot_player_is_bot(iterator.datum_index);
 		struct unit_datum *unit = player->unit_index != NONE ? (struct unit_datum *)object_try_and_get(player->unit_index) : NULL;

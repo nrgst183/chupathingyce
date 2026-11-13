@@ -7,7 +7,7 @@ For each recording, its build, map and game type, and how its bots and its
 people played: how far they went in each 5 seconds alive, how much of the
 time alive they stood still, jumps a minute, kills and deaths a minute, how
 much of their time was spent fighting someone, and what the bots' goals
-were. For telling one build's bots from another's by the games played with
+were (an item's named: item:rocket launcher), and the guns held. For telling one build's bots from another's by the games played with
 them."""
 import csv
 import math
@@ -34,7 +34,7 @@ def read(path):
 def summary(path):
     head, rows = read(path)
     players = defaultdict(lambda: {"alive": 0, "moved": 0.0, "still": 0, "air": 0, "jumps": 0, "fight": 0,
-                                   "goals": Counter(), "kills": 0, "deaths": 0, "bot": 0, "name": ""})
+                                   "goals": Counter(), "held": Counter(), "kills": 0, "deaths": 0, "bot": 0, "name": ""})
     last = {}
     times = set()
     for row in rows:
@@ -65,6 +65,7 @@ def summary(path):
             p["still"] += 1
         if row.get("target") not in (None, "", "-1"):
             p["fight"] += 1
+        p["held"][row.get("weapon") or "-"] += 1
         if p["bot"]:
             p["goals"][row.get("goal") or "-"] += 1
     rate = 5.0  # lines a second
@@ -79,8 +80,10 @@ def summary(path):
             continue
         mins = alive / rate / 60.0
         goals = Counter()
+        held = Counter()
         for p in group:
             goals.update(p["goals"])
+            held.update(p["held"])
         total = sum(goals.values()) or 1
         print(f"  {label} ({len(group)}): {sum(p['moved'] for p in group) / (alive / rate / 5.0):.1f} u moved a 5 s alive, "
               f"{100.0 * sum(p['still'] for p in group) / alive:.0f}% stood still, "
@@ -88,6 +91,7 @@ def summary(path):
               f"{100.0 * sum(p['fight'] for p in group) / alive:.0f}% fighting, "
               f"kills {sum(p['kills'] for p in group) / max(minutes, 0.01) / len(group):.2f} and deaths "
               f"{sum(p['deaths'] for p in group) / max(minutes, 0.01) / len(group):.2f} a minute each")
+        print("    holding: " + ", ".join(f"{w} {100.0 * n / alive:.0f}%" for w, n in held.most_common(6)))
         if label == "bots":
             print("    goals: " + ", ".join(f"{g} {100.0 * n / total:.0f}%" for g, n in goals.most_common(6)))
     for p in sorted(players.values(), key=lambda p: -p["kills"]):

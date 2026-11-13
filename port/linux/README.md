@@ -3552,7 +3552,7 @@ and two kinds of walker); the wrecks of the others stayed.
   shields, the gun, kills and deaths), and for a bot its goal (`enemy`,
   `item`, `vehicle`, `roam`, `hold`, with `+perch` or `+lurk`), the way it is
   on that is no walk (`jump`, `drop`, `gap`, `ladder`, `teleport`) and who
-  it is fighting. The top lines name the build (its commit), the map, the
+  it is fighting (an item gone for is named, `item:rocket launcher`). The top lines name the build (its commit), the map, the
   game type and the bot settings. About 3 MB for ten minutes with eight
   players. `python tools/game_recording.py logs/game_*.csv` sums each one
   up: how far the bots and the people went each 5 seconds alive, how much

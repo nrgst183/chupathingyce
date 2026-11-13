@@ -3544,6 +3544,18 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Rockets: on the move, and out of the way:** from about level 7 to 10,
+  in a fight where it or its enemy has a rocket launcher, a bot strafes
+  flat out, holds each side longer, always strafes rather than walking at
+  them, and jumps as its own rocket goes (so that the reply hits the ground
+  under it) and now and then besides (`HALO_BOT_OFF=rocketmove`). And it
+  jumps more of the rockets coming at it: from further off, and the ones
+  that would only have grazed it (`HALO_BOT_OFF=rocketdodge`). Sixteen bots
+  on Carousel and Wizard with rockets, level 10: in the air for 50% and 40%
+  of their fights (41% and 32% before), and on Carousel 9% fewer deaths a
+  minute (Wizard's the same). How fast they move in a fight did not change,
+  about 1.5 units a second: a sidestep is slower than a run, and a person
+  going nearly flat out (2.2) is mostly running at a slant.
 - **A new random seed every game:** the host drew a game's random seed once,
   when it began hosting, and every game after played from it: the same
   spawns and the same first moves each time (on Longest two bots met and

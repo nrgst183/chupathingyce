@@ -3544,6 +3544,35 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **Eight more traits, and a test of every trait:** four knacks, which the
+  level sets (at level 10 every bot has all of each; below it the trait makes
+  one bot of a level a little better at it than another): `timer` (there as
+  the power weapons and powerups come back), `spawn_read` (after a kill, to
+  where they will come back in: free-for-all too now), `vigilance` (in a
+  fight, someone else closing in caught in a glance and turned on) and
+  `adapts` (dying again where it died: that place kept off a while, and
+  another side next time). And four ways of playing, at any level: `bait`
+  (team games: shows itself and backs off onto a friend's gun), `survivor`
+  (0 a brawler, to the last of its health .. 1 backs off as its shields
+  go), `sneak` (how readily it creeps up at a crouch walk) and `streaky`
+  (hot and cold spells, a level or so either way). Each with its
+  `HALO_BOT_OFF=` name. The game recordings now have each bot's traits at
+  the top, and two more columns, the buttons held and the grenades carried.
+  `HALO_BOT_TRAIT="flanker=0/1"` pins a trait, low for the bots of even
+  slots and high for the odd (`HALO_BOT_KNACK_RAW=1`: a knack by its trait
+  alone, at any level), and `python tools/bot_traits.py --trait flanker
+  logs/game_*.csv` compares the halves on 27 measures, with each difference
+  against how much that measure varies from bot to bot. Every trait was
+  tested so, four games of ten bots at level 8 for each (free-for-all on
+  Chill Out, team traits in team slayer on Beaver Creek, vehicle_love on
+  Blood Gulch, focus in CTF), against games with nothing pinned for how big
+  a difference comes by chance. Clear: bait (fights more, dies more),
+  timer (holds the power weapons' spots 3.6% of the time to 25%), focus,
+  camping, lurk, aggression. Maybe: grenade_happy, sneak, sporting, temper,
+  reaction_luck. Nothing that could be told from chance in what was
+  measured: the rest, among them accuracy_luck, agility_luck, jumpiness,
+  flanker, opportunist, greed, vehicle_love, wander, patience, survivor,
+  streaky, vigilance, adapts and spawn_read.
 - **Rockets: on the move, and out of the way:** from about level 7 to 10,
   in a fight where it or its enemy has a rocket launcher, a bot strafes
   flat out, holds each side longer, always strafes rather than walking at

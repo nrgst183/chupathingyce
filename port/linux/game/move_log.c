@@ -493,6 +493,7 @@ static void move_log_drive_end(short local, struct move_player *mp)
    the games people played with them, not only by the lab's */
 
 void bot_record_state(long player_index, char *goal, long goal_size, char *via, long via_size, long *target); /* bots.c */
+void bot_record_traits(long player_index, char *text, long size); /* bots.c */
 const char *build_identity(void); /* build_identity.c */
 long config_integer(const char *name);
 
@@ -507,6 +508,7 @@ static struct
 	long began; /* the game's time when it was begun (a new game on the same map starts it again) */
 	long last;
 	int failed; /* the file for this game could not be written: not tried again every tick */
+	unsigned char traits_written[256]; /* each bot's personality written once, the first time it is seen */
 } move_record;
 
 static void move_record_close(char const *how)
@@ -564,6 +566,7 @@ static void move_record_open(char const *map, long now)
 	snprintf(move_record.map, sizeof(move_record.map), "%s", map);
 	move_record.began = move_record.last = now;
 	move_record.failed = !move_record.file;
+	memset(move_record.traits_written, 0, sizeof(move_record.traits_written));
 	if (!move_record.file)
 	{
 		platform_log("move: could not write the game's recording to %s", path);
@@ -576,7 +579,7 @@ static void move_record_open(char const *map, long now)
 	fprintf(move_record.file, "# bots: count %ld, fill %ld, skill %ld, skill_spread %ld, learn %s\n", config_integer("bots.count"),
 		config_integer("bots.fill"), config_integer("bots.skill"), config_integer("bots.skill_spread"), config_boolean("bots.learn") ? "on" : "off");
 	fprintf(move_record.file, "t,player,name,bot,team,alive,x,y,z,speed,vz,yaw,aim_yaw,aim_pitch,airborne,crouch,vehicle,seat,health,shield,weapon,"
-		"kills,deaths,goal,via,target\n");
+		"kills,deaths,goal,via,target,buttons,grenades\n");
 	platform_log("move: recording this game in %s", path);
 }
 
@@ -639,9 +642,20 @@ static void move_record_tick(void)
 			name[k] = player->name[k] >= 32 && player->name[k] < 127 && player->name[k] != ',' && player->name[k] != '"' ? (char)player->name[k] : '_';
 		name[k] = '\0';
 		bot_record_state(iterator.datum_index, goal, sizeof(goal), via, sizeof(via), &target);
+		/* (a bot's personality, once: a line of its own) */
+		if (is_bot && index >= 0 && index < (long)sizeof(move_record.traits_written) && !move_record.traits_written[index])
+		{
+			char traits[1400];
+			bot_record_traits(iterator.datum_index, traits, sizeof(traits));
+			if (traits[0])
+			{
+				fprintf(move_record.file, "# bot %ld %s: %s\n", index, name, traits);
+				move_record.traits_written[index] = 1;
+			}
+		}
 		if (!unit || !biped || unit->object.body_vitality <= 0.f)
 		{
-			fprintf(move_record.file, "%.1f,%ld,%s,%d,%ld,0,,,,,,,,,,,,,,,,%d,%d,%s,,\n", (now - move_record.began) / (real)TICKS_PER_SECOND, index, name,
+			fprintf(move_record.file, "%.1f,%ld,%s,%d,%ld,0,,,,,,,,,,,,,,,,%d,%d,%s,,,,\n", (now - move_record.began) / (real)TICKS_PER_SECOND, index, name,
 				is_bot, player->team_index, player->statistics.kills[0], player->statistics.deaths, goal);
 			continue;
 		}
@@ -658,14 +672,15 @@ static void move_record_tick(void)
 			if (riding)
 				seat = unit_seat_is_driver(root_index, unit->unit.parent_seat_index) ? 'd' :
 					unit_seat_is_gunner(root_index, unit->unit.parent_seat_index) ? 'g' : 'p';
-			fprintf(move_record.file, "%.1f,%ld,%s,%d,%ld,1,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%s,%c,%.2f,%.2f,%s,%d,%d,%s,%s,%ld\n",
+			fprintf(move_record.file, "%.1f,%ld,%s,%d,%ld,1,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%s,%c,%.2f,%.2f,%s,%d,%d,%s,%s,%ld,%lx,%d\n",
 				(now - move_record.began) / (real)TICKS_PER_SECOND, index, name, is_bot, player->team_index, at->x, at->y, at->z,
 				move_log_ground_speed(velocity), velocity->k * TICKS_PER_SECOND,
 				(real)atan2(biped->unit.desired_facing_vector.j, biped->unit.desired_facing_vector.i),
 				(real)atan2(biped->unit.aiming_vector.j, biped->unit.aiming_vector.i), (real)asin(PIN(biped->unit.aiming_vector.k, -1.f, 1.f)),
 				!riding && TEST_FLAG(biped->biped.flags, _biped_airborne_bit) != 0, biped->biped.crouch, riding ? move_log_short_name(root->definition_index) : "-",
 				seat, unit->object.body_vitality, unit->object.shield_vitality, weapon ? move_log_short_name(weapon->definition_index) : "-",
-				player->statistics.kills[0], player->statistics.deaths, goal, via, target);
+				player->statistics.kills[0], player->statistics.deaths, goal, via, target, (unsigned long)(unsigned short)unit->unit.control_flags,
+				(int)unit->unit.grenade_counts[0] + (int)unit->unit.grenade_counts[1]);
 		}
 	}
 }

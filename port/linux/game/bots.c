@@ -16287,6 +16287,8 @@ static void bot_fight_prefer_distance(struct bot_think *t, struct bot_fight *f)
 }
 
 /* the side to strafe to and for how long, by how well it strafes (f->strafe) */
+static real bot_rocket_agility(struct bot_think const *t);
+
 static void bot_fight_pick_strafe_q(struct bot_think *t, struct bot_fight *f)
 {
 	struct bot_state *bot = t->bot;
@@ -16318,6 +16320,13 @@ static void bot_fight_pick_strafe_q(struct bot_think *t, struct bot_fight *f)
 		int juke_back = bot->strafe_juke && before != 0.f;
 		bot->strafe_juke = FALSE;
 		bot->strafe_ticks = MAX(BOT_SECONDS(0.25f), BOT_SECONDS(seconds * (t->threatened ? 0.85f : 1.f)));
+		/* (rockets: a side held longer, so that it is at speed, and no
+		   splash lands where it was a moment ago) */
+		{
+			real keep = bot_rocket_agility(t);
+			if (keep > 0.f)
+				bot->strafe_ticks += (long)((real)bot->strafe_ticks * 0.8f * keep);
+		}
 		bot->strafe_sign = bot_random(bot) < 0.5f ? -1.f : 1.f;
 		if (juke_back)
 		{
@@ -16334,7 +16343,7 @@ static void bot_fight_pick_strafe_q(struct bot_think *t, struct bot_fight *f)
 			return;
 		}
 		/* (the least skilled don't always strafe: they walk at them) */
-		if (bot_random(bot) > 0.3f + 0.7f * how)
+		if (bot_random(bot) > 0.3f + 0.7f * how + bot_rocket_agility(t))
 			bot->strafe_sign = 0.f;
 		else
 		{
@@ -16919,6 +16928,18 @@ static void bot_fight_open_way(struct bot_think *t, struct bot_fight *f)
 	}
 }
 
+/* rockets in the fight, its own or theirs, at the higher levels: how much it
+   keeps on the move as a good player does with them (0 none .. 1 at level
+   10, from about 7). Standing to shoot, a bot was a splash for anyone's
+   rocket; a person moved at nearly a run, in the air for most of his kills.
+   HALO_BOT_OFF=rocketmove */
+static real bot_rocket_agility(struct bot_think const *t)
+{
+	if (bot_env_off("rocketmove") || (t->weapon.kind != _bot_gun_rocket && t->bot->foe_kind != _bot_gun_rocket))
+		return 0.f;
+	return PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f);
+}
+
 static void bot_fight_strafe_move(struct bot_think *t, struct bot_fight *f)
 {
 	struct bot_state *bot = t->bot;
@@ -16950,6 +16971,12 @@ static void bot_fight_strafe_move(struct bot_think *t, struct bot_fight *f)
 		t->move_speed = f->forward > 0.f ? 1.f : threatened ? 0.8f + 0.2f * bot->personality.agility : 0.55f + 0.35f * bot->personality.agility;
 	else
 		t->move_speed = threatened ? 0.7f + 0.3f * bot->personality.agility : 0.35f + 0.35f * bot->personality.agility;
+	/* (rockets: flat out, or near it, the better the bot) */
+	{
+		real keep = bot_rocket_agility(t);
+		if (keep > 0.f)
+			t->move_speed = MAX(t->move_speed, t->move_speed + (1.f - t->move_speed) * keep);
+	}
 	if (aas_ready() && !bot_move_direction_safe(body, t->move_yaw, 0.7f))
 		bot_fight_open_way(t, f);
 }
@@ -17079,6 +17106,18 @@ static void bot_fight_jump(struct bot_think *t, struct bot_fight *f)
 		bot_random(bot) < f->strafe)
 	{
 		chance = 0.f;
+	}
+	/* (rockets: up as the shot goes, so that theirs hits the ground under
+	   it, and now and then whoever is shooting) */
+	{
+		real keep = bot_rocket_agility(t);
+		if (keep > 0.f)
+		{
+			if (t->weapon.kind == _bot_gun_rocket && bot->shot_cooldown <= 3 && t->target_distance > 3.f)
+				chance = MAX(chance, 0.25f * keep);
+			else
+				chance = MAX(chance, (threatened ? 0.04f : 0.015f) * keep);
+		}
 	}
 	if (bot->attack_jump_cooldown <= 0 && bot_random(bot) < chance && (!aas_ready() || bot_move_direction_safe(body, t->move_yaw, 1.5f)))
 	{
@@ -19107,7 +19146,12 @@ static void bot_dodge_rocket(struct bot_think *t)
 					t->moved = FALSE;
 					t->move_speed = 1.f;
 					t->move_yaw = way;
-					if (ticks > 4.f && ticks < 15.f && body->can_jump && wide < hurts * 0.8f && bot_move_direction_safe(body, way, 2.5f))
+					/* (the better the bot, the more of them jumped as they come
+					   in: from further, and the ones that would only graze it.
+					   HALO_BOT_OFF=rocketdodge) */
+					real keen = bot_env_off("rocketdodge") ? 0.f : PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f);
+					if (ticks > 4.f - 2.f * keen && ticks < 15.f + 8.f * keen && body->can_jump && wide < hurts * (0.8f + 0.3f * keen) &&
+						bot_move_direction_safe(body, way, 2.5f))
 					{
 						t->jump = TRUE;
 						bot_jump_cause = 13;

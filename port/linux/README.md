@@ -3544,6 +3544,17 @@ and two kinds of walker); the wrecks of the others stayed.
   (`crouchcost`). A person tucks five to eight ticks after the jump; the bots
   jump from nearer the ledge, and tucked that late made fewer of the highest
   ledges, so theirs stays at the third (`HALO_BOT_TUCKLATE`: the fifth).
+- **The route hunters hunt:** a strong flanker or interceptor counts going
+  after someone at up to two and a half times as much, so it hunts rather
+  than going for items or holding a place; the flanker by its planned way
+  round from 8 units off (was 15), and on any trip, by the ways out of the
+  sight of where its side knows they are; the interceptor to where they
+  will be (`HALO_BOT_OFF=routehunt`: as before). Twelve games of each, on
+  Damnation with six bots and Chill Out with ten: flankers hunt half their
+  time (27% to 49% on Damnation) and die less there (2.6 a minute to 2.2),
+  with as many kills; interceptors get more kills on Damnation (2.3 a minute
+  to 2.7). Fights begun from the side or behind still could not be told
+  from chance, and on Chill Out, a small map always in a fight, none of it.
 - **Traits by their routes:** a flanker more than 15 units from whoever it
   hunts plans a way round, by up to twelve tries, each route's areas looked
   at for how much of them that one sees (in front of them, within 25 units,

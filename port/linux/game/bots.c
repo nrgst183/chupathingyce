@@ -8101,8 +8101,23 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 		if (found && distance3d(&chosen, position) > 8.f)
 		{
 			real distance = distance3d(&chosen, position);
-			chosen.x += (bot_random(bot) - 0.5f) * 12.f;
-			chosen.y += (bot_random(bot) - 0.5f) * 12.f;
+			/* (the route hunters, the flankers and the interceptors: the
+			   hunt is their game, worth up to two and a half times as much;
+			   the interceptor to where they will be, the flanker after them
+			   by a way round, bot_plan_via. HALO_BOT_OFF=routehunt) */
+			int route_hunter = !bot_env_off("routehunt") && (bot->personality.flanker > 0.45f || bot->personality.intercept > 0.4f);
+			real keen = route_hunter ? 1.f + 1.5f * MAX(bot->personality.flanker - 0.45f, 0.f) / 0.55f +
+				1.5f * MAX(bot->personality.intercept - 0.4f, 0.f) / 0.6f : 1.f;
+			long kind = _bot_goal_roam;
+			if (route_hunter && !bot_env_off("intercept") && bot->personality.intercept > 0.4f)
+				bot_intercept_point(bot, &chosen, position);
+			if (route_hunter && bot->personality.flanker > 0.45f && !bot_env_off("flanker") && !bot_env_off("flankroute"))
+				kind = _bot_goal_enemy;
+			else
+			{
+				chosen.x += (bot_random(bot) - 0.5f) * 12.f;
+				chosen.y += (bot_random(bot) - 0.5f) * 12.f;
+			}
 			/* go after them when we'd have the upper hand (the aggressive
 			   take worse odds) */
 			real advantage = bot_advantage(player, position, &chosen) * (0.8f + 0.6f * bot->personality.aggression); /* (once: PIN is a macro) */
@@ -8115,10 +8130,10 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 			real quiet = bot_quiet(bot);
 			if (bot_consider(best, (5.f + 6.f * bot->personality.aggression + (held >= 7.f ? 3.f : 0.f)) * advantage / (1.f + distance / 150.f) *
 				(bot_is_team_slayer() ? 0.5f + 0.5f * quiet : 1.f) * /* (team slayer: the squad hunts together) */
-				(objective_game ? BOT_OBJECTIVE_HUNT : 1.f) * (1.f + 3.f * quiet),
+				(objective_game ? BOT_OBJECTIVE_HUNT : 1.f) * (1.f + 3.f * quiet) * keen,
 				/* (and looked for again every few seconds, where they are by
 				   then, not where they were when it set off) */
-				_bot_goal_roam, &chosen, NONE, (long)((quiet > 0.5f ? 4.f : 6.f + distance / 2.f) * BOT_TICKS_PER_SECOND), FALSE))
+				kind, &chosen, NONE, (long)((quiet > 0.5f ? 4.f : 6.f + distance / 2.f) * BOT_TICKS_PER_SECOND), FALSE))
 				best->hunted = chosen_unit;
 		}
 	}
@@ -9093,7 +9108,7 @@ static void bot_goal_idle(struct bot_goal_pass *g)
 				bot_intercept_point(bot, &point, position);
 			/* (a flanker, far enough off for a way round: after them, by a
 			   way they see least of, bot_plan_via) */
-			if (!bot_env_off("flankroute") && !bot_env_off("flanker") && bot->personality.flanker > 0.45f && distance > 15.f &&
+			if (!bot_env_off("flankroute") && !bot_env_off("flanker") && bot->personality.flanker > 0.45f && distance > 8.f &&
 				bot_within_reach(&point))
 			{
 				bot_set_goal(bot, _bot_goal_enemy, &point, NONE, 8 * BOT_TICKS_PER_SECOND);
@@ -10677,7 +10692,7 @@ static void bot_plan_via(struct bot_state *bot, struct bot_body const *body, lon
 	if (bot_goal_is_power_weapon(bot) || bot_goal_is_powerup(bot))
 		return; /* (straight there, before someone else gets it) */
 	bot->on_lane = FALSE;
-	if (!aas_ready() || distance < (objective ? 14.f : flank ? 15.f : 18.f))
+	if (!aas_ready() || distance < (objective ? 14.f : flank ? (bot->personality.flanker > 0.45f && !bot_env_off("flankroute") ? 8.f : 15.f) : 18.f))
 		return;
 	/* (for the other flag in a game of flags: by its lane) */
 	if (objective && !carrying && bot_lane_trip(bot, body, player_index, TRUE))
@@ -23604,8 +23619,11 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		/* (dying again where it died: round the danger for a while, where
 		   its own side has died among it. bot_adapt_to_death) */
 		(!bot_env_off("adapts") && game_time_get() < bot->memory.avoid_until) ||
-		/* (a flanker on its way round them: by where they can't see) */
+		/* (a flanker on its way round them: by where they can't see; and a
+		   strong one on any trip, by the ways out of sight of where its
+		   side knows they are. HALO_BOT_OFF=flankroute) */
 		(game_time_get() < bot->flank_until) ||
+		(!bot_env_off("flankroute") && !bot_env_off("flanker") && bot->personality.flanker > 0.6f) ||
 		/* (the better, in a game of teams: round where they know the enemy is,
 		   on foot or driving) */
 		/* (the better, hurt, in a game of teams: round where they know the

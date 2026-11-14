@@ -275,6 +275,59 @@ function Embed-Assets
 		[void]$text.Append("const unsigned int hud_hires_embedded_count = sizeof(hud_hires_embedded) / sizeof(hud_hires_embedded[0]);`n`n")
 	}
 
+	# the titles the title tool makes from the player's own ui.map
+	# (port/linux/src/title_tool.h): titles.json's "from_files" ones, with
+	# their text and where each letter starts (tools/embed_assets.py's
+	# title_tool_table)
+	[void]$text.Append("#include `"title_tool.h`"`n`n")
+	$titleEntries = New-Object System.Text.StringBuilder
+	$titleCount = 0
+	$titleList = Join-Parts $Root 'port/assets/titles/titles.json'
+	if (Test-Path -LiteralPath $titleList)
+	{
+		foreach ($asset in (Get-Content -LiteralPath $titleList -Raw | ConvertFrom-Json).assets)
+		{
+			if (-not ($asset.PSObject.Properties['from_files'] -and $asset.from_files))
+			{
+				continue
+			}
+			$lefts = @()
+			foreach ($left in $asset.lefts)
+			{
+				$leftText = ([double]$left).ToString('R', [System.Globalization.CultureInfo]::InvariantCulture)
+				if ($leftText -notmatch '[.eE]')
+				{
+					$leftText += '.0'
+				}
+				$lefts += "${leftText}f"
+			}
+			[void]$text.Append("static const float title_lefts$titleCount[] = { $($lefts -join ', ') };`n")
+			$tag = ([string]$asset.tag).Replace('\', '\\')
+			$words = ([string]$asset.text).Replace('\', '\\').Replace('"', '\"')
+			$crc = ([uint32]$asset.crc).ToString('x8')
+			[void]$titleEntries.Append("`t{ `"$tag`", $($asset.bitmap), 0x${crc}u, $($asset.scale), `"$words`", title_lefts$titleCount },`n")
+			$titleCount++
+		}
+	}
+	[void]$text.Append("const struct title_tool_title title_tool_titles[] =`n{`n")
+	if ($titleCount -eq 0)
+	{
+		[void]$text.Append("`t{ 0 },`n")
+	}
+	else
+	{
+		[void]$text.Append($titleEntries.ToString())
+	}
+	[void]$text.Append("};`n")
+	if ($titleCount -eq 0)
+	{
+		[void]$text.Append("const unsigned int title_tool_title_count = 0;`n`n")
+	}
+	else
+	{
+		[void]$text.Append("const unsigned int title_tool_title_count = sizeof(title_tool_titles) / sizeof(title_tool_titles[0]);`n`n")
+	}
+
 	# the fonts, and which draws each font tag (text_hires.h)
 	[void]$text.Append("#include `"text_hires.h`"`n`n")
 	$sizes = @{}

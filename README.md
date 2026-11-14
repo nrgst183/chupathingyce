@@ -82,7 +82,7 @@ Download the latest release from the [Releases page](https://github.com/Chupathi
 | Android 9 or later, 64-bit | `chupathingyce-android64-release.zip` |
 | FreeBSD | `chupathingyce-freebsd64-release.zip` |
 
-Older 32-bit PCs, the Linux zip and the other ways to install are in [docs/install.md](docs/install.md).
+Step-by-step setup for each system, including the Steam Deck, is in [docs/install.md](docs/install.md#getting-started). Older 32-bit PCs and the Linux zip are there too.
 
 The game checks for updates when it starts and asks before installing one. It only installs updates we've signed. On a Mac, it opens the download page instead.
 
@@ -109,7 +109,7 @@ Where your maps, settings and saves go: [docs/install.md](docs/install.md#where-
 - **Invite a friend.** Send them your game's invite link.
 - **Play the campaign together.** Host it online from Create Game. [Here's how](docs/online.md#online-co-op).
 
-Chupathingy players on every platform play together. We also play with the current OpenCE release: their players can join your games, and you can join theirs.
+Chupathingy players on every platform play together. **Compatible with OpenCE build-355 (network version 44) for online play:** their players can join your games, and you can join theirs.
 
 Friends can't get into your game? See [docs/online.md](docs/online.md#if-friends-cant-join).
 
@@ -125,13 +125,15 @@ Friends can't get into your game? See [docs/online.md](docs/online.md#if-friends
 - Our servers around the clock, plus the community's
 - Split screen for up to four, and System Link with no internet or account
 - Online co-op through the campaign
-- Text chat, and host tools to kick or ban
+- Friends, parties and clans in the Delta Guide (F3), with party links you can paste in Discord
+- Text and voice chat, and host tools to kick or ban
 
 **Maps**
 - Every Xbox map from your disc
 - Halo PC, Custom Edition, HaloMD and MCC Workshop maps, side by side with the Xbox ones
 - Missing maps download when you join, and each one is checked before it's used
 - Community Xbox map packs, like Halo CE+
+- Stubbs the Zombie, an early work in progress, from your own Xbox maps (off by default)
 
 **Bots and infection**
 - Bots: a host can fill its games with players it drives itself, on every map and game type ([how](port/linux/README.md#bots))
@@ -168,9 +170,9 @@ Chupathingy also runs as homebrew on consoles, in the same online games as every
 
 | Console | Get it |
 | --- | --- |
-| Original Xbox | [warthog-xbox](https://github.com/ChupathingyCE/warthog-xbox). Test builds are on the [Discord](https://discord.gg/chupathingy). |
-| Xbox 360 | [warthog-360](https://github.com/ChupathingyCE/warthog-360). Test builds are on the [Discord](https://discord.gg/chupathingy). |
-| Wii U | [warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu/releases) |
+| Original Xbox | [warthog-xbox](https://github.com/ChupathingyCE/warthog-xbox/releases), test builds |
+| Xbox 360 | [warthog-360](https://github.com/ChupathingyCE/warthog-360/releases), test builds |
+| Wii U | [warthog-wiiu](https://github.com/ChupathingyCE/warthog-wiiu/releases), test builds |
 | Nintendo Switch | [warthog-switch](https://github.com/ChupathingyCE/warthog-switch/releases), by thelinkin3000 |
 | PlayStation 3 | [warthog-ps3](https://github.com/ChupathingyCE/warthog-ps3), by Mayo1970. Work in progress, no release yet. |
 
@@ -197,7 +199,9 @@ Testing and Nightly still get each release. You can switch back to Release anyti
 
 ## Help
 
-Ask on the [Discord](https://discord.gg/chupathingy). It's also where people find games and report bugs. You can file bugs in [issues](https://github.com/ChupathingyCE/chupathingyce/issues) too. Attach `logs/debug.txt` from the game's folder.
+Ask on the [Discord](https://discord.gg/chupathingy). It's also where people find games and report bugs. You can file bugs in [issues](https://github.com/ChupathingyCE/chupathingyce/issues) too.
+
+Fixes for common problems, and how to send your logs, are in [docs/help.md](docs/help.md).
 
 ## Build it yourself
 
@@ -256,7 +260,7 @@ with their authors credited in each commit.
 - [nsafran1217](https://github.com/nsafran1217): no hang
   where the visibility results buffer cannot be mapped.
 - [saulob](https://github.com/saulob): the first menu frame's colors.
-- [natsu-anon](https://github.com/natsu-anon): the cursor hidden during play.
+- natsu-anon: the cursor hidden during play.
 - [lantos1618](https://github.com/lantos1618): no ghosting in the zoom effect
   at high resolutions; on macOS, Command-W does not quit and Command-Q asks
   twice.
@@ -294,8 +298,11 @@ with their authors credited in each commit.
   projectiles and damage that forget objects deleted under them.
 - [bitmoda](https://github.com/bitmoda) (mastercheese's OpenCE fork): the
   clock read only when something needs it.
-- [theLlamaNet](https://github.com/theLlamaNet): the Android on-screen touch
+- theLlamaNet: the Android on-screen touch
   controls, through JoshRob297's halo-ce-touch.
+- Guven (GuvenHuso) and hispanorum (OpenCE): the debug camera flown by
+  mouse and keyboard, and its saved spot kept for the player in view
+  (written from a description of their work).
 
 </details>
 
@@ -319,10 +326,12 @@ with their authors credited in each commit.
   mOTA-lEV's [OpenCE-Faber](https://github.com/SutlabSol/OpenCE-Faber),
   used under GPL-3.0 with his permission.
 - Controller button icons by snapchipper, CC0 (`port/assets/prompts`).
-- Headphone 3D sound (`audio.hrtf`): head-related impulse responses from the
-  [SADIE II database](https://www.york.ac.uk/sadie-project/database.html)
-  (KEMAR, subject D2), University of York, Apache License 2.0
-  (`port/assets/hrtf`).
+- The Xbox's 3D sound and reverb (`audio.hrtf`, `audio.reverb`): the HRTF
+  measured on an Xbox and the reconstruction of its DSP reverb are
+  [OpenH1](https://github.com/OpenH1/OpenH1)'s work, brought into
+  [GulchCE](https://github.com/chestahh/GulchCE) by chestahh
+  (`port/linux/src/dsound_xbox_*`,
+  [docs/reading/xbox_audio.md](docs/reading/xbox_audio.md)).
 - High-res HUD art on the Xbox maps: Aerocatia's and Jessie's HUD art from
   [Halo PC Restored](https://github.com/Aerocatia/halopc-restored) (release
   r220), used with Aerocatia's permission on the condition that both are
@@ -331,6 +340,9 @@ with their authors credited in each commit.
   "force HUD use high resolution scale" flags): ugoboom, tested with
   Aerocatia's [halopc-restored](https://github.com/Aerocatia/halopc-restored)
   resource maps.
+- Stubbs mode reads Stubbs the Zombie's maps with layouts from Sigmmma's
+  [reclaimer](https://github.com/Sigmmma/reclaimer) (GPL-3.0). The maps
+  aren't included.
 - Grifball courts: Bomb plays on SlappyThePirate's "Grifball Beta" court
   (`grifball.map`), which is open to use with credit; the map is not
   included.
@@ -352,7 +364,8 @@ with their authors credited in each commit.
   beside them in `port/third_party`. The 64-bit desktop builds' test
   renderer uses bgfx, bx and bimg by Branimir Karadžić (BSD-2-Clause), with
   glslang and SPIRV-Cross (Khronos, BSD-3-Clause and Apache-2.0), fetched
-  at build time (`tools/bgfx_build.py`). Their licenses ship with those builds.
+  at build time (`tools/bgfx_build.py`). Every download carries their notices
+  and full license texts in one file, `THIRD-PARTY-NOTICES.txt`.
 
 <details>
 <summary><b>Findings and testing</b></summary>

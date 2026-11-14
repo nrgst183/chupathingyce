@@ -157,7 +157,7 @@ SCREENS = {
             ("interface", "INTERFACE", "The menus, HUD and scoreboard.", [
                 # (read when the game starts: menu_tags.c)
                 ("MENU STYLE:", "display.menus",
-                 [("CHUPATHINGY", "chupathingy"), ("XBOX", "xbox"), ("GEARBOX", "gearbox")],
+                 [("CHUPATHINGY", "chupathingy"), ("XBOX", "xbox")],
                  "Takes effect on restart.", NOT_CONSOLE),
                 ("HIGH-RES HUD:", "display.high_res_hud", ON_OFF,
                  "Draw the HUD in high resolution.", NOT_CONSOLE),
@@ -173,6 +173,8 @@ SCREENS = {
                  "Show team games by team, or all players by score.", None),
                 ("SCOREBOARD PANEL:", "display.scoreboard_background", ON_OFF,
                  "Draw a panel behind the scoreboard.", None),
+                ("SCOREBOARD ICONS:", "display.scoreboard_icons", ON_OFF,
+                 "Platform logos and the Delta mark beside names.\nOff shows just names and scores.", None),
                 ("POWERUP TIMERS:", "display.powerup_timers", ON_OFF,
                  "Show the time left on your powerups.", None),
                 ("MATCH TIMER:", "display.match_timer",
@@ -183,8 +185,8 @@ SCREENS = {
                  "While dead, follow a player's view, if the host allows it.", None),
                 ("VERSION WATERMARK:", "display.version_watermark", ON_OFF,
                  "Show the version while playing.", None),
-                ("TITLE FONT:", "display.title_font", [("CLASSIC", "classic"), ("CYBORG", "cyborg")],
-                 "Classic looks like Halo's own titles.\nCyborg matches the menu text.",
+                ("TITLE FONT:", "display.title_font", [("CLASSIC", "classic"), ("CYBORG", "cyborg"), ("HALO", "halo")],
+                 "Classic looks like Halo's titles. Cyborg matches the text.\nHalo makes them from your own Halo files.",
                  # (not on the consoles, the Switch included, which have the
                  # classic titles only: HALO_CONSOLE_NO_TITLE_CHOICE; last,
                  # so the Switch's list has no gap)
@@ -673,9 +675,12 @@ def _controls_rows() -> tuple:
             helps.append(row[3])
 
     # (the consoles have the controller's settings alone: no keyboard or
-    # mouse, and no buttons page or layout, which HALO_CONSOLE_NO_CONTROLS
-    # leaves out; menu_functions.c shows the controller's settings when the
-    # list has no DEVICE)
+    # mouse, and no buttons page, which HALO_CONSOLE_NO_CONTROLS leaves out;
+    # menu_functions.c shows the controller's settings when the list has no
+    # DEVICE. They keep BUTTON LAYOUT, the profile's presets without Custom,
+    # as the Xbox's Controller Settings had: a spinner of their own,
+    # layout_console_spinner, which menu_functions.c's console_layout_* read
+    # and set)
     rows.append((f"{base}/op_device", NOT_CONSOLE, 0))
     extra += _chooser(base, "device", "DEVICE:", CONTROLS_DEVICES)
     # the keyboard and mouse's
@@ -708,21 +713,23 @@ def _controls_rows() -> tuple:
     rows.append((f"{base}/op_page", NOT_CONSOLE, 1))
     extra += _chooser(base, "page", "SHOW:", CONTROLLER_PAGES)
     mark("gamepad")
-    rows.append((f"{base}/op_layout", NOT_CONSOLE, 2))
+    rows.append((f"{base}/op_layout", None, 2))
     extra += _widget(f"{base}/op_layout", [("width", 512), ("height", 28), ("flags", "pass_unhandled_to_focused_child"),
                                            ("bitmap", "bitmaps/option_bkds"), ("color", "#FF2896FF")],
                      [f'<child{attributes([("widget", f"{base}/layout_label")])}/>',
-                      f'<child{attributes([("widget", f"{base}/layout_spinner"), ("x", 320), ("y", 1)])}/>'])
+                      f'<child{attributes([("widget", f"{base}/layout_spinner"), ("x", 320), ("y", 1), ("platform", NOT_CONSOLE)])}/>',
+                      f'<child{attributes([("widget", f"{base}/layout_console_spinner"), ("x", 320), ("y", 1), ("platform", CONSOLE)])}/>'])
     extra += _widget(f"{base}/layout_label",
                      [("type", "text"), ("controller", 1), ("width", 300), ("height", 22), ("text", "BUTTON LAYOUT:"),
                       ("font", "ui\\large_ui"), ("color", "#FF2896FF"), ("text_x", 13), ("text_y", 4)], [])
-    extra += _widget(f"{base}/layout_spinner",
-                     [("type", "spinner"), ("left", 3), ("top", 2), ("width", 147), ("height", 20),
-                      ("flags", "pass_unhandled_to_focused_child left_right_tabs_items"),
-                      ("strings", "|".join(CONTROLLER_PRESETS)), ("font", "ui\\large_ui"), ("color", "#FF2896FF"),
-                      ("align", "center"), ("text_y", 1), ("header_bitmap", "bitmaps/arrow_sm_left"),
-                      ("footer_bitmap", "bitmaps/arrow_sm_right"), ("header_bounds", "7 -6 19 0"),
-                      ("footer_bounds", "7 150 19 156")], [])
+    for name, presets in (("layout_spinner", CONTROLLER_PRESETS), ("layout_console_spinner", CONTROLLER_PRESETS[:-1])):
+        extra += _widget(f"{base}/{name}",
+                         [("type", "spinner"), ("left", 3), ("top", 2), ("width", 147), ("height", 20),
+                          ("flags", "pass_unhandled_to_focused_child left_right_tabs_items"),
+                          ("strings", "|".join(presets)), ("font", "ui\\large_ui"), ("color", "#FF2896FF"),
+                          ("align", "center"), ("text_y", 1), ("header_bitmap", "bitmaps/arrow_sm_left"),
+                          ("footer_bitmap", "bitmaps/arrow_sm_right"), ("header_bounds", "7 -6 19 0"),
+                          ("footer_bounds", "7 150 19 156")], [])
     settings(GAMEPAD_ROWS, 3)
     mark("buttons")
     for index, label in enumerate(CONTROLLER_ACTIONS):

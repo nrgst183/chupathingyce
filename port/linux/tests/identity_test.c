@@ -384,7 +384,7 @@ static void test_quick_connect(void)
 	CHECK(identity_start_body(body, sizeof(body), device_public, VECTOR_NONCE, signature, "pc_linux", "0.9.1",
 		"Desk \"x\"") > 0);
 	CHECK(strstr(body, "\"device_key\": \"" VECTOR_DEVICE_PUBLIC "\"") && strstr(body, "\"name\": \"Desk x\"") &&
-		strstr(body, "\"platform\": \"pc_linux\""));
+		strstr(body, "\"platform\": \"pc_linux\"") && strstr(body, "\"client_id\": \"" IDENTITY_CLIENT_ID "\""));
 	CHECK(identity_start_body(body, 100, device_public, VECTOR_NONCE, signature, "pc_linux", "0.9.1", "") == -1);
 	CHECK(identity_confirm_body(body, sizeof(body), "ab", device_id, VECTOR_NONCE, signature, 1) > 0);
 	CHECK(strstr(body, "\"accept\": true") && strstr(body, "\"device_id\": \"" VECTOR_DEVICE_ID "\""));
@@ -468,6 +468,14 @@ static void test_unverified_names(void)
 	CHECK(shows_as(name, "Mk"));
 	name[0] = 0x200B, name[1] = 0xFF20, name[2] = 'M', name[3] = 0xFE6B, name[4] = 'k', name[5] = 0;
 	CHECK(shows_as(name, "Mk"));
+	/* (the Delta mark, and the triangles that read as it, at the front) */
+	name[0] = 0x394, name[1] = 'M', name[2] = 'k', name[3] = 0;
+	CHECK(shows_as(name, "Mk"));
+	name[0] = ' ', name[1] = 0x25B2, name[2] = ' ', name[3] = 0x2206, name[4] = 'M', name[5] = 'k', name[6] = 0;
+	CHECK(shows_as(name, "Mk"));
+	/* (a Delta inside a name is a letter: kept) */
+	name[0] = 'M', name[1] = 0x394, name[2] = 'k', name[3] = 0;
+	CHECK(identity_unverified_name(name, 12, name + 8, 8) == 3 && name[9] == 0x394);
 	/* (names without them as they are; dots after the front kept) */
 	wide_name("[RvB] Tex", name, 16);
 	CHECK(shows_as(name, "[RvB] Tex"));
@@ -483,6 +491,8 @@ static void test_unverified_names(void)
 	CHECK(identity_impersonates("@Milenko", "milenko", 11));
 	CHECK(identity_impersonates(" @Milenko", "milenko", 11));
 	CHECK(identity_impersonates(".@Milenko", "milenko", 11));
+	/* (a Delta typed in front: the mark is no letter of the key) */
+	CHECK(identity_impersonates("\xCE\x94Milenko", "milenko", 11));
 	CHECK(identity_impersonates("\xC2\xB7@Milenko", "milenko", 11));
 	CHECK(identity_impersonates("\xEF\xBC\xA0Milenko", "milenko", 11));
 	CHECK(identity_impersonates("S@rge", "sarge", 11));
@@ -680,7 +690,8 @@ static void test_text(void)
 	length = identity_enroll_body(text, sizeof(text), VECTOR_PLAYER_KEY, device_public, VECTOR_NONCE, signature,
 		"pc_windows", "0.9.1 \"x\"");
 	CHECK(length > 0 && strstr(text, "\"key\": \"" VECTOR_PLAYER_KEY "\"") &&
-		strstr(text, "\"device_key\": \"" VECTOR_DEVICE_PUBLIC "\"") && strstr(text, "\"build\": \"0.9.1 x\""));
+		strstr(text, "\"device_key\": \"" VECTOR_DEVICE_PUBLIC "\"") && strstr(text, "\"build\": \"0.9.1 x\"") &&
+		strstr(text, "\"client_id\": \"chupathingy\""));
 	CHECK(identity_json_member(text, "platform", out, sizeof(out)) == 10 && !strcmp(out, "pc_windows"));
 
 	/* the answers */

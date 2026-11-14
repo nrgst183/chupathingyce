@@ -142,17 +142,20 @@ void mcc_workshop_refusal_text(enum mcc_workshop_refusal kind, struct mcc_worksh
     else mcc_workshop_title_from_level(level,title);
     switch (kind) {
     case MCC_WORKSHOP_MISSING:
-        snprintf(text,size,"No identified local copy of %s (Steam Workshop item %s). "
-            "Download the host's version and copy its map and required resources into mcc_maps.",title,item->id);
+        /* (said when the Workshop download is not offered: network.workshop_downloads
+         * "never", or a build without the Workshop) */
+        snprintf(text,size,"You don't have %s (Steam Workshop item %s). "
+            "Get it in the Delta Guide's Workshop, or turn Workshop downloads on when you join.",title,item->id);
         break;
     case MCC_WORKSHOP_DIFFERS:
-        snprintf(text,size,"Your local package for %s (Steam Workshop item %s) does not match the host. "
-            "Check versions and copy the matching map and required resources into mcc_maps.",
+        snprintf(text,size,"Your copy of %s (Steam Workshop item %s) doesn't match the host's. "
+            "Update it in the Delta Guide's Workshop, or get the host's version.",
             title,item->id);
         break;
     default:
-        snprintf(text,size,"No local MCC map %s.map and required resources match the host's SHA-256 fingerprint. "
-            "Install the same complete package; its folder name may differ.",level);
+        /* (the host's package carries no Workshop item: nothing to fetch) */
+        snprintf(text,size,"The host's MCC map %s isn't on the Steam Workshop, so it can't be fetched for you. "
+            "You need the same package in mcc_maps (its folder name may differ).",level);
         break;
     }
 }
@@ -184,5 +187,42 @@ int mcc_workshop_listing(char const name[128], struct mcc_workshop_item *item)
     memcpy(level,name,sizeof(level)-1);
     level[sizeof(level)-1]=0;
     return mcc_workshop_local_item(level,item) && item->id[0];
+}
+
+/* (mcc_workshop_map_title) a and b the same, ignoring case */
+static int mcc_workshop_same_text(char const *a, char const *b)
+{
+    for (;*a && *b;a++,b++) {
+        char x=*a>='A' && *a<='Z' ? (char)(*a+32) : *a, y=*b>='A' && *b<='Z' ? (char)(*b+32) : *b;
+        if (x!=y) return 0;
+    }
+    return !*a && !*b;
+}
+
+int mcc_workshop_map_title(char const *level, wchar_t const *catalog_name, char const *item_title, char *title,
+    unsigned size)
+{
+    char plain[64];
+    char const *leaf=level ? strrchr(level,'\\') : NULL;
+    char *mark;
+    unsigned used=0,n;
+    if (!size) return 0;
+    title[0]=0;
+    /* (the catalog's name for the level, printable ASCII, when it is more
+     * than its file's own made readable: "Blood Gulch" for 20.map, never "20") */
+    if (leaf && catalog_name) {
+        for (n=0;leaf[n+1] && n<sizeof(plain)-1;n++) plain[n]=leaf[n+1]=='_' ? ' ' : leaf[n+1];
+        plain[n]=0;
+        for (n=0;catalog_name[n] && used+1<size;n++)
+            title[used++]=catalog_name[n]>=32 && catalog_name[n]<127 ? (char)catalog_name[n] : '?';
+        title[used]=0;
+        /* (less this machine's own package mark, " [<folder>]") */
+        mark=strrchr(title,'[');
+        if (used && title[used-1]==']' && mark && mark>title && mark[-1]==' ') mark[-1]=0;
+        if (mcc_workshop_same_text(title,plain)) title[0]=0;
+    }
+    /* (else the item's own title, as the host knows it) */
+    if (!title[0] && item_title && item_title[0]) snprintf(title,size,"%s",item_title);
+    return title[0]!=0;
 }
 #endif /* HALO_MCC */

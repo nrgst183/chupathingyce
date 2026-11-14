@@ -13,9 +13,10 @@ version (`GPL-3.0-or-later`). It comes with no warranty. The full text is in
 - **What Chupathingy builds on.** The Halo CE decompilation
   ([punpckhdq/halo](https://github.com/punpckhdq/halo) and
   [bnunu/halo-1](https://github.com/bnunu/halo-1)) and the port Chupathingy
-  began from are released under CC0 1.0, which lets anyone build on them
-  under any terms. Their repositories stay CC0; Chupathingy's code, including
-  its changes to theirs, is GPL from 0.8.0.
+  began from were released under CC0 1.0 when Chupathingy took them, which
+  lets anyone build on them under any terms. Their later work is under their
+  own licenses. Chupathingy's code, including its changes to theirs, is GPL
+  from 0.8.0.
 - **Delta.** Delta's code is GPL from 0.8.0 like the rest; earlier
   versions of it stay CC0 for anyone already using them. The protocol
   itself ([docs/delta.md](delta.md)) is a description anyone may
@@ -29,9 +30,11 @@ version (`GPL-3.0-or-later`). It comes with no warranty. The full text is in
   Workshop screens that use them stay GPL like the rest of the game.
 - **Third-party code, fonts and art** keep their own licenses, which are
   beside them (`port/third_party`, `port/assets/fonts`,
-  `port/linux/ui/fonts`, `port/assets/prompts`, `port/assets/hud`,
-  `port/assets/hrtf`), and the release downloads
-  carry their notices.
+  `port/linux/ui/fonts`, `port/assets/prompts`, `port/assets/hud`).
+  Every download carries two license files:
+  `LICENSE.txt` (Chupathingy's) and `THIRD-PARTY-NOTICES.txt`, the notices
+  and full license texts of everything else built in, made at build time
+  from `port/notices/components.json` (`tools/third_party_notices.py`).
 - **Other people's work.** Code and art used with their authors'
   permission, and what we use under their own licenses, are listed in
   [permissions.md](permissions.md).

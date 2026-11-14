@@ -697,8 +697,13 @@ symbols in this file:
 #include "coop_enemies.h" /* port: port/linux/game/coop_enemies.c */
 #if defined(HALO_MAP_LIST) && !defined(HALO_XBOX_CONSOLE)
 #include "stubbs_mode.h" /* port: port/linux/game/stubbs_mode.c */
+#include "stubbs_engine.h" /* port: port/linux/game/stubbs_engine.c */
+#include "stubbs_horde.h" /* port: port/linux/game/stubbs_horde.c */
+#include "stubbs_functions.h" /* port: port/linux/game/stubbs_functions.c */
 #endif
 #include "mcc_grenades.h"
+#include "mcc_skulls.h" /* port: MCC's skulls on MCC maps */
+#include "mcc_campaign.h" /* port: an MCC map's unlimited ammunition */
 
 /* port: the control and animation impulses the host's actors give their
 units go to the clients' copies (port/linux/game/network_actors.c) */
@@ -2811,7 +2816,12 @@ void unit_died(
 		object_set_garbage(unit_index, TRUE);
 		if (unit->unit.player_index != NONE)
 		{
-			player_died(unit->unit.player_index);
+#if defined(HALO_MAP_LIST) && !defined(HALO_XBOX_CONSOLE)
+			/* port: Stubbs's hand, or a human it took, sends its player back
+			to his body (Stubbs mode only: port/linux/game/stubbs_engine.c) */
+			if (!(stubbs_mode_active() && stubbs_engine_player_unit_died(unit_index, unit->unit.player_index)))
+#endif
+				player_died(unit->unit.player_index);
 			unit->unit.player_index = NONE;
 		}
 
@@ -2861,6 +2871,8 @@ void unit_died(
 	}
 
 	unit->unit.speech.queued.priority = 0;
+	/* port: MCC's Famine skull halves what an AI's weapons drop with (mcc_skulls.c) */
+	mcc_skulls_unit_dropping_weapons(unit_index);
 	unit_drop_inventory_weapons(unit_index);
 	fresh_unit = unit_get(unit_index);
 	if (fresh_unit->unit.equipment_object_index != NONE)
@@ -5772,7 +5784,8 @@ boolean unit_update(
 				}
 			}
 
-			if (cheat.infinite_ammo && unit->unit.player_index!=NONE)
+			/* port: or an MCC map's unlimited ammunition (Bandanna: mcc_skulls.c) */
+			if ((cheat.infinite_ammo || mcc_campaign_unlimited_ammo()) && unit->unit.player_index!=NONE)
 			{
 				short grenade_index;
 				if (mcc_grenades_active())
@@ -6649,6 +6662,11 @@ static void unit_ping_animation(
 	{
 		return;
 	}
+	/* port: MCC's Ghost skull, "AI no longer flinch from attacks" (mcc_skulls.c) */
+	if (!killed && unit->unit.player_index==NONE && mcc_skull_active(MCC_SKULL_GHOST))
+	{
+		return;
+	}
 
 	{
 		unit_definition = unit_definition_get(unit->definition_index);
@@ -7008,6 +7026,12 @@ void unit_damage_aftermath(
 		damage_flags,
 		_object_being_damaged_body_depleted_bit);
 	feigned = FALSE;
+#if defined(HALO_MAP_LIST) && !defined(HALO_XBOX_CONSOLE)
+	/* port: a unit Stubbs's scripts said cannot die stays at no health
+	(Stubbs mode only: port/linux/game/stubbs_functions.c) */
+	if (lethal && stubbs_mode_active() && stubbs_functions_object_cannot(unit_index, _stubbs_object_cannot_die_bit))
+		lethal = FALSE;
+#endif
 
 	(void)body_damage_multiplier;
 
@@ -7325,6 +7349,10 @@ void unit_damage_aftermath(
 
 	if (lethal || feigned)
 	{
+#if defined(HALO_MAP_LIST) && !defined(HALO_XBOX_CONSOLE)
+		if (lethal)
+			stubbs_horde_unit_damaged_to_death(unit_index, damage_data); /* port: Stubbs mode only */
+#endif
 		unit_died(unit_index, feigned);
 	}
 
@@ -7975,7 +8003,7 @@ static void unit_throw_grenade_move_to_hand(
 
 	if ((
 		unit->unit.player_index==NONE ||
-		!cheat.infinite_ammo && !game_engine_infinite_grenades(unit->unit.player_index)) &&
+		!cheat.infinite_ammo && !mcc_campaign_unlimited_ammo() && !game_engine_infinite_grenades(unit->unit.player_index)) &&
 		(unit->unit.actor_index==NONE ||
 		!actor_has_unlimited_grenades(unit->unit.actor_index)))
 	{

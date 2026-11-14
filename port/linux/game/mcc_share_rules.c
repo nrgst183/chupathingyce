@@ -105,4 +105,87 @@ int mcc_share_file_allowed(char const *leaf, size_t length)
     name[length]=0;
     return mcc_share_same(name,"bitmaps.map") || mcc_share_same(name,"sounds.map");
 }
+
+int mcc_share_decline(unsigned char const *request, size_t size, unsigned char *reply)
+{
+    size_t i;
+    if (!request || !reply || size!=MCC_SHARE_REQUEST_SIZE) return 0;
+    if (request[0]<MCC_SHARE_OP_MANIFEST || request[0]>MCC_SHARE_OP_HAVE) return 0;
+    if (!memchr(request+16,0,MCC_SHARE_LEVEL_SIZE)) return 0;
+    memset(reply,0,MCC_SHARE_RESPONSE_SIZE);
+    reply[0]=request[0];                 /* op, echoed */
+    reply[1]=MCC_SHARE_RESULT_OFF;       /* result: sharing off */
+    reply[2]=request[1];                 /* file number */
+    reply[3]=0;                          /* count: no entries */
+    for (i=4;i<12;i++) reply[i]=request[i]; /* session and offset, echoed */
+    /* length 0 at 12: nothing follows */
+    memcpy(reply+16,request+16,MCC_SHARE_LEVEL_SIZE); /* the level, echoed */
+    /* credit at 80: none */
+    return 1;
+}
+
+int mcc_share_answer_result(unsigned char const *reply, size_t size)
+{
+    if (!reply || size<MCC_SHARE_RESPONSE_SIZE) return -1;
+    return reply[1];
+}
+
+static uint32_t admission_word(unsigned char const *at)
+{
+    return (uint32_t)at[0] | ((uint32_t)at[1] << 8) | ((uint32_t)at[2] << 16) | ((uint32_t)at[3] << 24);
+}
+
+int mcc_admission_take(struct mcc_admission *hold, unsigned long address, unsigned char const *body, size_t size,
+    unsigned char const *host, unsigned long now)
+{
+    uint32_t op, generation;
+    if (!hold || !body || size!=MCC_ADMISSION_SIZE) return -1;
+    op=admission_word(body);
+    generation=admission_word(body+4);
+    /* (a name that ends within its first 64 bytes, of an MCC map's) */
+    if (!generation || !memchr(body+8,0,64) || strncmp((char const *)body+8,"mcc_maps\\",9)) return -1;
+    /* (another machine on the slot, or the host on another map: anew) */
+    if (hold->address!=address ||
+        (hold->state!=MCC_ADMISSION_NONE && (!host || memcmp(hold->identity,host,MCC_ADMISSION_COMPARED)))) {
+        memset(hold,0,sizeof(*hold));
+        hold->address=address;
+    }
+    /* (only the host's own identity) */
+    if (!host || memcmp(body+8,host,MCC_ADMISSION_COMPARED)) return MCC_ADMISSION_REFUSED;
+    /* (a pending hold's end, by its age or its quiet: closed) */
+    if (hold->state==MCC_ADMISSION_PENDING &&
+        (now-hold->started>=MCC_ADMISSION_LIMIT || now-hold->heard>=MCC_ADMISSION_QUIET))
+        hold->state=MCC_ADMISSION_CLOSED;
+    if (op==MCC_ADMISSION_BEGIN && hold->state==MCC_ADMISSION_NONE) {
+        hold->state=MCC_ADMISSION_PENDING;
+        hold->generation=generation;
+        hold->started=now;
+        memcpy(hold->identity,host,MCC_ADMISSION_COMPARED);
+    }
+    if (hold->state!=MCC_ADMISSION_PENDING || hold->generation!=generation) return MCC_ADMISSION_REFUSED;
+    hold->heard=now;
+    switch (op) {
+    case MCC_ADMISSION_BEGIN:
+    case MCC_ADMISSION_PING:
+        return MCC_ADMISSION_ACK;
+    case MCC_ADMISSION_READY:
+        hold->state=MCC_ADMISSION_HELD_READY;
+        hold->started=now;
+        return 0;
+    case MCC_ADMISSION_CANCEL:
+        hold->state=MCC_ADMISSION_CLOSED;
+        return 0;
+    default:
+        return MCC_ADMISSION_REFUSED;
+    }
+}
+
+int mcc_admission_holding(struct mcc_admission const *hold, unsigned long address, unsigned long now)
+{
+    if (!hold || hold->address!=address) return 0;
+    if (hold->state==MCC_ADMISSION_PENDING)
+        return now-hold->started<MCC_ADMISSION_LIMIT && now-hold->heard<MCC_ADMISSION_QUIET;
+    if (hold->state==MCC_ADMISSION_HELD_READY) return now-hold->started<MCC_ADMISSION_GRACE;
+    return 0;
+}
 #endif /* HALO_MCC */

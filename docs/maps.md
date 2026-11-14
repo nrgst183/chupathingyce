@@ -16,8 +16,15 @@ The folders it makes, and what goes in each, are below.
 ## The setup screen
 
 On Windows, Mac and Linux the first-start screen is part of a setup screen that runs before the game.
-It opens by itself when your Xbox maps are missing. To open it any other time, hold **Shift** (or **Back**/**View**
-on a controller) while the game starts, or start the game with `--setup`.
+It opens by itself when your Xbox maps are missing. To open it any other time:
+
+- hold **Shift** (or **Back**/**View** on a controller) while the game starts,
+- pick **SETUP** in the game's settings, or
+- start the game with `--setup`.
+
+In Steam Deck Game Mode it only opens when you ask for it.
+
+**Settings** has the settings you may want before the game starts, such as the renderer and the update channel.
 
 **Maps** lists every kind of map you have, with its state: Ready, how many maps, or what's missing. Pick one to open
 its folder, check its maps, or add maps from a disc image or installer. You can also drop a disc image on the window.
@@ -117,7 +124,7 @@ which the host advertises with its game). It never replaces a file that is
 there. Then the game joins, and the map's own checks run as for any map. A
 downloaded map is listed in `maps_ce/downloaded_maps.txt`: its scripts are
 held to a downloaded map's tighter rules. `network.map_downloads` in
-`config.toml` (or Network Settings in the PC menus) says `"ask"` (the
+`config.toml` (or SETTINGS > Network Setup) says `"ask"` (the
 default), `"always"` or `"never"`. `"never"` means no map is ever
 downloaded, but the game still fetches Chupathingy maps' small signed index
 for its blacklist (below) and checks your maps against it. Desktop and Android builds download maps;

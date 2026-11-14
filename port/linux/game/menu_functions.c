@@ -1087,8 +1087,16 @@ static short map_kind_rows_update(struct widget_instance *list, short *first, sh
 		child->visible = index - 1 < shown;
 		if (index - 1 < shown)
 		{
+			/* (a name wider than its row, an MCC level's or a Custom Edition
+			file's: cut with "..." where it stops fitting, as the map cards'
+			are, ui_widget_port_text_box_fit) */
+			extern boolean ui_widget_port_text_box_fit(struct widget_instance *widget, wchar_t *text, long size);
+			struct widget_instance *row_text = named(child, "list_item_text", 0);
+
 			entry_text((short)(*first + index - 1), text);
-			text_set(named(child, "list_item_text", 0), text);
+			if (row_text)
+				ui_widget_port_text_box_fit(row_text, text, ROW_TEXT_LENGTH);
+			text_set(row_text, text);
 		}
 		visible_set(named(child, "list_item_arrows", 0), child == list->focused_child);
 		visible_set(named(child, "scroll_up_button", 0), FALSE);
@@ -3531,6 +3539,59 @@ static void controls_page_string(short index, wchar_t *text, size_t count)
 	text[count - 1] = 0;
 }
 
+#ifdef HALO_CONSOLE_NO_CONTROLS
+/* port: the consoles keep the profile's button layouts (the game's own
+button_preset, as the Xbox's Controller Settings offered them) and change
+no button: BUTTON LAYOUT is the one row of the layout's they have, a
+spinner of the presets without Custom, layout_console_spinner
+(tools/port_settings.py). What it
+shows is read from the local player's profile when the list is made, and
+what is chosen on it is put in force, and saved, as the row changes */
+static short console_layout_player(struct widget_instance *widget)
+{
+	return widget->local_player_index >= 0 && widget->local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS ?
+		widget->local_player_index : 0;
+}
+
+static void console_layout_init(struct widget_instance *list)
+{
+	struct widget_instance *spinner = named(screen_of(list), "layout_console_spinner", 0);
+	short button_preset, joystick_preset;
+
+	if (!spinner)
+		return;
+	player_ui_get_local_player_layouts(console_layout_player(list), &button_preset, &joystick_preset);
+	if (button_preset < spinner->parameters.list.number_of_items)
+		spinner->parameters.list.selected_index = button_preset;
+	else
+		spinner->parameters.list.selected_index = _button_preset_standard;
+}
+
+static void console_layout_update(struct widget_instance *list)
+{
+	struct widget_instance *spinner = named(screen_of(list), "layout_console_spinner", 0);
+	short button_preset, joystick_preset, chosen;
+
+	if (!spinner)
+		return;
+	chosen = spinner->parameters.list.selected_index;
+	player_ui_get_local_player_layouts(console_layout_player(list), &button_preset, &joystick_preset);
+	if (chosen >= 0 && chosen < _button_preset_custom && chosen != button_preset)
+		player_ui_set_local_player_layouts(console_layout_player(list), chosen, joystick_preset);
+}
+
+static void console_layout_defaults(struct widget_instance *list)
+{
+	struct widget_instance *spinner = named(screen_of(list), "layout_console_spinner", 0);
+	short button_preset, joystick_preset;
+
+	player_ui_get_local_player_layouts(console_layout_player(list), &button_preset, &joystick_preset);
+	player_ui_set_local_player_layouts(console_layout_player(list), _button_preset_standard, joystick_preset);
+	if (spinner)
+		spinner->parameters.list.selected_index = _button_preset_standard;
+}
+#endif
+
 /* "port controls init" (the list's created) */
 static boolean controls_page_init(struct widget_instance *list)
 {
@@ -3539,6 +3600,8 @@ static boolean controls_page_init(struct widget_instance *list)
 	controls_load(FALSE);
 #ifndef HALO_CONSOLE_NO_CONTROLS
 	controller_screen_init(list);
+#else
+	console_layout_init(list);
 #endif
 #ifndef HALO_CONSOLE_NO_CONTROLS
 	if (device)
@@ -3581,6 +3644,9 @@ static void controls_page_update(struct widget_instance *list)
 	its buttons' rows and its layout's) */
 	if (!strcmp(view, "gamepad") || !strcmp(view, "buttons"))
 		controller_update(list);
+#else
+	if (!strcmp(view, "gamepad"))
+		console_layout_update(list);
 #endif
 	focused = list->focused_child;
 	if (!help || !focused)
@@ -3613,6 +3679,12 @@ static void controls_page_update(struct widget_instance *list)
 	}
 	else if (focused == named(list, "op_layout", 0) || button_row_of(focused) != NONE)
 		return;
+#else
+	else if (focused == named(list, "op_layout", 0))
+	{
+		line = spinner_shown(list, "layout_console_spinner") == _button_preset_bumper_jumper ?
+			"Jump with the left bumper." : "Choose the controller's button layout.";
+	}
 #endif
 	if (line)
 	{
@@ -3656,6 +3728,8 @@ static boolean controls_page_defaults(struct widget_instance *widget)
 #line 2940
 #ifndef HALO_CONSOLE_NO_CONTROLS
 	controller_screen_defaults(list);
+#else
+	console_layout_defaults(list);
 #endif
 	return TRUE;
 }
@@ -10800,15 +10874,23 @@ void pc_menu_workshop_play_update(void)
 	if (workshop_play.pinned && workshop_play.state != _workshop_play_waiting)
 	{
 		long active = ui_widget_port_active_screen_tag();
+		long root = tag_loaded('DeLa', pc_menus_main_menu_name());
 
 		if (workshop_play.screen == NONE && active != NONE && active != workshop_play.from)
 			workshop_play.screen = active;
+		/* (kept through the screens after it, as the difficulty after the
+		level select, and back again; let go at the main menu's own screen
+		or once a game starts) */
 		if (!main_menu_is_active() || (workshop_play.screen == NONE ?
 			system_milliseconds() - workshop_play.pinned_time > WORKSHOP_PLAY_OPEN_WAIT :
-			!ui_widget_port_screen_shown_or_behind(workshop_play.screen)))
+			active != NONE && active == root))
 		{
 			workshop_play_unpin();
 		}
+		/* (a screen after the one opened: the item's levels lead again, and
+		take the focus, when the player comes back to it) */
+		else if (workshop_play.screen != NONE && active != NONE && active != workshop_play.screen)
+			mcc_maps_set_first_item(workshop_play.item);
 	}
 	if (workshop_play.state != _workshop_play_waiting)
 		return;

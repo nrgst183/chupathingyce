@@ -127,6 +127,7 @@ symbols in this file:
 #include "text/text_group.h"
 #include "units/unit_definitions.h"
 #include "units/units.h"
+#include "mcc_skulls.h" /* port: MCC's skulls on MCC maps */
 
 /* ---------- constants */
 
@@ -1507,13 +1508,18 @@ void hud_draw_screen(
 			motion_sensor_tick();
 		}
 
-		if (hud_scripted_globals->show_hud)
+		/* port: MCC's Blind skull, "HUD and weapon do not display onscreen" (mcc_skulls.c) */
+		if (hud_scripted_globals->show_hud && !mcc_skull_active(MCC_SKULL_BLIND))
 		{
 			if (perspective != _director_perspective_neutral &&
 				perspective != _director_perspective_scripted &&
 				player->unit_index != NONE)
 			{
-				hud_render_weapon_interface(player);
+				/* port: Stubbs's weapon HUDs are laid out his own way (the dam's
+				track halted drawing one): his HUD is stubbs_player_hud_draw's
+				(Stubbs mode only: port/linux/game/stubbs_player.c) */
+				if (!stubbs_mode_active())
+					hud_render_weapon_interface(player);
 				hud_show_action_response(player_index);
 				hud_play_unit_sounds(player, hud_scripted_globals->show_hud);
 				hud_render_unit_interface(player);

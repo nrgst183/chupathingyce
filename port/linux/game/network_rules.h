@@ -396,12 +396,13 @@ boundary kind over its stream to a client before its objects; a client
 takes nothing of another epoch than the one it last took from a boundary,
 and stamps its own messages with it. A unit state's further parts: passed
 over by a reader (this build never writes them), where the fact says. */
-/* OpenCE's 42 and 43, built in (DELTA_LEGACY_NEWEST): 42 the join request's
+/* OpenCE's 42 to 44, built in (DELTA_LEGACY_NEWEST): 42 the join request's
 word (236 bytes past 0x70, the word at 234), the header's 4 further bytes
 with the epoch and 96 its boundary, the scripted pose (bit 6, 30 bytes,
 last), the settings record 13,200 bytes, the MCC-only kinds dropped; 43 also
 the deck (bit 7, 28 bytes after the up), 107 dropped and riders thrown from
-a vehicle on its side (0.2) */
+a vehicle on its side (0.2); 44 (their build-355) the number alone, 43's
+layout and rules */
 #define NETWORK_RULES_EPOCH_VERSION 42
 #define NETWORK_RULES_DECK_VERSION 43
 #define NETWORK_RULES_EPOCH_SETTINGS_SIZE 13200
@@ -516,6 +517,16 @@ int network_rules_header_strip(uint8_t const *message, int size, uint8_t *out, i
 	int keep_kind, uint32_t *epoch);
 /* whether an epoch is newer (a signed 32-bit difference past 0) than current */
 int network_rules_epoch_newer(uint32_t epoch, uint32_t current);
+/* map sharing's messages (83 to 86, port/linux/game/map_share.h): a body
+of a size its kind can have (a request 72 bytes, an offer 68 and 40 a file
+up to 4, a list of sources 4 and 32 an entry, progress 12) */
+int network_rules_share_body_valid(int kind, int body_size);
+/* ... and the header one of them came with, where the game's layout adds
+extra bytes: 8 + extra (OpenCE's, and ours from chupa-44a's fix on), or the
+old 8 (chupa-43a's builds, which sent every layout the short form), told
+apart by which leaves a body of its kind's size (the two differ by 4 bytes,
+which no kind's sizes do); 0 for neither */
+int network_rules_share_header_size(uint8_t const *message, int size, int extra);
 /* the next epoch a host takes: one more, past 0 */
 uint32_t network_rules_epoch_next(uint32_t current);
 /* whether a boundary message (stripped: size and count its header's) is one

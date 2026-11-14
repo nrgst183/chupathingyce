@@ -16,6 +16,7 @@ SRC = ROOT / "port/linux/src"
 DRIVER = r'''
 #include "steam_workshop.h"
 #include "mcc_manifest.h"
+#include "mcc_local_package.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -144,6 +145,14 @@ int main(int argc, char **argv)
 		platform_translate_path(argv[2], path, sizeof(path));
 		printf("path=%s\n", path);
 	}
+	else if (argc == 3 && !strcmp(argv[1], "metadata"))
+	{
+		unsigned char digest[32];
+		int result = mcc_manifest_metadata_digest(argv[2], digest);
+		printf("result=%d\ndigest=", result);
+		for (index = 0; index < 32; index++) printf("%02x", digest[index]);
+		printf("\n");
+	}
 	else if (argc == 3 && (!strcmp(argv[1], "manifest") || !strcmp(argv[1], "manifest-level")))
 	{
 		static struct mcc_manifest campaign;
@@ -211,6 +220,8 @@ enum { _port_folder_logs };
 static char const *platform_save_root(void) {return platform_data_root();}
 static char const *platform_folder(int folder) {(void)folder; return platform_data_root();}
 static char const *log_file_name(char const *path) {(void)path; return NULL;}
+static char const *save_root_file_name(char const *path) {(void)path; return NULL;}
+static char save_drive_folder[32];
 '''
     for name in ("trim_separators", "mcc_folder_prefix", "translate_workshop", "platform_translate_path"):
         translation += function(native, name) + "\n"
@@ -234,6 +245,8 @@ static char const *log_file_name(char const *path) {(void)path; return NULL;}
     result = subprocess.run([compiler, *flags, "-D_GNU_SOURCE", "-std=gnu11", "-Wall", "-Wextra", "-Werror", "-I", str(SRC), str(work / "driver.c"),
                              str(SRC / "steam_workshop.c"), str(files),
                              str(SRC / "mcc_manifest.c"),
+                             str(SRC / "mcc_local_package.c"),
+                             str(ROOT / "port/linux/game/mcc_sha256.c"),
                              *([str(registry)] if windows else []),
                              *(["-ladvapi32"] if windows and not mock_registry else []),
                              "-o", str(exe)], capture_output=True, text=True)
@@ -624,6 +637,44 @@ def make_campaign(folder, names=("z10", "a10")):
         make_map(folder / "maps", name)
 
 
+@pytest.mark.parametrize("package", ["35530909", "My Mod Name"])
+def test_local_workshop_layout_and_manual_precedence(tool, tmp_path, package):
+    local = tmp_path / "mcc_maps" / package
+    make_campaign(local)
+    (local / "halo1/maps").mkdir(parents=True)
+    (local / "halo1/maps/bitmaps.map").write_bytes(b"authored")
+    def translated(leaf):
+        fields, _ = run(tool, "translate", f"d:\\mcc_maps\\{package}\\{leaf}",
+                        data_root=tmp_path, enabled=False)
+        return Path(fields["path"])
+    assert translated("z10.map") == local / "maps/z10.map"
+    assert translated("bitmaps.map") == local / "halo1/maps/bitmaps.map"
+    fields, rows = run(tool, "manifest-level", f"mcc_maps\\{package}\\z10",
+                       data_root=tmp_path, enabled=False)
+    assert fields["title"] == "Example campaign"
+    assert rows["mission"] == ["z10|Mission z10", "a10|Mission a10"]
+    (local / "maps/bitmaps.map").write_bytes(b"beside levels")
+    assert translated("bitmaps.map") == local / "maps/bitmaps.map"
+    for leaf in ("z10.map", "bitmaps.map"):
+        (local / leaf).write_bytes(b"invalid direct override still wins")
+        assert translated(leaf) == local / leaf
+    # Nested directory links must not introduce files from another package.
+    (local / "z10.map").unlink()
+    shutil.rmtree(local / "maps")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "z10.map").write_bytes(b"outside")
+    try:
+        (local / "maps").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        if sys.platform != "win32":
+            raise
+        result = subprocess.run(["cmd", "/c", "mklink", "/J", str(local / "maps"), str(outside)],
+                                capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+    assert translated("z10.map") == local / "z10.map"
+
+
 def test_campaign_discovery_and_explicit_order(tool, tmp_path, monkeypatch):
     folder = tmp_path / "steamapps/workshop/content/976730/111"
     make_campaign(folder)
@@ -700,7 +751,13 @@ def test_workshop_shared_resources_use_mcc_installation(tool, tmp_path, group, s
     assert Path(fields["path"]) == local
     local.unlink()
     fields, _ = run(tool, "translate", request, setting=str(library), data_root=data, enabled=False)
-    assert Path(fields["path"]) == local
+    # (the Workshop's own items always listed, workshop_decisions.h: MCC's
+    # shared files stay found for them with game.workshop_maps off)
+    decisions = (ROOT / "port/linux/src/workshop_decisions.h").read_text()
+    if "#define WORKSHOP_OWN_ITEMS_ALWAYS_LISTED 1" in decisions:
+        assert Path(fields["path"]) == target
+    else:
+        assert Path(fields["path"]) == local
 
 
 @pytest.mark.parametrize("resource_request", ["111/loc.map", "111/sub/bitmaps.map", "111/../bitmaps.map",
@@ -844,3 +901,74 @@ def test_numbered_collection_in_a_second_library(tool, tmp_path):
     assert sorted(name for item, name in found if item == "3477809506") == sorted(str(n) for n in range(1, 76))
     assert sorted(name for item, name in found if item == "3002260635") == ["crashsite", "splashsite"]
     assert sorted(name for item, name in found if item == "2886943774") == ["a10", "z10"]
+
+
+def metadata_digest(files):
+    """OpenCE's metadata digest as docs/mcc.md says it: SHA-256 of "MCC
+    package metadata 1", then each file by its path (lowercase, '/'), sorted
+    bytewise: the path, a zero, its length (4 bytes, little-endian), its bytes"""
+    import hashlib
+    import struct
+    digest = hashlib.sha256(b"MCC package metadata 1")
+    for path in sorted(files, key=lambda name: name.encode()):
+        digest.update(path.encode() + b"\0" + struct.pack("<I", len(files[path])) + files[path])
+    return digest.hexdigest()
+
+
+DESERT_MODINFO = (b'{"Engine": "Halo1", "Title": {"Neutral": "Desert"}, '
+                  b'"GameModContents": {"MultiplayerMaps": ["Multiplayer\\\\Desert.json", "multiplayer/other.json"]}}')
+DESERT_MAP = b'{"ScenarioFile": "desert", "Title": {"Neutral": "Desert Warthog"}}'
+OTHER_MAP = b'{"ScenarioFile": "other", "Title": {"Neutral": "Other"}}'
+# (worked out once by hand from the formula above, so a change to either shows)
+KNOWN_DESERT_DIGEST = "e8c95e8f7b5807bc66971ee947310e55c224d3e32b7b842e2d74a166d195724b"
+
+
+def test_metadata_digest_of_a_package(tool, tmp_path):
+    """the settings record's metadata digest on an MCC map: ModInfo.json and
+    the level's map json (not the other map's, the map file or pictures), by
+    their lowercase '/' paths; a known value, and the same as the formula"""
+    package = tmp_path / "mcc_maps" / "2900197929"
+    (package / "multiplayer").mkdir(parents=True)
+    (package / "ModInfo.json").write_bytes(DESERT_MODINFO)
+    (package / "multiplayer/desert.json").write_bytes(DESERT_MAP)
+    (package / "multiplayer/other.json").write_bytes(OTHER_MAP)
+    (package / "preview.png").write_bytes(b"png")
+    make_map(package / "maps", "desert")
+    fields, _ = run(tool, "metadata", "mcc_maps\\2900197929\\desert", data_root=tmp_path, enabled=False)
+    expected = metadata_digest({"modinfo.json": DESERT_MODINFO, "multiplayer/desert.json": DESERT_MAP})
+    assert fields["result"] == "1" and fields["digest"] == expected
+    assert expected == KNOWN_DESERT_DIGEST
+    # (another level of the package: its own json)
+    fields, _ = run(tool, "metadata", "mcc_maps\\2900197929\\other", data_root=tmp_path, enabled=False)
+    assert fields["digest"] == metadata_digest({"modinfo.json": DESERT_MODINFO, "multiplayer/other.json": OTHER_MAP})
+
+
+def test_metadata_digest_zero_without_a_plan(tool, tmp_path):
+    """all zero: no package metadata, a level no map json names, two that
+    do, and a campaign level (its plan isn't made here); a multiplayer map
+    of a campaign package takes CampaignInfo.json too"""
+    zero = "0" * 64
+    package = tmp_path / "mcc_maps" / "loose"
+    make_map(package / "maps", "desert")
+    assert run(tool, "metadata", "mcc_maps\\loose\\desert", data_root=tmp_path, enabled=False)[0]["digest"] == zero
+    package = tmp_path / "mcc_maps" / "twice"
+    (package / "multiplayer").mkdir(parents=True)
+    (package / "ModInfo.json").write_bytes(b'{"Engine": "Halo1", "GameModContents": {"MultiplayerMaps": '
+                                           b'["multiplayer/a.json", "multiplayer/b.json"]}}')
+    (package / "multiplayer/a.json").write_bytes(DESERT_MAP)
+    (package / "multiplayer/b.json").write_bytes(DESERT_MAP)
+    assert run(tool, "metadata", "mcc_maps\\twice\\desert", data_root=tmp_path, enabled=False)[0]["digest"] == zero
+    assert run(tool, "metadata", "mcc_maps\\twice\\nothere", data_root=tmp_path, enabled=False)[0]["digest"] == zero
+    campaign = tmp_path / "mcc_maps" / "campaign"
+    make_campaign(campaign)
+    modinfo = json.loads((campaign / "ModInfo.json").read_text())
+    modinfo["GameModContents"]["MultiplayerMaps"] = ["multiplayer/desert.json"]
+    (campaign / "ModInfo.json").write_text(json.dumps(modinfo))
+    (campaign / "multiplayer").mkdir()
+    (campaign / "multiplayer/desert.json").write_bytes(DESERT_MAP)
+    assert run(tool, "metadata", "mcc_maps\\campaign\\a10", data_root=tmp_path, enabled=False)[0]["digest"] == zero
+    fields, _ = run(tool, "metadata", "mcc_maps\\campaign\\desert", data_root=tmp_path, enabled=False)
+    assert fields["digest"] == metadata_digest({
+        "modinfo.json": (campaign / "ModInfo.json").read_bytes(),
+        "campaigninfo.json": (campaign / "CampaignInfo.json").read_bytes(),
+        "multiplayer/desert.json": DESERT_MAP})

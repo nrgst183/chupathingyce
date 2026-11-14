@@ -502,6 +502,7 @@ struct game_globals_vehicle;
 struct game_input_preferences;
 struct game_input_state;
 struct game_looping_sound_datum;
+struct game_mode_builtin;
 struct game_options;
 struct game_runtime_globals_prefix;
 struct game_sound_globals;

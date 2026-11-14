@@ -695,6 +695,15 @@ void scenario_tags_unload(
 	}
 	sound_cache_close();
 	texture_cache_close();
+#ifdef HALO_MODS
+	/* port: the mods' tags go, after the sound cache that held their
+	sounds (port/linux/game/mods.c) */
+	{
+		extern void mods_tags_unloaded(void);
+
+		mods_tags_unloaded();
+	}
+#endif
 	/* MCC's appended pause table unwinds before the native menu table. */
 	{
 		mcc_pause_runtime_unload();
@@ -1794,21 +1803,36 @@ boolean cache_files_give_time_to_precache(
 			cache_files_precache_map_end();
 		}
 
+		/* port: a map whose copy failed, or that can't be copied at all, is
+		not tried again each frame, nor the damaged disc error's for good: the
+		game that needs it refuses it as it starts (network_game_create_game_objects,
+		game_precache_new_map_refusable), and goes back to the menus */
+		static char refused_map_name[256];
+
 		if (cache_files_precache_in_progress())
 		{
 			real progress;
 			short status = cache_files_precache_map_status(&progress);
 
 			if (status == 2)
-				display_error_damaged_media();
+			{
+				error(_error_silent, "background copy of map '%s' failed: it is refused when its game starts", map_name);
+				cache_files_precache_map_abandon();
+				strncpy(refused_map_name, map_name, sizeof(refused_map_name) - 1);
+				refused_map_name[sizeof(refused_map_name) - 1] = 0;
+			}
 			else if (status == 1)
 				cache_files_precache_map_end();
 		}
-		else
+		else if (_stricmp(refused_map_name, map_name) != 0)
 		{
 			cache_files_precache_set_priority(0);
 			if (!cache_files_precache_map_begin(map_name, FALSE))
-				cache_files_display_map_error(map_name);
+			{
+				error(_error_silent, "map '%s' can't be copied: it is refused when its game starts", map_name);
+				strncpy(refused_map_name, map_name, sizeof(refused_map_name) - 1);
+				refused_map_name[sizeof(refused_map_name) - 1] = 0;
+			}
 		}
 	}
 
@@ -2087,6 +2111,14 @@ long scenario_tags_load(
 
 				menu_tags_loaded(cache_file_globals.header.name);
 			}
+#ifdef HALO_MODS
+			/* port: and the mods' sounds, last (port/linux/game/mods.c) */
+			{
+				extern void mods_tags_loaded(char const *map_name);
+
+				mods_tags_loaded(stripped_scenario_name);
+			}
+#endif
 			return ce_header->scenario_tag_index;
 		}
 #endif
@@ -2226,6 +2258,15 @@ long scenario_tags_load(
 				extern void ui_widget_online_games_tags_loaded(void);
 
 				ui_widget_online_games_tags_loaded();
+			}
+#endif
+#ifdef HALO_MODS
+			/* port: the mods' sounds played over the map's, last, over the
+			menus' tags too (the mods folder: port/linux/game/mods.c) */
+			{
+				extern void mods_tags_loaded(char const *map_name);
+
+				mods_tags_loaded(stripped_scenario_name);
 			}
 #endif
 			result = cache_file_globals.tag_header->scenario_tag_index;

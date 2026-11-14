@@ -801,6 +801,9 @@
     <ClCompile Include="$(HaloRoot)source\game\game_globals.c">
       <Filter>source\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)source\game\game_modes.c">
+      <Filter>source\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)source\game\game_statistics.c">
       <Filter>source\game</Filter>
     </ClCompile>
@@ -1725,6 +1728,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\conduct_rules.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\console_shell.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\controls_screen.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1782,6 +1788,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\host_rules.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\hud_buttons.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\hud_hires_tags.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1804,6 +1813,9 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\loading_screen.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lobby_screen.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\map_families.c">
@@ -1998,7 +2010,13 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\menu_tags.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mod_sounds.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\moderation_screen.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\mods.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\move_log.c">
@@ -2038,6 +2056,9 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\object_bounds_cache.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\opence_welcome.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\pal_tags.c">
@@ -2122,6 +2143,9 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\stubbs_possession.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\stubbs_regions.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\stubbs_vegetation.c">
@@ -2331,6 +2355,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\link_register.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\lobby_layout.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\log_address.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -2463,6 +2490,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\port_folders.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\port_mods.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\posix_browser.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -2554,6 +2584,9 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\voice_jitter.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\vrr.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\workshop_browser.c">

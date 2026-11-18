@@ -5910,6 +5910,10 @@ boolean unit_update(
 			real angle = angle_between_vectors3d(&unit->unit.aiming_vector, &last_aiming_vector);
 			real change = angle / (unit_definition->unit.aiming_velocity_maximum/TICKS_PER_SECOND);
 				
+			/* port: a unit with no aiming speed (a Halo 2 unit's, as made:
+			0/0) or a NaN aim changes nothing - the byte's cast was undefined */
+			if (!(change >= 0.f))
+				change = 0.f;
 			unit->unit.aiming_change = (byte)(PIN(change, 0.f, 1.f) * 255.f);
 		}
 
@@ -10888,6 +10892,20 @@ static boolean unit_animation_set_state(
 				unit_seat->label,
 				seat_or_weapon_class_name,
 				weapon_animation_name);
+		}
+
+		/* port: Stubbs's graphs leave out states a seat never needs (a
+		fleeing civilian's seat has no turns), and a state with no animation
+		drew the bind pose: in Stubbs mode such a state plays the weapon
+		class's idle instead (Halo's graphs have them all) */
+		if (animation_index == NONE &&
+			weapon_class_animation_index != NONE &&
+			stubbs_mode_active() &&
+			unit_animation_state_can_be_entered_without_animation(new_state) &&
+			_unit_weapon_class_animation_idle < weapon_class->animations.count)
+		{
+			animation_index = animation_graph_animation_index_get(
+				&weapon_class->animations)[_unit_weapon_class_animation_idle].animation_index;
 		}
 
 		if (animation_index == NONE)

@@ -35,7 +35,10 @@ same datum index (identifier and all), so that any message can name one:
   their ammunition, the weapon in hand and the grenades; a client moves its
   copies of those weapons in and out of its copies of the units to match (it
   decides no pickups, swaps or drops itself). A change of weapons or
-  grenades goes to every client at once, one of ammunition alone to the
+  grenades goes to every client at once (that tick, and once more a moment
+  later), and a client keeps one naming a unit or weapon it has not been told
+  of yet until they come (a spawn's: the objects over the host's stream, the
+  inventory in a datagram, read first), one of ammunition alone to the
   unit's own client at once and to the others as often as the unit's place
   is sent them. A client's own player spends its own ammunition and grenades:
   it takes the host's count only once the host has had a round trip to see
@@ -136,6 +139,8 @@ enum
 	/* a unit's inventory is sent this often even unchanged (one lost is
 	made good) */
 	INVENTORY_REFRESH_TICKS = TICKS_PER_SECOND,
+	/* ... and a change of its weapons or grenades once more, this long after */
+	INVENTORY_REPEAT_TICKS = 2 * INVENTORY_INTERVAL_TICKS,
 	/* ... and a unit's that has come to carry nothing, for this long after */
 	EMPTY_INVENTORY_TICKS = 3 * INVENTORY_REFRESH_TICKS,
 	/* the host's objects at rest sent each tick, round them all */
@@ -214,6 +219,13 @@ enum
 	/* the most grenades of a kind a unit carries, as the host says (a dead
 	unit drops each) */
 	MAXIMUM_INVENTORY_GRENADES = 16,
+	/* a client: the host's inventories of units or weapons it has not been
+	told of yet, kept to apply once they come (the inventory goes in a
+	datagram, the objects over the host's stream: the two come in the same
+	frame at a spawn, the datagram read first), and how long (the host's
+	refresh comes then anyway) */
+	MAXIMUM_PENDING_INVENTORIES = 64,
+	PENDING_INVENTORY_TICKS = INVENTORY_REFRESH_TICKS,
 };
 
 /* the distances from a client's nearest player (world units) past which
@@ -244,8 +256,10 @@ at rest to wake, world units */
 /* (the host takes further than a client puts right: between the two they
 would disagree for good) */
 #define HOST_VEHICLE_ACCEPT_TOLERANCE 5.0f
-/* how far from the origin an object is (world units) */
-#define OBJECT_WORLD_BOUND 32768.0f
+/* how far from the origin an object is (world units): the world's, as the
+camera that follows it has it (observer.c's valid_world_real: a host's
+object or rider further out halted the client's camera) */
+#define OBJECT_WORLD_BOUND 5000.0f
 /* how fast a client's own player's vehicle moves (world units, radians a
 tick) */
 #define MAXIMUM_PREDICTED_VEHICLE_SPEED 3.0f
@@ -506,6 +520,14 @@ static struct distributed_picked_up_weapon
 	long definition_index;
 	long time;
 } objects_client_picked_up_weapons[MAXIMUM_LOCAL_PLAYERS];
+/* ... the host's inventories that named a unit or a weapon it did not have
+yet (each unit's latest), and when they came */
+static struct distributed_pending_inventory
+{
+	struct distributed_inventory inventory;
+	long time;
+} objects_client_pending_inventories[MAXIMUM_PENDING_INVENTORIES];
+static short objects_client_pending_inventory_count;
 /* ... whether it failed to make one of the host's objects since it last
 asked for them (it says so when it asks again) */
 static boolean objects_client_ask_again;
@@ -727,9 +749,25 @@ static boolean distributed_vector_valid(
 	return distributed_real_valid(vector->i) && distributed_real_valid(vector->j) && distributed_real_valid(vector->k);
 }
 
+/* (a message's velocities: past these no object of an honest host moves -
+a projectile's 1200 wu/s at most, a spin of a few turns a tick; a finite but
+huge one overflowed an item's spin, its rotation NaN: an assertion halted
+the client, run_netns_online_test.sh hostfuzzjoin) */
+#define DISTRIBUTED_VELOCITY_BOUND 10000.0f
+#define DISTRIBUTED_ANGULAR_VELOCITY_BOUND 1000.0f
+
+/* whether every component is finite and no more than bound either way */
+static boolean distributed_vector_bounded(
+	real_vector3d const *vector,
+	real bound)
+{
+	return distributed_vector_valid(vector) && vector->i >= -bound && vector->i <= bound && vector->j >= -bound &&
+		vector->j <= bound && vector->k >= -bound && vector->k <= bound;
+}
+
 /* whether a message's transform can be: the position finite and within the
 world, the axes a rotation (made exactly one in valid_forward, valid_up),
-the velocities finite */
+the velocities finite and bounded */
 static boolean distributed_transform_valid(
 	real_point3d const *position,
 	real_vector3d const *forward,
@@ -740,8 +778,8 @@ static boolean distributed_transform_valid(
 	real_vector3d *valid_up)
 {
 	if (!position || !forward || !up || !distributed_point_valid(position, OBJECT_WORLD_BOUND) ||
-		(velocity && !distributed_vector_valid(velocity)) ||
-		(angular_velocity && !distributed_vector_valid(angular_velocity)))
+		(velocity && !distributed_vector_bounded(velocity, DISTRIBUTED_VELOCITY_BOUND)) ||
+		(angular_velocity && !distributed_vector_bounded(angular_velocity, DISTRIBUTED_ANGULAR_VELOCITY_BOUND)))
 	{
 		return FALSE;
 	}
@@ -1801,9 +1839,11 @@ enum
 while: a change of weapons or grenades to every client at once, one of
 ammunition alone to the unit's own client at once and to the others by how
 near their players are, as the host sends them objects (those further off
-see its shots less) */
+see its shots less). Between those rounds (changes_only), a change of
+weapons alone, at once: a spawned player's weapons with its unit, not up to
+two ticks after. */
 static void distributed_host_send_inventories(
-	void)
+	boolean changes_only)
 {
 	struct distributed_inventory *inventories = host_send_lists.inventories.inventories;
 	byte *kinds = host_send_lists.inventories.kinds;
@@ -1857,11 +1897,19 @@ static void distributed_host_send_inventories(
 		ammunition) */
 		weapons_checksum = distributed_checksum(inventory, (long)offsetof(struct distributed_inventory, rounds_total));
 		if (objects_host_inventories[absolute_index].weapons_checksum != weapons_checksum ||
-			game_time_get() - objects_host_inventories[absolute_index].time >= INVENTORY_REFRESH_TICKS)
+			(!changes_only && game_time_get() - objects_host_inventories[absolute_index].time >= INVENTORY_REFRESH_TICKS))
 		{
 			kind = _host_inventory_to_all;
-			objects_host_inventories[absolute_index].time = game_time_get();
+			/* (a change sent again a moment later, then each refresh: one
+			lost would leave a spawned player's hands empty until the next) */
+			objects_host_inventories[absolute_index].time =
+				objects_host_inventories[absolute_index].weapons_checksum != weapons_checksum ?
+					game_time_get() - INVENTORY_REFRESH_TICKS + INVENTORY_REPEAT_TICKS : game_time_get();
 			objects_host_inventories[absolute_index].ammunition_time = NONE;
+		}
+		else if (changes_only)
+		{
+			continue;
 		}
 		else if (objects_host_inventories[absolute_index].checksum != checksum)
 		{
@@ -3027,8 +3075,7 @@ void network_objects_host_tick(
 	distributed_host_update_objects();
 	distributed_host_find_viewers();
 	distributed_host_send_states();
-	if (game_time_get() % INVENTORY_INTERVAL_TICKS == 0)
-		distributed_host_send_inventories();
+	distributed_host_send_inventories(game_time_get() % INVENTORY_INTERVAL_TICKS != 0);
 	distributed_host_send_damage_animations();
 	mcc_network_host_tick();
 }
@@ -3269,8 +3316,12 @@ as it is) */
 		}
 	}
 	object_set_garbage(object_index, FALSE);
-	/* (in a unit's inventory: the next inventories put it there) */
+	/* (in a unit's inventory: the next inventories put it there. An item
+	alone, as the host sends it (distributed_change_from_object): a biped
+	taken from the map went on moving, and object_translate asserted on it,
+	objects.c #958 - a mutated change, the v39 client fuzz) */
 	if (TEST_FLAG(change->flags, _distributed_object_carried_bit) &&
+		TEST_FLAG(_object_mask_item, object->object.type) &&
 		TEST_FLAG(object->object.flags, _object_connected_to_map_bit) &&
 		object->object.parent_object_index == NONE)
 	{
@@ -3417,6 +3468,8 @@ static void distributed_client_create(
 	distributed_client_apply_change(object_index, change);
 }
 
+static void distributed_client_apply_pending_inventories(void);
+
 void network_objects_handle_changes(
 	void const *entries,
 	short count)
@@ -3454,6 +3507,9 @@ void network_objects_handle_changes(
 			objects_client_has[absolute_index] = NONE;
 		}
 	}
+	/* (a spawn's unit and weapons come: what they carry, if it came first) */
+	if (objects_client_pending_inventory_count)
+		distributed_client_apply_pending_inventories();
 }
 
 void network_objects_handle_synchronized(
@@ -3840,6 +3896,66 @@ static boolean distributed_client_own_settled(
 	return game_time_get() - time > (long)ceil(round_trip) + INVENTORY_INTERVAL_TICKS + OWN_INVENTORY_MARGIN_TICKS;
 }
 
+/* the host's inventory kept until the unit or a weapon it names comes (or
+dropped: waiting FALSE, the unit's carrying what it says, or a newer come) */
+static void distributed_client_keep_inventory(
+	struct distributed_inventory const *inventory,
+	boolean waiting)
+{
+	short index, oldest = 0;
+
+	for (index = 0; index < objects_client_pending_inventory_count; index++)
+	{
+		if (objects_client_pending_inventories[index].inventory.unit_index == inventory->unit_index)
+			break;
+		if (objects_client_pending_inventories[index].time < objects_client_pending_inventories[oldest].time)
+			oldest = index;
+	}
+	if (!waiting)
+	{
+		if (index < objects_client_pending_inventory_count)
+		{
+			objects_client_pending_inventories[index] =
+				objects_client_pending_inventories[--objects_client_pending_inventory_count];
+		}
+		return;
+	}
+	/* (a new unit's, with all kept: in place of the oldest) */
+	if (index == objects_client_pending_inventory_count)
+	{
+		if (objects_client_pending_inventory_count < MAXIMUM_PENDING_INVENTORIES)
+			objects_client_pending_inventory_count++;
+		else
+			index = oldest;
+	}
+	objects_client_pending_inventories[index].inventory = *inventory;
+	objects_client_pending_inventories[index].time = game_time_get();
+}
+
+/* whether the unit and every weapon the host's inventory names are here */
+static boolean distributed_client_inventory_ready(
+	struct distributed_inventory const *inventory)
+{
+	short weapon_slot;
+
+	if (!network_objects_client_has(inventory->unit_index) ||
+		!object_try_and_get_and_verify_type(inventory->unit_index, _object_mask_unit))
+	{
+		return FALSE;
+	}
+	for (weapon_slot = 0; weapon_slot < MAXIMUM_WEAPONS_PER_UNIT; weapon_slot++)
+	{
+		long weapon_index = inventory->weapon_indices[weapon_slot];
+
+		if (weapon_index != NONE &&
+			(!network_objects_client_has(weapon_index) || !object_try_and_get_and_verify_type(weapon_index, _object_mask_weapon)))
+		{
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
 /* the unit carries what the host's does */
 static void distributed_client_apply_inventory(
 	struct distributed_inventory const *inventory)
@@ -3849,6 +3965,11 @@ static void distributed_client_apply_inventory(
 	boolean local;
 	short weapon_slot;
 
+	/* (a unit or a weapon not here yet - a spawn's: the unit and its
+	weapons come over the host's stream, this in a datagram, which is read
+	first when both come at once -: kept, and applied as soon as they come
+	rather than at the host's next refresh, a second on) */
+	distributed_client_keep_inventory(inventory, !distributed_client_inventory_ready(inventory));
 	if (!network_objects_client_has(inventory->unit_index) ||
 		!object_try_and_get_and_verify_type(inventory->unit_index, _object_mask_unit))
 	{
@@ -4069,6 +4190,37 @@ void network_objects_handle_inventories(
 
 	for (index = 0; index < count; index++)
 		distributed_client_apply_inventory(&inventories[index]);
+}
+
+/* the host's inventories kept for a unit or weapon not here then: applied
+once all they name is here, dropped once old (the host's refresh has come
+since: its newer took their place) */
+static void distributed_client_apply_pending_inventories(
+	void)
+{
+	short index = 0;
+
+	while (index < objects_client_pending_inventory_count)
+	{
+		struct distributed_pending_inventory *pending = &objects_client_pending_inventories[index];
+		long age = game_time_get() - pending->time;
+
+		if (age < 0 || age > PENDING_INVENTORY_TICKS)
+		{
+			*pending = objects_client_pending_inventories[--objects_client_pending_inventory_count];
+			continue;
+		}
+		if (distributed_client_inventory_ready(&pending->inventory))
+		{
+			struct distributed_inventory inventory = pending->inventory;
+
+			/* (applying it drops it: what is at this index then is another) */
+			distributed_client_apply_inventory(&inventory);
+			index = 0;
+			continue;
+		}
+		index++;
+	}
 }
 
 void network_objects_set_seat(
@@ -4346,6 +4498,8 @@ void network_objects_client_tick(
 	/* (too many to look at one by one later: all of them) */
 	else if (objects_client_new_object_count >= MAXIMUM_CLIENT_NEW_OBJECTS)
 		objects_client_check_all = TRUE;
+	if (objects_client_pending_inventory_count)
+		distributed_client_apply_pending_inventories();
 	distributed_client_ready_picked_up_weapons();
 	distributed_client_note_own_inventories();
 	mcc_network_client_tick();
@@ -4408,6 +4562,7 @@ void network_objects_new_game(
 		objects_host_vehicle_predictions[index].ground_vehicle_index = NONE;
 		objects_host_vehicle_predictions[index].rest_vehicle_index = NONE;
 	}
+	objects_client_pending_inventory_count = 0;
 	objects_client_synchronized = FALSE;
 	objects_client_ready_time = NONE;
 	objects_client_ready_interval = CLIENT_READY_INTERVAL_TICKS;

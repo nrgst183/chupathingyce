@@ -1013,6 +1013,16 @@ void main_revert_map(
 	return;
 }
 
+/* port: the network co-op host's RESTART LEVEL (the pause menu), done from
+the main loop rather than from the menu's event (main_coop_restart_private) */
+static boolean main_coop_restart_requested;
+
+void main_coop_restart_level(
+	void)
+{
+	main_coop_restart_requested = TRUE;
+}
+
 void main_skip_cinematic(
 	void)
 {
@@ -1798,6 +1808,18 @@ static void main_new_map(
 			main_menu_load();
 			return;
 		}
+#ifdef HALO_GAME_BROWSER
+		/* port: the menus' own map that doesn't load (a pack's maps the game
+		can't read, as Stubbs maps a tool unpacked) goes back to the setup
+		screen, which says why, where it stopped on a blue screen. A run
+		nobody watches stops as before */
+		{
+			extern boolean pc_menu_setup_after_failed_menus(char const *map_name);
+
+			if (pc_menu_setup_after_failed_menus(options->map_name))
+				return;
+		}
+#endif
 		error(_error_immediate, "game_load() failed.");
 	}
 
@@ -2258,6 +2280,18 @@ void main_load_ui_scenario(
 {
 	struct game_options options;
 
+#ifdef HALO_GAME_BROWSER
+	/* port: a menus' map that can't be copied into the cache (a pack's maps
+	the game can't read, as Stubbs maps a tool unpacked: no zlib stream)
+	goes back to the setup screen (main_new_map), where the copy's assert
+	stopped the game on a blue screen. Loaded, it is as before */
+	if (!game_precache_new_map_refusable("levels\\ui\\ui"))
+	{
+		extern boolean pc_menu_setup_after_failed_menus(char const *map_name);
+
+		pc_menu_setup_after_failed_menus("levels\\ui\\ui");
+	}
+#endif
 	game_precache_new_map("levels\\ui\\ui", TRUE);
 	match_assert("c:\\halo\\SOURCE\\main\\main.c", 1092,
 		!main_globals.main_menu_scenario_loaded);
@@ -2365,7 +2399,12 @@ static void main_revert_map_private(
 {
 	/* (a network client never reverts on its own: its game is the host's) */
 	if (main_coop_host())
-		main_coop_host_revert();
+	{
+		/* (no saved state to go back to while everyone is dead: the respawn
+		the loss would have given them, whose timer main_revert_map stopped) */
+		if (!main_coop_host_revert() && players_are_all_dead())
+			players_respawn_at_checkpoint();
+	}
 	else if (game_connection() != _game_connection_network_client)
 	{
 		game_state_revert();
@@ -3977,6 +4016,15 @@ void main_loop(
 			{
 				MAIN_STAGE("main_won_map_private");
 				main_won_map_private();
+			}
+
+			/* port: the co-op host's RESTART LEVEL: everyone back to the lobby
+			on the same level (network_server_manager.c) */
+			if (main_coop_restart_requested)
+			{
+				main_coop_restart_requested = FALSE;
+				if (main_coop_host())
+					network_game_server_port_cooperative_restart();
 			}
 
 			if (main_globals.respawn)

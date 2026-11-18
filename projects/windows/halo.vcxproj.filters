@@ -912,6 +912,9 @@
     <ClCompile Include="$(HaloRoot)source\interface\meters.c">
       <Filter>source\interface</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)source\interface\missing_maps_screen.c">
+      <Filter>source\interface</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)source\interface\motion_sensor.c">
       <Filter>source\interface</Filter>
     </ClCompile>
@@ -2226,9 +2229,6 @@
     <ClCompile Include="$(HaloRoot)server\src\server_moderation.c">
       <Filter>server\src</Filter>
     </ClCompile>
-    <ClCompile Include="$(HaloRoot)server\src\server_names.c">
-      <Filter>server\src</Filter>
-    </ClCompile>
     <ClCompile Include="$(HaloRoot)server\src\server_reports.c">
       <Filter>server\src</Filter>
     </ClCompile>
@@ -2518,6 +2518,9 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\server_badge.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\server_names.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\service_record.c">

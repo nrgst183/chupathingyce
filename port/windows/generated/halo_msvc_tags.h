@@ -736,6 +736,8 @@ struct message_server_remove_player_ingame;
 struct message_server_switch_to_pregame;
 struct meter_hud_element_definition;
 struct metered_panel_definition;
+struct missing_maps_line;
+struct missing_maps_rectangle;
 struct model;
 struct model_geometry;
 struct model_geometry_part;

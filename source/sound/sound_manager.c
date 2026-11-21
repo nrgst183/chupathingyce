@@ -245,9 +245,11 @@ symbols in this file:
 #include <math.h>
 #include <stdio.h>
 
-/* port: the voices' log (sound_voices_full_log), on every port build but the
-original Xbox's, whose voices are its hardware's */
-#if defined(HALO_CUSTOM_EDITION) && !defined(HALO_XBOX_CONSOLE)
+/* port: the voices' log (sound_voices_full_log), on every port build. The
+original Xbox's voices are its hardware's, and its few PCM ones are where a
+Custom Edition map's sounds run out first (warthog-xbox #94); it says each
+type's first line only, once a map */
+#if defined(HALO_CUSTOM_EDITION)
 #define SOUND_VOICES_LOG
 #endif
 
@@ -916,6 +918,42 @@ void sound_reconnect_to_structure_bsp(
 			}
 
 			sound_index = data_next_index(sound_data, sound_index);
+		}
+
+		/* port: the looping sounds' locations too. A sound that tracks a
+		looping sound copies the loop's location each time it is refreshed
+		(track_loop_track_sound, track_loop_impulse_sound). On the Xbox no
+		loop's location outlived a switch: game_sound_update gives every
+		audible loop a new one each frame, and the same frame's
+		process_looping_sounds deletes the loops it did not refresh. A loop
+		refreshed in a frame without sound_render (debug_no_drawing, or a
+		frame the port does not draw) still matches the manager's flip flop
+		after a switch, so it is kept with the old structure's cluster
+		though its object is no longer in the map: going into a10's
+		two-cluster cinematic structure, a dozen loops kept cluster 2 and
+		compute_sound_obstruction looked it up in the new structure's
+		tables. Made again here, such a loop has the new structure's
+		cluster for its point, or none, until it is refreshed or deleted */
+		{
+			long looping_sound_index = data_next_index(looping_sound_data, NONE);
+
+			while (looping_sound_index != NONE)
+			{
+				struct looping_sound_datum *looping_sound =
+					looping_sound_get(looping_sound_index);
+
+				if (looping_sound->source.spatialization_mode ==
+					_sound_spatialization_mode_absolute)
+				{
+					scenario_location_from_point(
+						&looping_sound->source.location.game_location,
+						&looping_sound->source.location.position);
+				}
+
+				looping_sound_index = data_next_index(
+					looping_sound_data,
+					looping_sound_index);
+			}
 		}
 	}
 
@@ -2426,11 +2464,61 @@ static void update_channel_for_impulse_sound(
 	else
 	{
 		struct platform_sound_channel_properties properties;
+		/* port: the gain of the permutation the channel plays, or, when it
+		plays none, of the one the sound is on. A chained sound whose next
+		part is not in the sound cache yet can leave its channel dry while
+		the sound waits for that part, and the gain was read through the
+		channel's null permutation (a crash on the sound thread) */
+		struct sound_permutation const *gain_permutation = channel->playing_permutation;
 
-		properties.gain =
-			channel->playing_permutation->gain * definition->gain_modifier * gain;
+		if (!gain_permutation)
+		{
+			struct sound_pitch_range *pitch_range;
+
+			if (!VALID_INDEX(sound->pitch_range_index, definition->pitch_ranges.count))
+				return;
+			pitch_range = TAG_BLOCK_GET_ELEMENT(
+				&definition->pitch_ranges,
+				sound->pitch_range_index,
+				struct sound_pitch_range);
+			if (!VALID_INDEX(sound->permutation_index, pitch_range->permutations.count))
+				return;
+			gain_permutation = TAG_BLOCK_GET_ELEMENT(
+				&pitch_range->permutations,
+				sound->permutation_index,
+				struct sound_permutation);
+		}
+		properties.gain = gain_permutation->gain * definition->gain_modifier * gain;
 
 		channel_set_properties_hardware(channel_index, &properties, TRUE);
+
+		/* port: a sound the loader split (SOUND_DEFINITION_SPLIT_BY_LOADER_FLAG)
+		played through: the permutation after the one playing queued behind
+		it once it is in the cache, as a looping sound's next is */
+		if ((definition->flags & SOUND_DEFINITION_SPLIT_BY_LOADER_FLAG) &&
+			channel->playing_permutation && !channel->queued_permutation &&
+			VALID_INDEX(sound->pitch_range_index, definition->pitch_ranges.count))
+		{
+			struct sound_pitch_range *pitch_range = TAG_BLOCK_GET_ELEMENT(
+				&definition->pitch_ranges,
+				sound->pitch_range_index,
+				struct sound_pitch_range);
+			short next = channel->playing_permutation->next_permutation_index;
+
+			if (VALID_INDEX(next, pitch_range->permutations.count))
+			{
+				struct sound_permutation *permutation = TAG_BLOCK_GET_ELEMENT(
+					&pitch_range->permutations,
+					next,
+					struct sound_permutation);
+
+				if (_sound_cache_sound_request(permutation, FALSE, TRUE, TRUE))
+				{
+					channel_queue_sound(channel_index, permutation);
+					sound->permutation_index = next;
+				}
+			}
+		}
 	}
 
 	sound_manager_globals.platform_definition->channel_update(channel_index);
@@ -4201,6 +4289,13 @@ static void sound_voices_full_log(
 	}
 
 	now = (long)system_milliseconds();
+#ifdef HALO_XBOX_CONSOLE
+	/* (the rest are counted, and said when the map is left) */
+	if (sound_voices_log[channel_type_flags].told)
+	{
+		return;
+	}
+#endif
 	if (sound_voices_log[channel_type_flags].told &&
 		now - sound_voices_log[channel_type_flags].last_time < SOUND_VOICES_LOG_INTERVAL_MILLISECONDS)
 	{
@@ -4266,7 +4361,42 @@ static void sound_voices_peak_log(
 				sound_voices_count(channel_type_flags, &busy),
 				sound_voices_type_name(channel_type_flags));
 		}
+		/* (those since the type's last line) */
+		if (sound_voices_log[channel_type_flags].stolen || sound_voices_log[channel_type_flags].dropped)
+		{
+			error(_error_silent, "sound: %s voices: %ld more taken and %ld more sounds not played "
+				"after the last line about them",
+				sound_voices_type_name(channel_type_flags),
+				sound_voices_log[channel_type_flags].stolen,
+				sound_voices_log[channel_type_flags].dropped);
+		}
 	}
 	csmemset(sound_voices_log, 0, sizeof(sound_voices_log));
+}
+#endif
+
+#ifdef HALO_XBOX_CONSOLE
+/* port: the definition of the sound a channel plays, or NONE, for the Xbox
+mixer's log line about a channel whose permutation is not in the tags
+(sound_dsound_xbox.c, warthog-xbox #154) */
+long sound_manager_channel_definition_index(
+	short channel_index)
+{
+	struct sound_channel_datum *channel;
+	struct sound_datum *sound;
+
+	if (!sound_data || channel_index<0 || channel_index>=sound_manager_globals.channel_count ||
+		channel_index>=MAXIMUM_SOUND_CHANNELS)
+	{
+		return NONE;
+	}
+	channel = &sound_channels[channel_index];
+	if (channel->sound_index==NONE)
+	{
+		return NONE;
+	}
+	sound = (struct sound_datum *)datum_try_and_get(sound_data, channel->sound_index);
+
+	return sound ? sound->definition_index : NONE;
 }
 #endif

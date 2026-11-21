@@ -126,6 +126,9 @@ their handlers open opens.
 #include "halo_profile_screen.h"
 #include "bots.h"
 #endif
+#if !defined(HALO_CONSOLE) && !defined(HALO_XBOX_CONSOLE)
+#include "duct_tape_logo.h"
+#endif
 
 /* a player's name in the lobby: a Delta profile's (profile_names.c) is
 longer than a game name */
@@ -2694,6 +2697,113 @@ static void chupathingy_settings_picture(struct widget_instance *picture)
 	}
 }
 
+#if !defined(HALO_CONSOLE) && !defined(HALO_XBOX_CONSOLE)
+/* ---------- the Chupathingy main menu's logo, taped over (duct_tape_logo.h):
+the Konami code on the main menu swaps it, display.duct_tape_logo keeps it */
+
+#define DUCT_TAPE_LOGO_SETTING "display.duct_tape_logo"
+/* (the menus' cursor sound: ui_widget.c's _ui_audio_feedback_cursor) */
+#define SOUND_CURSOR 1
+
+int config_write_boolean(char const *name, int value);
+/* (xinput_sdl.c's: halo_keyboard.h) */
+unsigned long halo_keyboard_menu_letters(void);
+
+static struct konami_code konami_code;
+static struct duct_tape_logo duct_tape_logo;
+static boolean duct_tape_logo_read;
+/* the keyboard's B and A, down last frame */
+static boolean konami_keys_down[2];
+
+static void duct_tape_logo_first_read(void)
+{
+	if (!duct_tape_logo_read)
+	{
+		duct_tape_logo_reset(&duct_tape_logo, config_boolean(DUCT_TAPE_LOGO_SETTING));
+		duct_tape_logo_read = TRUE;
+	}
+}
+
+/* a press in, from a controller or the keyboard: whether the menus should
+not get it */
+static boolean konami_press(int press)
+{
+	boolean swallowed = (boolean)konami_code_swallows(&konami_code, press);
+
+	if (konami_code_feed(&konami_code, press))
+	{
+		int shown;
+
+		duct_tape_logo_first_read();
+		shown = duct_tape_logo_toggle(&duct_tape_logo, system_milliseconds());
+		if (!config_write_boolean(DUCT_TAPE_LOGO_SETTING, shown))
+			platform_log("menus: could not write %s to config.toml", DUCT_TAPE_LOGO_SETTING);
+	}
+	return swallowed;
+}
+
+/* (ui_widget.c: each event on the Chupathingy main menu) a controller's
+button, first pressed (value 1; held, it counts once): whether the menus
+should not get it. The sticks count for nothing either way */
+boolean pc_menu_konami_event(boolean button, short index, short value)
+{
+	int press;
+
+	if (!button || value != 1)
+		return FALSE;
+	switch (index)
+	{
+	case _gamepad_binary_button_dpad_up: press = _konami_up; break;
+	case _gamepad_binary_button_dpad_down: press = _konami_down; break;
+	case _gamepad_binary_button_dpad_left: press = _konami_left; break;
+	case _gamepad_binary_button_dpad_right: press = _konami_right; break;
+	case _gamepad_analog_button_b: press = _konami_b; break;
+	case _gamepad_analog_button_a: press = _konami_a; break;
+	default: press = _konami_other; break;
+	}
+	return konami_press(press);
+}
+
+/* (ui_widget.c: each frame of the Chupathingy main menu) the keyboard's B
+and A keys, as letters (halo_keyboard_menu_letters; Escape and Enter come
+as the controller's B and A, through pc_menu_konami_event) */
+void pc_menu_konami_keys(void)
+{
+	static char const letters[2] = { 'B', 'A' };
+	static int const presses[2] = { _konami_b, _konami_a };
+	unsigned long held = halo_keyboard_menu_letters();
+	int index;
+
+	for (index = 0; index < 2; index++)
+	{
+		boolean down = (held & (1UL << (letters[index] - 'A'))) != 0;
+
+		if (down && !konami_keys_down[index])
+			konami_press(presses[index]);
+		konami_keys_down[index] = down;
+	}
+}
+
+/* "port duct tape logo" (the logo's own: its Halo logo and the tape over
+it): the tape shown or not, and the swap's build-up */
+static void duct_tape_logo_update(struct widget_instance *logo)
+{
+	struct widget_instance *halo = named(logo, "main_menu_logo_halo", 0);
+	struct widget_instance *tape = named(logo, "main_menu_logo_tape", 0);
+	int frame, drop;
+
+	if (!halo || !tape)
+		return;
+	duct_tape_logo_first_read();
+	duct_tape_logo_sync(&duct_tape_logo, config_boolean(DUCT_TAPE_LOGO_SETTING));
+	if (duct_tape_logo_step(&duct_tape_logo, system_milliseconds(), &frame, &drop))
+		ui_play_audio_feedback_sound(SOUND_CURSOR);
+	tape->visible = frame == DUCT_TAPE_LOGO_TAPE_FRAME;
+	halo->vertical_offset = (short)drop;
+	tape->vertical_offset = (short)drop;
+}
+#endif
+
 /* ---------- Profiles: the player profiles, and a row to make one (as the
 PC version's list has them, but by the Xbox's names for its spinner's
 functions); choosing one makes it player 1's, the profile the campaign and
@@ -3689,9 +3799,10 @@ static char const *controls_page_view(struct widget_instance *list)
 {
 	if (controls_device_shown(list) == _controls_device_keyboard_mouse)
 		return spinner_shown(list, "group_spinner") == CONTROL_GROUP_MOUSE ? "mouse" : "keyboard";
-#ifdef HALO_SWITCH_CONSOLE
-	/* port: the controller's third page, the gyroscope's settings (the
-	Switch's rows: tools/switch_menus.py in its port) */
+#ifdef HALO_PORT_GYRO_AIM
+	/* port: the controller's third page, the gyroscope's settings
+	(tools/port_settings.py's GYRO_ROWS; the Switch's own rows:
+	tools/switch_menus.py in its port) */
 	if (spinner_shown(list, "page_spinner") == 2)
 		return "gyro";
 #endif
@@ -3828,7 +3939,7 @@ static void controls_page_update(struct widget_instance *list)
 	else if (focused == named(list, "op_group", 0))
 		line = "Choose a group of keys, or the mouse.";
 	else if (focused == named(list, "op_page", 0))
-#ifdef HALO_SWITCH_CONSOLE
+#ifdef HALO_PORT_GYRO_AIM
 		line = "Choose the controller's settings, buttons or gyro.";
 #else
 #line 2888
@@ -3894,7 +4005,7 @@ static boolean controls_page_defaults(struct widget_instance *widget)
 		return TRUE;
 	}
 	settings_each_in_view(list, "gamepad", setting_default_show);
-#ifdef HALO_SWITCH_CONSOLE
+#ifdef HALO_PORT_GYRO_AIM
 	settings_each_in_view(list, "gyro", setting_default_show);
 #endif
 #line 2940
@@ -5876,7 +5987,7 @@ static int lobby_browser_version_state(struct p2p_listing const *game, short *ve
 
 /* only the games this build can join (game_list_rules.h): a game the list
 has by the list's word (browser_game_shown), a listing it lacks by its own
-number (browser_listing_shown: not an older build's); every game with
+number (browser_version_shown), old builds' too; every game with
 debug.show_all_games. Never a game of a blocked name (browser_name_blocked_text) */
 static void lobby_browser_joinable_games(void)
 {
@@ -5886,9 +5997,9 @@ static void lobby_browser_joinable_games(void)
 	{
 #ifdef HALO_GAME_BROWSER
 		struct browser_game const *listed = lobby_browser_listed_game(&lobby_browser.games[index]);
-		int shown = listed ? browser_game_shown(listed) : browser_listing_shown(lobby_browser.games[index].version);
+		int shown = listed ? browser_game_shown(listed) : browser_version_shown(lobby_browser.games[index].version);
 #else
-		int shown = browser_listing_shown(lobby_browser.games[index].version);
+		int shown = browser_version_shown(lobby_browser.games[index].version);
 #endif
 
 		if (shown && (browser_name_blocked_text(lobby_browser.games[index].name) ||
@@ -8138,7 +8249,8 @@ with it), the internet play port, the game type (left and right choose
 another, Y or A edits it), and the host's rules of config.toml
 (network.team_change and its margin, network.chat_filter,
 network.block_mouse_aim_assist, network.allow_player_names,
-network.allow_follow_camera, network.opence_welcome), written as START GAME (A) opens the lobby.
+network.allow_follow_camera, network.air_turn_aim, network.opence_welcome), written as START GAME (A)
+opens the lobby.
 The host's rules are a nested list, as the settings screens' are: HOST
 RULES opens it, and B goes back out of it. B leaves them as they were.
 
@@ -8191,6 +8303,7 @@ enum
 	_host_row_aim_assist,
 	_host_row_player_names,
 	_host_row_follow_camera,
+	_host_row_air_turn_aim,
 	_host_row_opence_welcome,
 	_host_row_bot_fill,
 	_host_row_bot_spread,
@@ -8206,7 +8319,7 @@ static wchar_t const *const host_row_labels[NUMBER_OF_HOST_ROWS] =
 {
 	L"GAME NAME:", L"MAX PLAYERS:", L"PUBLIC LOBBY:", L"PASSWORD:", L"PORT:", L"GAME TYPE:", L"BOTS:", L"BOT SKILL:",
 	L"TEAM SWITCHING:", L"TEAM SWITCH MARGIN:", L"CHAT FILTER:", L"MOUSE AIM ASSIST:", L"PLAYER NAMES:",
-	L"FOLLOW CAMERA:", L"OPENCE WELCOME:", L"FILL GAME TO:",
+	L"FOLLOW CAMERA:", L"180 GLITCH:", L"OPENCE WELCOME:", L"FILL GAME TO:",
 	L"SKILL SPREAD:", L"KEEP GAMES CLOSE:", L"BOT OPTIONS", L"HOST RULES", L"START GAME",
 };
 
@@ -8251,6 +8364,7 @@ static struct
 	boolean block_aim_assist;
 	boolean player_names;
 	boolean follow_camera;
+	boolean air_turn_aim;
 	boolean opence_welcome;
 	long port;
 	/* the rows shown, in their places */
@@ -8273,7 +8387,7 @@ static struct
 	struct game_variant base_variant;
 	struct game_variant_options base_options;
 #endif
-} host_setup = { NULL, 0, 1, TRUE, FALSE, FALSE, FALSE, FALSE, 0, { 0 }, 0, 0, 0, { 0 }, 0, _host_group_main, _host_page_setup };
+} host_setup = { NULL, 0, 1, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE, 0, { 0 }, 0, 0, 0, { 0 }, 0, _host_group_main, _host_page_setup };
 
 long config_integer(char const *name);
 
@@ -8402,6 +8516,7 @@ static void host_setup_read(void)
 	host_setup.block_aim_assist = config_boolean("network.block_mouse_aim_assist") != 0;
 	host_setup.player_names = config_boolean("network.allow_player_names") != 0;
 	host_setup.follow_camera = config_boolean("network.allow_follow_camera") != 0;
+	host_setup.air_turn_aim = config_boolean("network.air_turn_aim") != 0;
 	host_setup.opence_welcome = config_boolean("network.opence_welcome") != 0;
 	host_setup.port = PIN(config_integer("network.tunnel_port"), 0, 65535);
 }
@@ -8612,6 +8727,9 @@ static boolean host_setup_value(short row, wchar_t *text)
 	case _host_row_follow_camera:
 		ustrncpy(text, host_setup.follow_camera ? L"ALLOWED" : L"OFF", ROW_TEXT_LENGTH - 1);
 		return TRUE;
+	case _host_row_air_turn_aim:
+		ustrncpy(text, host_setup.air_turn_aim ? L"FIXED" : L"XBOX", ROW_TEXT_LENGTH - 1);
+		return TRUE;
 	case _host_row_opence_welcome:
 		ustrncpy(text, host_setup.opence_welcome ? L"ON" : L"OFF", ROW_TEXT_LENGTH - 1);
 		return TRUE;
@@ -8694,11 +8812,14 @@ static wchar_t const *host_setup_help(short row)
 	case _host_row_follow_camera:
 		return host_setup.follow_camera ? L"Players can watch a teammate while they wait to respawn." :
 			L"Only the death camera while waiting to respawn, as on the Xbox.";
+	case _host_row_air_turn_aim:
+		return host_setup.air_turn_aim ? L"Shots after a mid-air turn go where players aim." :
+			L"Shots after a mid-air turn leave at an angle, as on the Xbox.";
 	case _host_row_opence_welcome:
 		return host_setup.opence_welcome ? L"OpenCE players get one line about Chupathingy." :
 			L"OpenCE players get no line from you.";
 	case _host_row_rules:
-		return L"Team switching, chat filter, aim assist, player names, follow camera, OpenCE welcome.";
+		return L"Team switching, chat filter, aim assist, player names, follow camera, 180 glitch, OpenCE welcome.";
 	case _host_row_start:
 		return host_help_with_status(L"Open the lobby.", with_status, NUMBEROF(with_status));
 	}
@@ -8809,6 +8930,9 @@ static boolean host_setup_change(short row, short direction)
 	case _host_row_follow_camera:
 		host_setup.follow_camera = !host_setup.follow_camera;
 		return TRUE;
+	case _host_row_air_turn_aim:
+		host_setup.air_turn_aim = !host_setup.air_turn_aim;
+		return TRUE;
 	case _host_row_opence_welcome:
 		host_setup.opence_welcome = !host_setup.opence_welcome;
 		return TRUE;
@@ -8877,6 +9001,7 @@ static boolean host_setup_start(struct widget_instance *widget, boolean *widget_
 	host_write("network.block_mouse_aim_assist", host_setup.block_aim_assist ? "true" : "false");
 	host_write("network.allow_player_names", host_setup.player_names ? "true" : "false");
 	host_write("network.allow_follow_camera", host_setup.follow_camera ? "true" : "false");
+	host_write("network.air_turn_aim", host_setup.air_turn_aim ? "true" : "false");
 	host_write("network.opence_welcome", host_setup.opence_welcome ? "true" : "false");
 	snprintf(text, sizeof(text), "%ld", host_setup.port);
 	host_write("network.tunnel_port", text);
@@ -8946,6 +9071,8 @@ static void host_setup_defaults(void)
 		!strcmp(text, "true");
 	host_setup.player_names = config_default("network.allow_player_names", text, sizeof(text)) && !strcmp(text, "true");
 	host_setup.follow_camera = config_default("network.allow_follow_camera", text, sizeof(text)) &&
+		!strcmp(text, "true");
+	host_setup.air_turn_aim = config_default("network.air_turn_aim", text, sizeof(text)) &&
 		!strcmp(text, "true");
 	host_setup.opence_welcome = config_default("network.opence_welcome", text, sizeof(text)) &&
 		!strcmp(text, "true");
@@ -10910,6 +11037,10 @@ void pc_menu_game_data_function_invoke(
 		profile_gamepad_layout(widget);
 	else if (!strcmp(name, "chupathingy settings picture"))
 		chupathingy_settings_picture(widget);
+#if !defined(HALO_CONSOLE) && !defined(HALO_XBOX_CONSOLE)
+	else if (!strcmp(name, "port duct tape logo"))
+		duct_tape_logo_update(widget);
+#endif
 	else if (!strcmp(name, "port host update"))
 		host_update(widget);
 	else if (!strcmp(name, "port lobby bots hint"))

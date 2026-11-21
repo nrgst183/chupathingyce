@@ -46,9 +46,15 @@ HALO_CONSOLE_WIDGET_POOL_SIZE
 	ui_widget.c; console.widget_pool_log logs what the menus use)
 HALO_CONSOLE_MAP_LIST_ROWS
 	the rows of the menus' map list (port/linux/game/ui_map_list.c): the
-	original Xbox's 40, every other console's 256; the desktop builds and
+	original Xbox's 128, every other console's 256; the desktop builds and
 	Android leave it undefined and hold 2560, room for a large Custom
-	Edition folder beside the whole MCC catalog
+	Edition folder beside the whole MCC catalog. A row's map name, names
+	and description are held in pools at their own length
+HALO_CONSOLE_MAP_LIST_TEXT
+	the wide characters of the map list's pooled names and descriptions:
+	the original Xbox's 12288 (24 KB for its 128 rows; a row past it keeps
+	its names but not its description, and one without room for its names
+	is left out, both logged). Without it, room for every row's longest
 HALO_CONSOLE_NO_GUIDE
 	no Guide (port/linux/game/guide.c, over any screen) and no presence
 	sent to the site (browser.c, network.share_presence), their settings
@@ -109,6 +115,14 @@ HALO_CONSOLE_IO_RETRY_FOREVER
 	short of resources for (a stalled DVD read) being tried until it goes, as
 	the retail game did; elsewhere it gives up after 5 seconds and fails
 	(cached_map_issue_async_request, cache_files_decompress_windows.c: #1149)
+HALO_CONSOLE_READ_PRIORITY
+	the cache file thread starts the read the game is waiting for first,
+	then the pending read lowest in the map file
+	(cache_file_windows_thread_proc, source/cache/cache_files_windows.c).
+	Retail kept the first pending read unless a later one was lower in the
+	file and not waited for, so a texture the frame waited on could sit
+	behind every predicted read queued before it. Only the order of the
+	reads changes. From Lord BirchWood's Vita port
 HALO_CONSOLE_LOG_BUFFER
 	debug.txt's lines kept in memory and written together, a second after
 	the first waits, and at once for an exception, an exit or a crash
@@ -197,6 +211,13 @@ HALO_CONSOLE_LIGHT_AUDIO
 	(audio.resampling, audio.reverb), on a console with one slow core (the
 	Steam Link's, where the sinc resampler and the reverb took two fifths of
 	the processor)
+HALO_CONSOLE_NO_STRUCTURE_CULLING
+	the level's surfaces walked as the original game walks them by default
+	(debug.structure_culling false, port/linux/game/structure_culling.c):
+	on a console whose processor, not its GPU, sets the frame rate, the
+	culling's tests of each surface and triangle cost more than the GPU
+	work they spare (the Vita's b30 beach: 9 of a frame's 100 ms in the
+	visibility walk with them, 4.7 without, the GPU idle either way)
 HALO_CONSOLE_HUD_ON_DEMAND
 	the high-res HUD's pictures decoded each when first drawn, as Android's
 	are, rather than a map's all at its load (hud_hires.c): about 40 MB less
@@ -215,7 +236,9 @@ HALO_CONSOLE_PERFORMANCE_MODE
 	and console_performance_sky, console_performance_object_transparents,
 	console_performance_decoration_distance and
 	console_performance_hud_frames, what else it leaves out (render_sky.c,
-	render_objects.c, hud_draw.c)
+	render_objects.c, hud_draw.c). The objects' transparent parts and the
+	plants are see-through cover, so in a network game a port keeps them
+	unless display.performance_online_cuts is on (port_config.c)
 HALO_CONSOLE_CACHE_SCREEN
 	a console whose cache files are slow to make (a FAT32 stick, which writes
 	them full of zeros): they are made long a little at a time, and
@@ -261,6 +284,10 @@ HALO_PORT_UPDATE_API, HALO_PORT_UPDATE_REPOSITORY
 	signed with its own key, update_public_keys in the port's
 	halo_port_update_keys.h (update_key.h); the game's release key signs
 	nothing the port's server sends
+HALO_PORT_UPDATE_DOWNLOADS
+	with HALO_PORT_UPDATE_API, where the release's files are downloaded
+	from, when that is not the API's address and /releases/download (a
+	port on GitHub: https://github.com/<owner>/<name>/releases/download)
 HALO_PORT_UPDATE_SCRIPT, HALO_PORT_UPDATE_RESTART_EXIT_CODE
 	the launch script an update replaces with the game, and the code the
 	game exits with after an update for that script to start the new
@@ -298,6 +325,31 @@ HALO_CONSOLE_PARTICLE_TICKS
 	their collision tests spared at 60 frames a second. The desktop builds
 	default to moving them at every frame drawn, smooth at high refresh
 	rates, and opt in
+HALO_CONSOLE_ANIMATION_FRAMES
+	an animation's frame index taken from a real frame index by truncation
+	when it is not negative, the same integer as floor's, without the
+	library's floor (source/models/model_animations.c): the keyframe
+	readers take one for each node of each animation a tick. A negative
+	index or a NaN goes through floor as before. From Lord BirchWood's work
+HALO_CONSOLE_FEWER_WALKS
+	fewer walks over a whole array for a few of its entries, with the same
+	results: a deleted object's references cleared by visiting only the
+	objects of the types that hold any (units and projectiles;
+	objects_fix_for_deleted_object, source/objects/objects.c), and an lruv
+	cache's allocation finding the blocks in its hole along its block list
+	(lruv_block_new, source/memory/lruv_cache.c). And one difference in
+	the picture only: a new decal takes the least recently drawn room among
+	the 64 decals after the last one made, not among all 2048
+	(lruv_set_search_window, rasterizer_xbox_decals.c), so an old decal
+	that goes may not be the oldest of all. From Lord BirchWood's Vita port
+HALO_CONSOLE_MARKER_LOOKUPS
+	the last 128 answers of model_find_marker kept, by model and the
+	name's address (source/models/models.c): a marker is looked up by name
+	every frame for first-person weapons, the HUD and bots, with a binary
+	search of case-insensitive compares. A remembered answer is used only
+	when the marker it names bears the name asked for, and they are
+	forgotten as a map's tags go (scenario_tags_unload), so the answers
+	are the search's own. From Lord BirchWood's work
 HALO_CONSOLE_XBOX_MAP_SIZES
 	a console that plays the Xbox's own maps only (no Custom Edition or
 	Halo PC maps): tables the desktop builds size for those maps are sized
@@ -364,7 +416,13 @@ HALO_CONSOLE_FRAME_RATE
 	rasterizer_initialize makes it) and whether frames are drawn between
 	the ticks (halo_interpolation_enabled, the same answer for the whole
 	run). At 60 the frame pacer steps down to 30 while a scene can't hold
-	60 and back up when it can (main_update_time's stabilization)
+	60 and back up when it can (main_update_time's stabilization). The
+	port also says the display's refresh rate once the device is made
+	(halo_console_refresh_rate: 60, or 50 on a PAL television without
+	PAL60). The game's clock counts that display's vertical blanks, and
+	its frames are paced to them: at 50 Hz, 60 is a frame every blank (50
+	a second) and 30 a frame each tick, on the first blank after it is due
+	(main_update_time); the ticks stay 30 a second on every display
 HALO_CONSOLE_VIEW_INTERPOLATION
 	the frames between ticks move the view only, with no memory of their
 	own (port/linux/game/render_interpolation.c): on foot in first person
@@ -418,6 +476,7 @@ compile lines: source/cseries/xbox_address.h).
 
 #ifdef HALO_WIIU_CONSOLE
 #define HALO_CONSOLE_PARTICLE_TICKS 1
+#define HALO_CONSOLE_READ_PRIORITY 1
 #define HALO_CONSOLE_NO_WRITE_WATCH 1
 #define HALO_CONSOLE_LOG_THROTTLE 1
 #define HALO_CONSOLE_WINDOW_MAXIMUM 0x10000000UL
@@ -430,10 +489,14 @@ compile lines: source/cseries/xbox_address.h).
 #define HALO_CONSOLE_LIGHT_LIMITS 1
 #define HALO_CONSOLE_OVERSIZED_MAPS 1
 #define HALO_CONSOLE_MENU_PLATFORM "wiiu"
+#define HALO_CONSOLE_ANIMATION_FRAMES 1
+#define HALO_CONSOLE_FEWER_WALKS 1
+#define HALO_CONSOLE_MARKER_LOOKUPS 1
 #endif
 
 #ifdef HALO_XBOX_CONSOLE
 #define HALO_CONSOLE_PARTICLE_TICKS 1
+#define HALO_CONSOLE_READ_PRIORITY 1
 #define HALO_CONSOLE_IO_RETRY_FOREVER 1
 #define HALO_CONSOLE_LOG_BUFFER 1
 /* (the H1 Performance Build's 64 KB; the retail game had 16 KB) */
@@ -451,6 +514,9 @@ compile lines: source/cseries/xbox_address.h).
 #define HALO_CONSOLE_VIEW_INTERPOLATION 1
 #define HALO_CONSOLE_FLICKER_FILTER 1
 #define HALO_CONSOLE_WAITED_VISIBILITY_TESTS 1
+#define HALO_CONSOLE_ANIMATION_FRAMES 1
+#define HALO_CONSOLE_FEWER_WALKS 1
+#define HALO_CONSOLE_MARKER_LOOKUPS 1
 #endif
 
 #if !defined(HALO_XBOX_CONSOLE) || defined(HALO_CONSOLE_ANAMORPHIC_SCREEN)
@@ -463,6 +529,7 @@ compile lines: source/cseries/xbox_address.h).
 #ifdef HALO_CONSOLE_FRAME_RATE
 /* (defined by the port) */
 short halo_console_frame_rate(void);
+short halo_console_refresh_rate(void);
 int halo_interpolation_enabled(void);
 /* (a console draws its ticks only, unless its setting asks for more) */
 #define halo_port_frames_between_ticks() (halo_interpolation_enabled() != 0)
@@ -482,6 +549,7 @@ larger maps take a campaign map's there as well) */
 
 #ifdef HALO_XBOX360_CONSOLE
 #define HALO_CONSOLE_PARTICLE_TICKS 1
+#define HALO_CONSOLE_READ_PRIORITY 1
 #define HALO_CONSOLE_NO_WRITE_WATCH 1
 #define HALO_CONSOLE_GPU_RESOURCE_HOOKS 1
 #define HALO_CONSOLE_DEBUG_CHANNEL 1
@@ -495,6 +563,9 @@ larger maps take a campaign map's there as well) */
 #define HALO_CONSOLE_LIGHT_LIMITS 1
 #define HALO_CONSOLE_OVERSIZED_MAPS 1
 #define HALO_CONSOLE_MENU_PLATFORM "x360"
+#define HALO_CONSOLE_ANIMATION_FRAMES 1
+#define HALO_CONSOLE_FEWER_WALKS 1
+#define HALO_CONSOLE_MARKER_LOOKUPS 1
 /* (its shadow maps: 512x512 at most, beside the screen in its 10 MB of EDRAM;
 d3d8_gl.c) */
 #define HALO_CONSOLE_SHADOW_MAP_MAXIMUM 512
@@ -536,9 +607,18 @@ consoles nor the dedicated server, which downloads nothing */
 #define HALO_HOST_MAP_DOWNLOADS 1
 #endif
 
-/* the menus' map list's rows (ui_map_list.c): a console's own size */
+/* the menus' map list's rows (ui_map_list.c): a console's own size. The
+original Xbox's: its 13, Custom Edition+ and a Custom Edition folder, and a
+pack or two of about 30 maps each (Halo: Not Halo Edition has 29), with room
+to spare; 40 left a pack listed last out (warthog-xbox #145) */
 #if defined(HALO_XBOX_CONSOLE) && !defined(HALO_CONSOLE_MAP_LIST_ROWS)
-#define HALO_CONSOLE_MAP_LIST_ROWS 40
+#define HALO_CONSOLE_MAP_LIST_ROWS 128
+#endif
+/* (and their names' and descriptions' wide characters, pooled: 24 KB, about
+100 a row. The Xbox's own rows keep theirs in ui.map, and the maps without
+a description share one) */
+#if defined(HALO_XBOX_CONSOLE) && !defined(HALO_CONSOLE_MAP_LIST_TEXT)
+#define HALO_CONSOLE_MAP_LIST_TEXT 12288
 #endif
 #if (defined(HALO_CONSOLE) || defined(HALO_SWITCH_CONSOLE) || defined(HALO_WIIU_CONSOLE) || \
 	defined(HALO_XBOX_CONSOLE) || defined(HALO_XBOX360_CONSOLE)) && !defined(HALO_CONSOLE_MAP_LIST_ROWS)

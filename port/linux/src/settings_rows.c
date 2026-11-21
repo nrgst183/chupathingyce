@@ -28,6 +28,7 @@ Default puts them back.
 #ifdef HALO_LAUNCHER
 /* (sdl_platform.c's and dsound_sdl.c's: the desktop's) */
 int platform_display_resolutions(long *widths, long *heights, int maximum);
+int platform_display_native_size(long *width, long *height);
 int platform_window_sizes(long *widths, long *heights, int maximum);
 int platform_audio_device_names(const char **names, int maximum);
 void platform_display_apply(void);
@@ -143,6 +144,9 @@ static const char *const hud_buttons_choices[] = { "classic", "hd", NULL };
 /* the reticle's size (display.reticle_scale), as Video Setup's View shows it */
 static const char *const reticle_size_choices[] = { "0.5", "0.75", "1", "1.25", "1.5", "2", NULL };
 static const char *const reticle_size_names[] = { "50%", "75%", "100%", "125%", "150%", "200%", NULL };
+/* the crosshair's place (display.crosshair_position) */
+static const char *const crosshair_position_choices[] = { "retail", "centered", "lowered", NULL };
+static const char *const crosshair_position_names[] = { "XBOX", "CENTERED", "LOWERED", NULL };
 static const char *const theme_names[] = { "HALO BLUE", "DASHBOARD GREEN", "VISOR ORANGE", "LIVE ORANGE", "CHUPATHINGY RED", NULL };
 
 static const struct settings_row settings_rows[] =
@@ -181,12 +185,18 @@ static const struct settings_row settings_rows[] =
 	{ _in_display | _in_guide, "HUD BUTTONS", "input.hud_buttons", _kind_choices, hud_buttons_choices, NULL, 0, 0 },
 #endif
 	{ _in_display | _in_guide, "SCOREBOARD ICONS", "display.scoreboard_icons", _kind_toggle, NULL, NULL, 0, 0 },
+	{ _in_display | _in_guide, "PING METER", "display.ping_meter", _kind_toggle, NULL, NULL, 0, 0 },
 	{ _in_display, "PERFORMANCE", "display.particle_limit", _kind_preset, NULL, NULL, 0, 0 },
 	{ _in_display, "LIGHT EFFECTS", "display.light_effects", _kind_choices, light_effects_choices, NULL, 0, 0 },
 	{ _in_display | _in_guide, "CAMO WEAPON FIX", "display.camo_weapon_fix", _kind_toggle, NULL, NULL, 0, 0 },
 	{ _in_display | _in_guide, "PLASMA SPARKS", "display.plasma_sparks", _kind_toggle, NULL, NULL, 0, 0 },
+#ifdef HALO_PORT_RAGDOLLS
+	{ _in_display | _in_guide, "RAGDOLLS", "display.ragdolls", _kind_toggle, NULL, NULL, 0, 0 },
+#endif
 	{ _in_display | _in_guide, "RETICLE SIZE", "display.reticle_scale", _kind_choices, reticle_size_choices,
 	  reticle_size_names, 0, 0 },
+	{ _in_display | _in_guide, "CROSSHAIR", "display.crosshair_position", _kind_choices, crosshair_position_choices,
+	  crosshair_position_names, 0, 0 },
 	{ _in_display | _in_guide, "WEAPON MODEL", "display.first_person_weapon", _kind_toggle, NULL, NULL, 0, 0 },
 
 #ifdef HALO_LAUNCHER
@@ -221,6 +231,7 @@ static const struct settings_row settings_rows[] =
 	{ _in_guide, "WORKSHOP MAPS", "game.workshop_maps", _kind_toggle, NULL, NULL, 0, 0 },
 	{ _in_network | _in_guide, "MAPS WHEN JOINING", "network.workshop_downloads", _kind_words, NULL, NULL, 0, 0 },
 	{ _in_guide, "MISSION ORDER", "game.mcc_campaigns", _kind_toggle, NULL, NULL, 0, 0 },
+	{ _in_guide, "FORGE", "game.forge", _kind_toggle, NULL, NULL, 0, 0 },
 	{ _in_guide, "GUIDE BUTTON", "controls.delta_button", _kind_toggle, NULL, NULL, 0, 0 },
 	{ _in_guide, "SHOW IN MENUS", "delta.menu_item", _kind_toggle, NULL, NULL, 0, 0 },
 	{ _in_guide, "NOTIFICATIONS IN GAME", "delta.notify_in_game", _kind_toggle, NULL, NULL, 0, 0 },
@@ -239,26 +250,10 @@ static const struct settings_row settings_rows[] =
 
 #define NUMBER_OF_SETTINGS_ROWS ((int)(sizeof(settings_rows) / sizeof(settings_rows[0])))
 
-/* the Potato preset: the display's heaviest work turned down */
-static const struct
-{
-	const char *key;
-	const char *value;
-} potato[] =
-{
-	{ "display.particle_limit", "1024" },
-	{ "display.particle_ticks", "true" },
-	{ "display.dynamic_light_limit", "8" },
-	{ "display.specular_light_limit", "2" },
-	{ "display.shadow_resolution", "128" },
-	{ "display.anisotropic_filtering", "0" },
-	{ "display.anti_aliasing", "off" },
-	{ "display.per_pixel_lighting", "false" },
-	{ "display.light_effects", "off" },
-	{ "display.resolution_scaling", "original" },
-};
-
-#define NUMBER_OF_POTATO_SETTINGS ((int)(sizeof(potato) / sizeof(potato[0])))
+/* the Potato preset: the display's heaviest work turned down. It is
+config.toml's tuning.preset = "potato", whose knobs and values are
+port_config.c's (config_tuning_knob, config_tuning_preset_value) */
+#define POTATO_PRESET "potato"
 
 enum
 {
@@ -362,8 +357,18 @@ static void values_of(const struct settings_row *row, struct values *values)
 			platform_window_sizes(widths, heights, MAXIMUM_VALUES - 1);
 		char size[32];
 
+		/* (Native with the display's own size, so a display larger than
+		the sizes listed shows as larger) */
 		if (row->kind == _kind_resolutions)
-			values_add(values, "native", "NATIVE");
+		{
+			long native_width, native_height;
+
+			if (platform_display_native_size(&native_width, &native_height))
+				snprintf(size, sizeof(size), "NATIVE %ldx%ld", native_width, native_height);
+			else
+				snprintf(size, sizeof(size), "NATIVE");
+			values_add(values, "native", size);
+		}
 		for (index = 0; index < count; index++)
 		{
 			snprintf(size, sizeof(size), "%ldx%ld", widths[index], heights[index]);
@@ -389,36 +394,50 @@ static void values_of(const struct settings_row *row, struct values *values)
 
 /* ---------- the preset */
 
+/* the Potato preset's knob at index that this build has: its value, NULL
+for one it leaves alone, and its setting in key */
+static const char *potato_value(int index, const char **key)
+{
+	*key = config_tuning_knob(index);
+	if (!*key || !**key || config_setting_kind(*key) < 0)
+		return NULL;
+	return config_tuning_preset_value(POTATO_PRESET, *key);
+}
+
 static int preset_now(void)
 {
 	char value[VALUE_SIZE], fallback[VALUE_SIZE];
 	int index, potato_all = 1, defaults_all = 1;
+	const char *key, *potato;
 
-	for (index = 0; index < NUMBER_OF_POTATO_SETTINGS; index++)
+	for (index = 0; config_tuning_knob(index); index++)
 	{
-		if (config_setting_kind(potato[index].key) < 0)
+		if (!(potato = potato_value(index, &key)))
 			continue;
-		current(potato[index].key, value, sizeof(value));
-		if (!same(value, potato[index].value))
+		current(key, value, sizeof(value));
+		if (!same(value, potato))
 			potato_all = 0;
-		if (!config_default(potato[index].key, fallback, sizeof(fallback)) || !same(value, fallback))
+		if (!config_default(key, fallback, sizeof(fallback)) || !same(value, fallback))
 			defaults_all = 0;
 	}
 	return defaults_all ? _preset_default : potato_all ? _preset_potato : _preset_custom;
 }
 
+/* Potato: tuning.preset written, and its knobs back to following it;
+Default: the preset and its knobs back to their defaults */
 static void preset_set(int preset)
 {
 	int index;
+	const char *key;
 
-	for (index = 0; index < NUMBER_OF_POTATO_SETTINGS; index++)
+	if (preset == _preset_potato)
+		config_write("tuning.preset", POTATO_PRESET);
+	else
+		config_reset("tuning.preset");
+	for (index = 0; config_tuning_knob(index); index++)
 	{
-		if (config_setting_kind(potato[index].key) < 0)
-			continue;
-		if (preset == _preset_potato)
-			config_write(potato[index].key, potato[index].value);
-		else
-			config_reset(potato[index].key);
+		if (potato_value(index, &key))
+			config_reset(key);
 	}
 }
 
@@ -435,6 +454,17 @@ void settings_rows_set_steam_link_action(void (*action)(void))
 void settings_rows_set_workshop_offered(int offered)
 {
 	workshop_offered = offered;
+}
+
+/* whether the game shows in a window (display.mode, else display.fullscreen) */
+static int display_windowed(void)
+{
+	char mode[VALUE_SIZE];
+
+	current("display.mode", mode, sizeof(mode));
+	if (!mode[0])
+		return !config_boolean("display.fullscreen");
+	return same(mode, "windowed");
 }
 
 const struct settings_row *settings_row_at(int group, int index)
@@ -454,6 +484,14 @@ const struct settings_row *settings_row_at(int group, int index)
 		/* (Workshop maps: where the Guide has WORKSHOP, MCC on this computer) */
 		if (!workshop_offered && !strcmp(settings_rows[row].key, "game.workshop_maps"))
 			continue;
+		/* (Resolution and Window Size in one place, as Video Setup has them:
+		Window Size in a window, where Resolution does nothing, and
+		Resolution otherwise) */
+		if ((settings_rows[row].kind == _kind_window_sizes && !display_windowed()) ||
+			(settings_rows[row].kind == _kind_resolutions && display_windowed()))
+		{
+			continue;
+		}
 		if (!index--)
 			return &settings_rows[row];
 	}

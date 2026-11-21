@@ -133,6 +133,24 @@
       ]
     },
     {
+      "name": "Lua",
+      "use": "Running mods' Lua scripts made for Chimera.",
+      "source": "https://www.lua.org (release 5.4.8)",
+      "copyright": [
+        "Copyright (C) 1994-2025 Lua.org, PUC-Rio"
+      ],
+      "license": "MIT",
+      "files": [
+        "port/third_party/lua/LICENSE"
+      ],
+      "packages": [
+        "game"
+      ],
+      "covers": [
+        "port/third_party/lua"
+      ]
+    },
+    {
       "name": "Monocypher",
       "use": "Encryption and signatures: internet play, updates and Delta.",
       "source": "https://monocypher.org (release 4.0.3)",
@@ -320,6 +338,24 @@
       ],
       "covers": [
         "port/third_party/opus"
+      ]
+    },
+    {
+      "name": "Jolt Physics",
+      "use": "The ragdolls' physics (display.ragdolls).",
+      "source": "https://github.com/jrouwe/JoltPhysics (release 5.5.0)",
+      "copyright": [
+        "Copyright 2021 Jorrit Rouwe"
+      ],
+      "license": "MIT",
+      "files": [
+        "port/third_party/jolt/LICENSE"
+      ],
+      "packages": [
+        "game"
+      ],
+      "covers": [
+        "port/third_party/jolt"
       ]
     },
     {
@@ -691,7 +727,7 @@
     },
     {
       "name": "Halo PC Restored HUD art",
-      "use": "The high-res HUD on the Xbox maps.",
+      "use": "The high-res HUD on the Xbox maps, and on MCC maps that use MCC's stock HUD.",
       "source": "https://github.com/Aerocatia/halopc-restored (release r220)",
       "copyright": [
         "Aerocatia and Jessie"

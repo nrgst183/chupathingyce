@@ -127,6 +127,9 @@ display's modes the game can draw at, largest first, each once, but the
 display's own (Native), and display.resolution's where it is none of them;
 how many. None on Android. */
 int platform_display_resolutions(long *widths, long *heights, int maximum);
+/* the size Native is: the window's display's own, in pixels; 0 if not
+known (Android) */
+int platform_display_native_size(long *width, long *height);
 /* Video Setup's window sizes: those of each shape (4:3, 16:10, 16:9, 21:9)
 that fit the desktop, and display.window_size's; how many. None on
 Android. */
@@ -169,6 +172,12 @@ void platform_input_read(struct platform_input_state *state, BOOL consume_motion
 joystick ID: the controller's reading ORs them into what is held, so a tap
 between two readings still counts */
 void platform_gamepad_presses_take(Uint32 id, Uint32 *buttons, unsigned int *triggers);
+#ifdef HALO_PORT_GYRO_SDL
+/* a gamepad's sensor reading (SDL_EVENT_GAMEPAD_SENSOR_UPDATE), for gyro
+aiming (xinput_sdl.c): sensor is SDL's SDL_SENSOR_GYRO or SDL_SENSOR_ACCEL,
+data its three values, timestamp_ns when it was read */
+void platform_gamepad_sensor(Uint32 id, int sensor, const float *data, Uint64 timestamp_ns);
+#endif
 /* the pointer in the menus (d3d8_gl.c, halo_ui_pointer_update) */
 struct platform_ui_pointer
 {

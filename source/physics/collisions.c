@@ -498,6 +498,7 @@ boolean collision_test_vector(
 		TEST_FLAG(flags, _collision_test_objects_bit);
 
 	HALO_PERF_BEGIN(_halo_perf_tick_collision);
+	HALO_PERF_BEGIN(_halo_perf_bipeds_collision);
 	if (debug_collision_skip_vectors)
 	{
 		test_environment = FALSE;
@@ -748,6 +749,7 @@ boolean collision_test_vector(
 		scenario_location_from_point(&collision->location, &collision->point);
 	}
 
+	HALO_PERF_END(_halo_perf_bipeds_collision);
 	HALO_PERF_END(_halo_perf_tick_collision);
 	return hit;
 }
@@ -1714,6 +1716,15 @@ static boolean object_test_vector(
 				&object->object.bounding_sphere_center,
 				(object->object.bounding_sphere_radius)))
 		{
+#ifndef HALO_CONSOLE_NO_FORGE
+			/* (port: Forge's PHASED: its own shape passes the line, what is
+			attached to it does not - a rider stays shootable) */
+			if (TEST_FLAG(object->object.flags, _object_forge_phased_bit) &&
+				!TEST_FLAG(flags, _collision_test_forge_phased_objects_bit))
+			{
+			}
+			else
+#endif
 			if (TEST_FLAG(_object_mask_vehicle, object->object.type) &&
 				TEST_FLAG(flags, _collision_test_use_vehicle_physics_bit))
 			{

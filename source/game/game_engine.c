@@ -631,6 +631,9 @@ boolean cache_file_tags_are_ce(void);
 #include "mcc_ui_teams.h"
 #include "game_modes.h" /* port: the game modes layer (docs/modes.md) */
 #include "game_engine_playlist.h" /* port: the built-ins' builders */
+#ifndef HALO_CONSOLE_NO_FORGE
+#include "forge.h" /* port: port/linux/game/forge.c */
+#endif
 
 /* network_game_globals.c's */
 boolean network_game_distributed_client(void);
@@ -651,6 +654,9 @@ enum
 	MULTIPLAYER_MAXIMUM_PLAYERS = HALO_PORT_MAXIMUM_NETWORK_PLAYERS,
 	/* ui\multiplayer_game_text only has strings for the first 16 places */
 	NUMBER_OF_PLACE_STRINGS = 16,
+	/* port: the most duplicate netgame flags a map's check logs
+	(netgame_flag_verify_no_team_duplicates) */
+	MAXIMUM_NETGAME_FLAG_DUPLICATES_REPORTED = 16,
 };
 
 /* scenario_starting_equipment.flags (HCEX names) */
@@ -1455,19 +1461,24 @@ static void game_engine_generate_title_string(
 	return;
 }
 
+/* port: the view's window with display.hud_safe_zone's margins (hud_draw.c) */
+void hud_safe_zone_bounds(rectangle2d *bounds);
+
 static void rasterize_in_game_score_draw_line(
 	wchar_t const *string,
 	boolean brighten,
 	real_argb_color *color,
 	long row_index)
 {
-	rectangle2d bounds = render.camera.window_bounds;
+	rectangle2d bounds;
 	short narrow_tab_stops[3];
 	short wide_tab_stops[3];
 	short *tab_stops;
 	boolean splitscreen;
 	long font_index;
 
+	/* port: at display.hud_safe_zone's edge ("xbox": the window's) */
+	hud_safe_zone_bounds(&bounds);
 	splitscreen = local_player_count() > 1;
 	font_index = hud_get_font_index();
 	narrow_tab_stops[0] = 80;
@@ -1539,7 +1550,21 @@ int config_boolean(const char *name);
 static boolean scoreboard_in_game_only(
 	void)
 {
+#ifdef HALO_CONSOLE_SETTINGS_ON_CHANGE
+	/* (read again only when the settings change: halo_port_features.h) */
+	extern unsigned long config_changes(void);
+	static unsigned long read_at = (unsigned long)-1;
+	static boolean in_game_only;
+
+	if (read_at != config_changes())
+	{
+		read_at = config_changes();
+		in_game_only = !config_boolean("display.show_quit_players");
+	}
+	return in_game_only;
+#else
 	return !config_boolean("display.show_quit_players");
+#endif
 }
 
 long populate_statistic_buffer(
@@ -2105,6 +2130,24 @@ own player) */
 static long scoreboard_scroll = 0;
 static boolean scoreboard_open = FALSE;
 
+#ifdef HALO_CONSOLE_SETTINGS_ON_CHANGE
+/* display.scoreboard_icons, read again only when the settings change
+(halo_port_features.h): asked for each row */
+static boolean scoreboard_icons_shown(
+	void)
+{
+	static unsigned long read_at = (unsigned long)-1;
+	static boolean shown;
+
+	if (read_at != config_changes())
+	{
+		read_at = config_changes();
+		shown = config_boolean("display.scoreboard_icons") != 0;
+	}
+	return shown;
+}
+#endif
+
 /* display.scoreboard_team_layout: a team game's players in a column for each
 team ("teams", the red team's on the left), or all in order of score
 ("score") */
@@ -2222,7 +2265,11 @@ static void game_engine_rasterize_scoreboard(
 #endif
 	/* (the verified mark's room only when a player has it; neither it nor
 	the logos with display.scoreboard_icons off: names and scores alone) */
+#ifdef HALO_CONSOLE_SETTINGS_ON_CHANGE
+	for (index = 0; index < ranked_count && scoreboard_icons_shown(); index++)
+#else
 	for (index = 0; index < ranked_count && config_boolean("display.scoreboard_icons"); index++)
+#endif
 	{
 		if (!campaign && scoreboard_player_verified(ranked[index].player_index))
 		{
@@ -3059,6 +3106,35 @@ void game_engine_post_rasterize_post_game(
 	return;
 }
 
+/* port: whether any biped the search below can take (find_closest_player_
+callback: not invisible, not dead, not the player's own) stands within the
+20 world units of the camera that it asks of the one it chooses (the same
+distance_squared < 400.0f, from the same camera position to the same object
+position). With none, the search - every collideable object of every
+cluster the camera's cluster can see, then each biped's line of sight -
+chooses none, so it is not made. */
+static boolean find_closest_player_candidate_near(
+	long unit_index,
+	long player_index)
+{
+	struct object_iterator iterator;
+	struct object_datum *object;
+	real_point3d camera_position;
+
+	unit_get_camera_position(unit_index, &camera_position);
+	object_iterator_new(&iterator, _object_mask_biped, 0);
+	while ((object = object_iterator_next(&iterator)) != NULL)
+	{
+		if (find_closest_player_callback(iterator.index, &player_index) &&
+			distance_squared3d(&camera_position, &object->object.position) < 400.0f)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 static long find_closest_player_index(
 	long player_index)
 {
@@ -3072,7 +3148,8 @@ static long find_closest_player_index(
 			player_control_get_target_object_index(player->local_player_index);
 	}
 
-	if (best_object_index == NONE)
+	if (best_object_index == NONE &&
+		find_closest_player_candidate_near(player->unit_index, player_index))
 	{
 		long object_indices[32];
 		real_point3d camera_position;
@@ -3099,25 +3176,22 @@ static long find_closest_player_index(
 			real distance_squared = distance_squared3d(
 				&camera_position,
 				&candidate->object.position);
-			real_point3d target_position;
-			real_vector3d target_direction;
-			real target_distance;
-			real target_angle;
 
-			if ((candidate->unit.active_camouflage < 1.0f ||
-				player->player_display_index == player_index_from_unit_index(candidate_object_index)) &&
-				autoaim_compute_target(
+			/* port: the same tests, the cheap ones first: a candidate more
+			than 20 units away or outside the 7.5 degrees is passed over
+			before its line of sight is cast (autoaim_target_within_angle).
+			None of the tests changes anything, so the one chosen is the one
+			chosen before. */
+			if (distance_squared < 400.0f &&
+				distance_squared < 900.0f &&
+				(candidate->unit.active_camouflage < 1.0f ||
+					player->player_display_index == player_index_from_unit_index(candidate_object_index)) &&
+				autoaim_target_within_angle(
 					object_indices[object_index],
 					&camera_position,
 					&facing_direction,
 					player->unit_index,
-					&target_position,
-					&target_direction,
-					&target_distance,
-					&target_angle) &&
-				fabs(target_angle) < 0.13083334267139435 &&
-				distance_squared < 400.0f &&
-				distance_squared < 900.0f)
+					0.13083334267139435))
 			{
 				best_object_index = object_indices[object_index];
 			}
@@ -6261,7 +6335,13 @@ boolean game_engine_should_end_game(
 {
 	boolean should_end_game = FALSE;
 
-	if (game_engine && !multiple_teams_alive())
+	if (game_engine && !multiple_teams_alive()
+#ifndef HALO_CONSOLE_NO_FORGE
+		/* port: a Forge game (the monitor editing a map, alone) does not end
+		because one team is left */
+		&& !forge_game_active()
+#endif
+		)
 		should_end_game = TRUE;
 	/* port: the gametype's time limit (game_variant_options) */
 	if (game_engine && game_variant_options_get()->time_limit > 0 &&
@@ -9221,9 +9301,14 @@ static void netgame_flag_verify_no_team_duplicates(
 	struct scenario *scenario = global_scenario_get();
 	/* port: long counters, for a map's long count */
 	long flag_index;
+	/* port: no more lines than a few: a Halo PC map may have 32767 flags
+	(tag_schema_scenario.c), whose pairs of one team would be half a
+	billion lines, each written to debug.txt as the map loads */
+	long reported_count = 0;
 
 	for (flag_index = 0;
-		flag_index < scenario->netgame_flags.count;
+		flag_index < scenario->netgame_flags.count &&
+			reported_count < MAXIMUM_NETGAME_FLAG_DUPLICATES_REPORTED;
 		flag_index++)
 	{
 		struct scenario_netgame_flag *flag = TAG_BLOCK_GET_ELEMENT(
@@ -9236,7 +9321,8 @@ static void netgame_flag_verify_no_team_duplicates(
 			continue;
 
 		for (duplicate_index = flag_index + 1;
-			duplicate_index < scenario->netgame_flags.count;
+			duplicate_index < scenario->netgame_flags.count &&
+				reported_count < MAXIMUM_NETGAME_FLAG_DUPLICATES_REPORTED;
 			duplicate_index++)
 		{
 			struct scenario_netgame_flag *duplicate = TAG_BLOCK_GET_ELEMENT(
@@ -9251,6 +9337,7 @@ static void netgame_flag_verify_no_team_duplicates(
 					_error_silent,
 					error_message,
 					duplicate->team_index);
+				reported_count++;
 			}
 		}
 	}
@@ -9557,16 +9644,12 @@ static void internal_rasterize_target_name(
 
 	player = player_get(player_index);
 	target_player_index = NONE;
-	if (player->local_player_index != NONE && player->unit_index != NONE)
-	{
-		target_player_index = find_closest_player_index(player_index);
-		if (target_player_index == player_index)
-			target_player_index = NONE;
-	}
 
 	/* This is drawn once a frame, several frames per tick
 	(render_interpolation.c): the hold time counts ticks, as it did on the
-	Xbox. */
+	Xbox. port: the player aimed at is looked for only on the frame that
+	counts the tick, the one frame that reads the answer; the frames between
+	ticks threw their search away. */
 	{
 		static long last_game_times[MAXIMUM_NUMBER_OF_LOCAL_PLAYERS];
 		long *last_game_time = NULL;
@@ -9578,6 +9661,12 @@ static void internal_rasterize_target_name(
 		}
 		if (!last_game_time || *last_game_time != game_time_get())
 		{
+			if (player->local_player_index != NONE && player->unit_index != NONE)
+			{
+				target_player_index = find_closest_player_index(player_index);
+				if (target_player_index == player_index)
+					target_player_index = NONE;
+			}
 			if (last_game_time)
 				*last_game_time = game_time_get();
 	if (player->player_display_index != target_player_index)
@@ -10603,6 +10692,27 @@ void game_engine_client_respawn_countdown(
 	player->respawn_timer--;
 	if (player->local_player_index != NONE && player->respawn_timer == 1)
 		game_engine_play_multiplayer_sound(_multiplayer_sound_respawn);
+
+	return;
+}
+
+/* port: a distributed client's player given the unit the host spawned it
+with (network_distributed.c) before its own countdown ended, as it is when
+this machine's ticks run behind the host's: the countdown's last, higher
+beep played then, which the countdown would have played a tick before */
+void game_engine_client_respawned(
+	long player_index)
+{
+	struct player_datum *player;
+
+	if (!game_engine)
+		return;
+	player = player_get(player_index);
+	if (player->local_player_index != NONE && player->statistics.deaths > 0 && player->respawn_timer > 1)
+	{
+		player->respawn_timer = 1;
+		game_engine_play_multiplayer_sound(_multiplayer_sound_respawn);
+	}
 
 	return;
 }

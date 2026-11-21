@@ -89,6 +89,7 @@ symbols in this file:
 #include "bitmaps/bitmap_group.h"
 #include "bitmaps/bitmaps_inlines.h"
 #include "bitmaps/bitmap_utilities.h"
+#include "cache/cache_files.h"
 #include "cache/texture_cache.h"
 #include "mcc_cache.h"
 #include "mcc_hud_draw.h"
@@ -1095,15 +1096,20 @@ void hud_calculate_point(
 	corner = absolute_placement->corner;
 	if (corner < _hud_anchor_center)
 	{
+		/* port: the corners in display.hud_safe_zone's frame ("xbox": the
+		Xbox's window) */
+		rectangle2d safe_bounds;
+
+		hud_safe_zone_bounds(&safe_bounds);
 		point.x = placement->offset.x *
 			(TEST_FLAG(corner, _hud_anchor_right_bit) ? -1 : 1) * scale +
-			render.camera.window_bounds.v[
+			safe_bounds.v[
 				((corner & FLAG(_hud_anchor_right_bit)) << 1) |
 					FLAG(_hud_anchor_right_bit)] -
 			render.camera.viewport_bounds.x0;
 		point.y = placement->offset.y *
 			(TEST_FLAG(corner, _hud_anchor_bottom_bit) ? -1 : 1) * scale +
-			render.camera.window_bounds.v[corner & FLAG(_hud_anchor_bottom_bit)] -
+			safe_bounds.v[corner & FLAG(_hud_anchor_bottom_bit)] -
 			render.camera.viewport_bounds.y0;
 	}
 	else
@@ -1480,6 +1486,139 @@ void hud_zoomed_layout_end(
 }
 
 #endif
+
+/* port: display.hud_safe_zone, how far the HUD sits from the screen's edges.
+The Xbox lays a view's HUD out in its window: the title-safe frame of the
+640x480 screen (48 columns and 36 lines in from each edge, 7.5%:
+_rasterizer_initialize), split for split screen with only 4 pixels between
+a view's window and the line between views (compute_window_bounds). So in
+split screen a view's HUD sits far in from the screen's edges and close to
+the other views', as on the Xbox (retail: compute_window_bounds at
+0x000bba00, the frame set at 0x0007fadc). "xbox" keeps that (the consoles'
+default: televisions overscan); "pc" puts it 8 in from the screen's edges,
+as Halo PC does; "auto" (the desktop's and Android's default:
+port_config.c's DEFAULT_HUD_SAFE_ZONE) is the Xbox's alone and Halo PC's in
+split screen; two numbers ("24 18") set the
+columns and the lines, 8 to 48 and 8 to 36. Only the edges that are the
+screen's move: the 4 pixels between views stay. The range and the
+two-number form follow Chimera's chimera_safe_zones, by SnowyMouse
+(GPL-3.0), thanks!
+
+Only the HUD's corners and edges move. The window itself, which the 3D
+view's projection and the crosshair are centered in, stays as it is, so the
+aim doesn't move. Local only: nothing here is sent. */
+enum
+{
+	HUD_SAFE_ZONE_XBOX_COLUMNS = 48,
+	HUD_SAFE_ZONE_XBOX_LINES = 36,
+	HUD_SAFE_ZONE_PC_MARGIN = 8,
+	HUD_SAFE_ZONE_SCREEN_COLUMNS = 640,
+	HUD_SAFE_ZONE_SCREEN_LINES = 480,
+};
+
+enum
+{
+	_hud_safe_zone_xbox = 0,
+	_hud_safe_zone_pc,
+	_hud_safe_zone_auto,
+	_hud_safe_zone_custom,
+};
+
+int config_text(const char *name, char *text, size_t size);
+unsigned long config_changes(void);
+short main_get_window_count(void);
+void platform_log(char const *format, ...);
+
+static void hud_safe_zone_margins(
+	short *columns,
+	short *lines)
+{
+	static unsigned long read_at = (unsigned long)-1;
+	static short mode = _hud_safe_zone_xbox;
+	static short custom_columns = HUD_SAFE_ZONE_XBOX_COLUMNS;
+	static short custom_lines = HUD_SAFE_ZONE_XBOX_LINES;
+	/* (the value last said in the log, so a wrong one is said once) */
+	static char said[32];
+
+	if (read_at != config_changes())
+	{
+		char text[32];
+		int h;
+		int v;
+
+		read_at = config_changes();
+		mode = _hud_safe_zone_xbox;
+		if (config_text("display.hud_safe_zone", text, sizeof(text)))
+		{
+			boolean say = strcmp(text, said) != 0;
+
+			if (!strcmp(text, "pc"))
+				mode = _hud_safe_zone_pc;
+			else if (!strcmp(text, "auto"))
+				mode = _hud_safe_zone_auto;
+			else if (sscanf(text, "%d%*[ ,]%d", &h, &v) == 2)
+			{
+				mode = _hud_safe_zone_custom;
+				custom_columns = (short)PIN(h, HUD_SAFE_ZONE_PC_MARGIN, HUD_SAFE_ZONE_XBOX_COLUMNS);
+				custom_lines = (short)PIN(v, HUD_SAFE_ZONE_PC_MARGIN, HUD_SAFE_ZONE_XBOX_LINES);
+				if (say && (custom_columns != h || custom_lines != v))
+					platform_log("settings: display.hud_safe_zone = \"%s\" is out of 8 to 48 and 8 to 36; using \"%d %d\"",
+						text, custom_columns, custom_lines);
+			}
+			else if (say && text[0] && strcmp(text, "xbox"))
+				platform_log("settings: display.hud_safe_zone = \"%s\" is not \"xbox\", \"pc\", \"auto\" or two numbers; "
+					"using \"xbox\"", text);
+			snprintf(said, sizeof(said), "%s", text);
+		}
+	}
+
+	if (mode == _hud_safe_zone_pc ||
+		(mode == _hud_safe_zone_auto && main_get_window_count() > 1))
+	{
+		*columns = HUD_SAFE_ZONE_PC_MARGIN;
+		*lines = HUD_SAFE_ZONE_PC_MARGIN;
+	}
+	else if (mode == _hud_safe_zone_custom)
+	{
+		*columns = custom_columns;
+		*lines = custom_lines;
+	}
+	else
+	{
+		*columns = HUD_SAFE_ZONE_XBOX_COLUMNS;
+		*lines = HUD_SAFE_ZONE_XBOX_LINES;
+	}
+}
+
+void hud_safe_zone_bounds(
+	rectangle2d *bounds)
+{
+	rectangle2d const *screen = &rasterizer_globals.reserved04.screen_bounds;
+	rectangle2d const *frame = &rasterizer_globals.reserved04.frame_bounds;
+	rectangle2d const *viewport = &render.camera.viewport_bounds;
+	short columns;
+	short lines;
+
+	*bounds = render.camera.window_bounds;
+	hud_safe_zone_margins(&columns, &lines);
+	if (columns == HUD_SAFE_ZONE_XBOX_COLUMNS && lines == HUD_SAFE_ZONE_XBOX_LINES)
+		return;
+
+	/* (in the screen's units: a wider screen's frame is as much wider,
+	_rasterizer_initialize; each edge from the frame's, so the Xbox's own
+	4 pixels at a lone column's right and a lone row's bottom stay) */
+	columns = (short)(columns * (screen->x1 - screen->x0) / HUD_SAFE_ZONE_SCREEN_COLUMNS);
+	lines = (short)(lines * (screen->y1 - screen->y0) / HUD_SAFE_ZONE_SCREEN_LINES);
+	if (viewport->x0 <= screen->x0)
+		bounds->x0 = (short)(bounds->x0 - (frame->x0 - screen->x0 - columns));
+	if (viewport->x1 >= screen->x1)
+		bounds->x1 = (short)(bounds->x1 + (screen->x1 - frame->x1 - columns));
+	if (viewport->y0 <= screen->y0)
+		bounds->y0 = (short)(bounds->y0 - (frame->y0 - screen->y0 - lines));
+	if (viewport->y1 >= screen->y1)
+		bounds->y1 = (short)(bounds->y1 + (screen->y1 - frame->y1 - lines));
+}
+
 #ifdef HALO_CONSOLE_PERFORMANCE_MODE
 /* port: whether performance mode keeps the HUD's frames and backgrounds */
 boolean console_performance_hud_frames(void);
@@ -1628,6 +1767,9 @@ static void hud_draw_bitmap_internal(
 	struct dynamic_screen_vertex vertices[4];
 	struct rasterizer_dynamic_screen_geometry_parameters parameters;
 	short vertex_index;
+#if !defined(HALO_XBOX_CONSOLE) && !defined(HALO_CONSOLE_ANAMORPHIC_SCREEN)
+	boolean mirrored_across = FALSE;
+#endif
 
 	csmemset(stack_buffer, 0x62, sizeof(stack_buffer));
 
@@ -1650,6 +1792,47 @@ static void hud_draw_bitmap_internal(
 		vertices[vertex_index].color = color;
 	}
 
+#if !defined(HALO_XBOX_CONSOLE) && !defined(HALO_CONSOLE_ANAMORPHIC_SCREEN)
+	/* port: on a screen wider than 4:3, a HUD bitmap that covers the
+	window's whole 4:3 middle (a full-screen tint, vignette or scope mask)
+	reaches the window's edges: its quad is widened and its texture carried
+	on at the same rate, so the middle is drawn as before, and the bitmap,
+	mirrored past its edges, fills the sides: a scope mask's black border
+	stays black, a tint or vignette carries on without a seam or streaks.
+	A Custom Edition map's only, as Halo PC's HUD is laid out for any screen;
+	the Xbox's maps keep their 4:3 HUD. The mirroring is the whole texture's
+	(its addressing): fine for a bitmap that covers the screen, the only kind
+	widened */
+	if (theta == 0.0f && CACHE_FILE_TAGS_ARE_CE())
+	{
+		/* (the viewport's: the window is the HUD's safe area within it) */
+		real window_x0 = 0.0f;
+		real window_x1 = (real)(render.camera.viewport_bounds.x1 - render.camera.viewport_bounds.x0);
+		real window_y0 = 0.0f;
+		real window_y1 = (real)(render.camera.viewport_bounds.y1 - render.camera.viewport_bounds.y0);
+		real middle_width = (window_y1 - window_y0) * 4.0f / 3.0f;
+		real x0 = vertices[0].position.x, x1 = vertices[1].position.x;
+		real y0 = vertices[0].position.y, y1 = vertices[2].position.y;
+
+		if (window_x1 - window_x0 > middle_width + 2.0f && x1 > x0 &&
+			x1 - x0 >= middle_width - 2.0f && y0 <= window_y0 + 1.0f && y1 >= window_y1 - 1.0f &&
+			x0 > window_x0 && x1 < window_x1)
+		{
+			real texels_per_unit = (vertices[1].texture_coordinates.x - vertices[0].texture_coordinates.x) / (x1 - x0);
+
+			for (vertex_index = 0; vertex_index < 4; vertex_index++)
+			{
+				boolean left = vertices[vertex_index].position.x == x0;
+				real edge = left ? window_x0 : window_x1;
+
+				vertices[vertex_index].texture_coordinates.x += (edge - vertices[vertex_index].position.x) *
+					texels_per_unit;
+				vertices[vertex_index].position.x = edge;
+			}
+			mirrored_across = TRUE;
+		}
+	}
+#endif
 	csmemset(&parameters, 0, sizeof(parameters));
 	parameters.map_texture_scale[0].j = 1.0f;
 	parameters.map_texture_scale[0].i = 1.0f;
@@ -1660,6 +1843,10 @@ static void hud_draw_bitmap_internal(
 	parameters.framebuffer_blend_function =
 		_shader_framebuffer_blend_function_alpha_multiply_add;
 	parameters.map[0] = (struct bitmap_data *)bitmap;
+#if !defined(HALO_XBOX_CONSOLE) && !defined(HALO_CONSOLE_ANAMORPHIC_SCREEN)
+	if (mirrored_across)
+		parameters.map_wrapped[0] = 2;
+#endif
 
 	rasterizer_psuedo_dynamic_screen_quad_draw(&parameters, vertices);
 
@@ -2029,6 +2216,34 @@ void hud_draw_meter(
 	return;
 }
 
+#ifdef HALO_CUSTOM_EDITION
+#include "opensauce.h"
+
+/* port: an OpenSauce map's weapon HUDs (SPV3's) draw a digit from a sprite
+of another bitmap than the number bitmap's first: it is drawn from that one,
+as Halo PC's engine draws it, and said once, on an OpenSauce map only */
+static boolean hud_digits_elsewhere_allowed(
+	struct bitmap_data const *source_bitmap,
+	struct bitmap_data const *number_bitmap)
+{
+	static boolean logged = FALSE;
+
+	/* (not a digit with no bitmap at all, a bad sprite's: it would be drawn
+	from none) */
+	if (!number_bitmap || source_bitmap == number_bitmap || !opensauce_map_active())
+		return FALSE;
+	if (!logged)
+	{
+		logged = TRUE;
+		error(_error_silent, "OpenSauce map: a HUD number's digits are sprites of another bitmap than its first: "
+			"drawn from theirs");
+	}
+	return TRUE;
+}
+#else
+#define hud_digits_elsewhere_allowed(source_bitmap, number_bitmap) FALSE
+#endif
+
 void hud_draw_numbers(
 	short local_player_index,
 	struct hud_absolute_placement_definition const *absolute_placement,
@@ -2179,7 +2394,8 @@ void hud_draw_numbers(
 					match_assert(
 						"c:\\halo\\SOURCE\\interface\\hud_draw.c",
 						515,
-						!digits_on_one_bitmap || source_bitmap==number_bitmap);
+						!digits_on_one_bitmap || source_bitmap==number_bitmap ||
+						hud_digits_elsewhere_allowed(source_bitmap, number_bitmap));
 					hud_draw_bitmap_direct(
 						number_bitmap,
 						absolute_placement->corner,
@@ -2220,7 +2436,8 @@ void hud_draw_numbers(
 						match_assert(
 							"c:\\halo\\SOURCE\\interface\\hud_draw.c",
 							539,
-							!digits_on_one_bitmap || source_bitmap==number_bitmap);
+							!digits_on_one_bitmap || source_bitmap==number_bitmap ||
+							hud_digits_elsewhere_allowed(source_bitmap, number_bitmap));
 						hud_draw_bitmap_direct(
 							number_bitmap,
 							absolute_placement->corner,
@@ -2255,7 +2472,8 @@ void hud_draw_numbers(
 						match_assert(
 							"c:\\halo\\SOURCE\\interface\\hud_draw.c",
 							556,
-							!digits_on_one_bitmap || source_bitmap==number_bitmap);
+							!digits_on_one_bitmap || source_bitmap==number_bitmap ||
+							hud_digits_elsewhere_allowed(source_bitmap, number_bitmap));
 						hud_draw_bitmap_direct(
 							number_bitmap,
 							absolute_placement->corner,
@@ -2292,7 +2510,8 @@ void hud_draw_numbers(
 					match_assert(
 						"c:\\halo\\SOURCE\\interface\\hud_draw.c",
 						575,
-						!digits_on_one_bitmap || source_bitmap==number_bitmap);
+						!digits_on_one_bitmap || source_bitmap==number_bitmap ||
+						hud_digits_elsewhere_allowed(source_bitmap, number_bitmap));
 					hud_draw_bitmap_direct(
 						number_bitmap,
 						absolute_placement->corner,
@@ -2325,7 +2544,8 @@ void hud_draw_numbers(
 					match_assert(
 						"c:\\halo\\SOURCE\\interface\\hud_draw.c",
 						595,
-						!digits_on_one_bitmap || source_bitmap==number_bitmap);
+						!digits_on_one_bitmap || source_bitmap==number_bitmap ||
+						hud_digits_elsewhere_allowed(source_bitmap, number_bitmap));
 					hud_draw_bitmap_direct(
 						number_bitmap,
 						absolute_placement->corner,

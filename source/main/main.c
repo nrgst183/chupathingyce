@@ -718,6 +718,9 @@ void browser_screen_host_download_update(void);
 #ifdef HALO_PORT_CHAT
 void chat_update(void);
 #endif
+#ifdef HALO_CUSTOM_EDITION
+void ce_resources_update(void);
+#endif
 #ifdef HALO_PORT_VOICE
 void voice_game_update(void);
 #endif
@@ -769,6 +772,60 @@ static struct _main_globals main_globals = { 0 };
 static long main_loss_last_tick;
 static long main_respawn_last_tick;
 static long main_save_last_tick;
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+/* port: a test build's trace of a checkpoint's wait, into the log
+(--console-checkpoint-trace, warthog-xbox #84): when it starts, each change
+in which safety check stops it (game_safe_to_save), and how it ends, with
+the ticks waited and the checks that said no */
+static struct
+{
+	boolean waiting;
+	long ticks;
+	long checks;
+	long unsafe_checks;
+	long lines;
+	char const *check;
+} main_save_trace;
+
+static void main_save_trace_check(
+	boolean safe)
+{
+	char const *check = safe ? NULL : game_save_unsafe_check;
+
+	if (!main_save_trace.waiting)
+	{
+		csmemset(&main_save_trace, 0, sizeof(main_save_trace));
+		main_save_trace.waiting = TRUE;
+		error(_error_silent, "checkpoint: waiting for a safe moment (tick %ld)", (long)game_time_get());
+	}
+	main_save_trace.checks++;
+	if (!safe)
+		main_save_trace.unsafe_checks++;
+	/* (a few lines a checkpoint: a check that keeps changing is counted) */
+	if (check != main_save_trace.check && main_save_trace.lines < 16)
+	{
+		main_save_trace.lines++;
+		if (check)
+			error(_error_silent, "checkpoint: not safe: %s (%ld ticks in)", check, main_save_trace.ticks);
+		else
+			error(_error_silent, "checkpoint: safe again after %s (%ld ticks in)", main_save_trace.check,
+				main_save_trace.ticks);
+	}
+	main_save_trace.check = check;
+}
+
+static void main_save_trace_end(
+	char const *how)
+{
+	if (main_save_trace.waiting)
+	{
+		error(_error_silent, "checkpoint: %s after %ld ticks (%ld of %ld checks not safe%s%s)", how,
+			main_save_trace.ticks, main_save_trace.unsafe_checks, main_save_trace.checks,
+			main_save_trace.check ? ", the last: " : "", main_save_trace.check ? main_save_trace.check : "");
+	}
+	main_save_trace.waiting = FALSE;
+}
+#endif
 boolean debug_force_frame_rate_update = FALSE;
 boolean debug_no_drawing = FALSE;
 boolean debug_game_save = FALSE;
@@ -1360,6 +1417,70 @@ real first_person_weapon_projection_scale(
 	}
 
 	return weapon_scale > 0.0f ? first_person_field_of_view_scale() / weapon_scale : 1.0f;
+}
+
+/* port: display.crosshair_position (#508), how far down (in the window's
+units, a HUD pixel) a local player's aim point is drawn, and the crosshair
+with it, from the middle of its window, where the Xbox draws both ("retail",
+0). "centered" puts them in the middle of the player's view: the same in a
+game alone, but a split screen's views reach the screen's edges past their
+windows (the title-safe frame), so the Xbox's aim is a little off their
+middle. "lowered" puts them a tenth of the view's height below its middle,
+as later Halo games do. The view itself moves (render_player_frame moves
+its frustum's bounds, as a tiled screenshot's are), so the aim stays under
+the crosshair: what is seen and where shots go are the same, only framed
+higher or lower. Not while zoomed (the scope's picture is drawn in the
+middle), nor in a cutscene or a view without the player's aim. 0 on the
+original Xbox */
+real first_person_aim_offset(
+	short local_player_index,
+	rectangle2d const *viewport_bounds,
+	rectangle2d const *window_bounds)
+{
+#ifndef HALO_XBOX_CONSOLE
+	extern int config_text(const char *name, char *text, size_t size);
+	static unsigned long read_at = (unsigned long)-1;
+	static short position = 0;
+	short perspective;
+	real viewport_middle;
+	real window_middle;
+
+	if (read_at != config_changes())
+	{
+		char text[32];
+
+		read_at = config_changes();
+		position = 0;
+		if (config_text("display.crosshair_position", text, sizeof(text)))
+		{
+			if (!strcmp(text, "centered"))
+				position = 1;
+			else if (!strcmp(text, "lowered"))
+				position = 2;
+		}
+	}
+	if (!position ||
+		local_player_index < 0 || local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS ||
+		cinematic_in_progress() ||
+		player_control_get_zoom_level(local_player_index) != NONE)
+	{
+		return 0.0f;
+	}
+	perspective = director_get_perspective(local_player_index);
+	if (perspective != _director_perspective_first_person && perspective != _director_perspective_third_person)
+		return 0.0f;
+
+	viewport_middle = (viewport_bounds->y0 + viewport_bounds->y1) * 0.5f;
+	window_middle = (window_bounds->y0 + window_bounds->y1) * 0.5f;
+	if (position == 2)
+		viewport_middle += (viewport_bounds->y1 - viewport_bounds->y0) * 0.1f;
+	return (real)fast_ftol(viewport_middle - window_middle);
+#else
+	(void)local_player_index;
+	(void)viewport_bounds;
+	(void)window_bounds;
+	return 0.0f;
+#endif
 }
 
 /* port: display.reticle_scales_with_fov, what the reticle's size (and its
@@ -2070,6 +2191,9 @@ void main_save_map_safe(
 {
 	if (!main_globals.saving_map || main_globals.save_map_timeout)
 	{
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+		main_save_trace_end("asked again");
+#endif
 		main_globals.saving_map = TRUE;
 		main_globals.save_map_safely = TRUE;
 		main_globals.save_map_timeout = TRUE;
@@ -2087,6 +2211,9 @@ void main_save_map_no_timeout(
 {
 	if (!main_globals.saving_map || main_globals.save_map_timeout)
 	{
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+		main_save_trace_end("asked again");
+#endif
 		main_globals.saving_map = TRUE;
 		main_globals.save_map_safely = TRUE;
 		main_globals.ticks_until_next_save_check = 0;
@@ -2514,17 +2641,28 @@ static void main_save_map_private(
 
 			while (ticks-- > 0 && !save_map)
 			{
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+				main_save_trace.ticks++;
+#endif
 				if (main_globals.ticks_unable_to_save++ >= 240 &&
 					main_globals.save_map_timeout)
 				{
 					if (debug_game_save)
 						console_printf(FALSE, "gave up trying to save");
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+					main_save_trace_end("gave up");
+#endif
 					main_globals.saving_map = FALSE;
 					return;
 				}
 				else if (main_globals.ticks_until_next_save_check-- <= 0)
 				{
-					if (game_safe_to_save())
+					boolean safe = game_safe_to_save();
+
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+					main_save_trace_check(safe);
+#endif
+					if (safe)
 					{
 						if (main_globals.safe_intervals++ >= 3)
 							save_map = TRUE;
@@ -2546,6 +2684,10 @@ static void main_save_map_private(
 
 		if (save_map)
 		{
+#ifdef HALO_CONSOLE_CHECKPOINT_TRACE
+			if (save_map_safely)
+				main_save_trace_end("saved");
+#endif
 			/* port: remember where the players are, for network co-op respawns */
 			players_note_checkpoint();
 			hud_autosave(TRUE);
@@ -2947,6 +3089,55 @@ static void main_update_time_unthrottled(
 }
 
 #endif
+#ifdef HALO_CONSOLE_FRAME_RATE
+/* port: the vertical blanks a frame waits on a console whose display does
+not refresh at 60 Hz (halo_console_refresh_rate: a PAL television without
+PAL60 is 50 Hz). The game counted 60 blanks a second; at 50 its interval of
+2 drew 25 frames a second and its clock ran a sixth slow. A frame every
+blank is every blank at any rate. A frame a tick (30) can't be a whole
+number of 50 Hz blanks: the frame waits for the first blank at or after the
+next tick is due, 2, 2 and 1 blanks in turn, so that each frame draws one
+tick, as at 60. With no tick to wait for (a menu, a pause, a held clock) the
+same 2, 2, 1 by count */
+static short main_console_vblank_interval(
+	short refresh_rate,
+	short frames_per_second)
+{
+	static short cadence_index;
+	short longest;
+	short interval;
+	real fraction;
+	real speed;
+
+	if (frames_per_second <= 0 || frames_per_second >= refresh_rate)
+		return 1;
+	if (refresh_rate % frames_per_second == 0)
+		return (short)(refresh_rate / frames_per_second);
+	longest = (short)((refresh_rate + frames_per_second - 1) / frames_per_second);
+	fraction = game_time_get_tick_fraction();
+	speed = game_time_get_speed();
+	if (frames_per_second == TICKS_PER_SECOND && fraction < 1.0f && speed > 0.0f)
+	{
+		/* (the fewest blanks that surely reach the tick, the longest
+		always does: a slack the other way let a frame stop just short of
+		it once the clock's rounding had built up, and that frame drew no
+		tick) */
+		real ticks_per_blank = speed * (real)TICKS_PER_SECOND / (real)refresh_rate;
+
+		interval = 1;
+		while (interval < longest && fraction + (real)interval * ticks_per_blank < 1.0001f)
+			interval++;
+	}
+	else
+	{
+		interval = (short)(((cadence_index + 1) * refresh_rate + frames_per_second - 1) / frames_per_second -
+			(cadence_index * refresh_rate + frames_per_second - 1) / frames_per_second);
+		cadence_index = (short)((cadence_index + 1) % frames_per_second);
+	}
+	return interval < 1 ? 1 : interval;
+}
+
+#endif
 static void main_update_time(
 	void)
 {
@@ -2983,6 +3174,13 @@ static void main_update_time(
 		{
 			requested_interval = (short)(
 				60 / (rasterizer_globals.framerate_throttle_target ? rasterizer_globals.framerate_throttle_target : 30));
+#ifdef HALO_CONSOLE_FRAME_RATE
+			if (halo_console_refresh_rate() != 60)
+			{
+				requested_interval = main_console_vblank_interval(halo_console_refresh_rate(),
+					rasterizer_globals.framerate_throttle_target ? rasterizer_globals.framerate_throttle_target : 30);
+			}
+#endif
 			main_globals.vblank_interval_requested = requested_interval;
 
 			if (rasterizer_globals.framerate_throttle_debug)
@@ -3157,6 +3355,23 @@ static void main_update_time(
 
 	if (framerate_throttle)
 	{
+#ifdef HALO_CONSOLE_FRAME_RATE
+		/* port: the display's own blanks (counted as 60 a second, a 50 Hz
+		console's clock ran a sixth slow, and fell behind everyone else's
+		in a network game). A blank's length is rounded up, as the game's
+		1/60 is: rounded down, a one-blank frame meant to reach the next
+		tick fell a hair short of it and drew no tick */
+		if (halo_console_refresh_rate() != 60)
+		{
+			real seconds_per_blank = 1.0f / (real)halo_console_refresh_rate();
+
+			seconds_per_blank += seconds_per_blank * 0.00000025f;
+			seconds_elapsed =
+				(real)(target_index - (__int64)main_globals.rasterizer_target_index) *
+				seconds_per_blank;
+		}
+		else
+#endif
 		seconds_elapsed =
 			(real)(target_index - (__int64)main_globals.rasterizer_target_index) *
 			0.01666666753590107f;
@@ -3361,11 +3576,23 @@ static void main_reset_map_private(
 {
 	if (!game_time_get_paused())
 	{
+#ifndef HALO_CONSOLE_NO_FORGE
+		/* (port: a Forge game's layout taken while its objects are there,
+		placed again once the reset map's player has spawned:
+		port/linux/game/forge.c, the Forge panel's NEW ROUND) */
+		void forge_map_resetting(void);
+		void forge_map_reset(void);
+
+		forge_map_resetting();
+#endif
 		scenario_switch_structure_bsp(0);
 		game_dispose_from_old_map();
 		input_flush();
 		game_initialize_for_new_map();
 		create_local_players();
+#ifndef HALO_CONSOLE_NO_FORGE
+		forge_map_reset();
+#endif
 		game_time_start();
 		game_initial_pulse();
 		ui_widgets_disable_pause_game(30);
@@ -3748,9 +3975,11 @@ static void halt_screen_text_build(
 
 /* port: a halt nobody sees (a run nobody watches, the dedicated server, a
 halt on a thread that cannot draw): its facts in the log, and the game
-ends with a failure, for what runs it to see */
+ends with a failure, for what runs it to see. immediately: at once, once
+the log has it, without exit()'s handlers (a halt off the window's thread,
+where they could wait on locks the other threads hold) */
 static void halt_screen_exit(
-	void)
+	boolean immediately)
 {
 	struct halt_facts const *facts = &halt_screen_facts;
 	char line[600];
@@ -3761,6 +3990,13 @@ static void halt_screen_exit(
 #ifdef HALO_CONSOLE_LOG_BUFFER
 	error_log_flush();
 #endif
+	if (immediately)
+	{
+		/* (unistd.h's, and the C library's on Windows: this file is C89) */
+		void _exit(int status);
+
+		_exit(EXIT_FAILURE);
+	}
 	exit(EXIT_FAILURE);
 }
 
@@ -3806,6 +4042,7 @@ void halt_and_catch_fire(
 		halt_screen_text_build();
 		{
 			short choice = 0;
+			boolean exit_immediately = FALSE;
 
 #ifdef HALO_SERVER
 			/* port: the dedicated server stops, so that what runs it sees
@@ -3816,6 +4053,8 @@ void halt_and_catch_fire(
 			/* port: the menus' look and the ways out, when someone watches
 			from the window's own thread (halt_screen.c); else the game
 			ends */
+			int platform_on_event_thread(void);
+
 			switch (halt_screen_choose())
 			{
 			case HALT_SCREEN_SHOWN:
@@ -3823,6 +4062,7 @@ void halt_and_catch_fire(
 				break;
 			case HALT_SCREEN_EXIT:
 				choice = 2;
+				exit_immediately = !platform_on_event_thread();
 				break;
 			default:
 				break;
@@ -3831,7 +4071,7 @@ void halt_and_catch_fire(
 			overlay_shown = choice == 1;
 			if (choice == 2)
 			{
-				halt_screen_exit();
+				halt_screen_exit(exit_immediately);
 			}
 		}
 
@@ -4326,6 +4566,12 @@ void main_loop(
 			MAIN_STAGE("browser_screen_host_download_update");
 			browser_screen_host_download_update();
 #endif
+#ifdef HALO_CUSTOM_EDITION
+			/* what a Custom Edition or HaloMD map's loading left to tell the
+			player (port/linux/game/ce_resources.c) */
+			MAIN_STAGE("ce_resources_update");
+			ce_resources_update();
+#endif
 #ifdef HALO_PORT_CHAT
 			/* text chat (port/linux/game/chat.c; on a console, its client's
 			part) */
@@ -4489,12 +4735,33 @@ void main_loop(
 #endif
 					render_frame &= !game_engine_running() || game_time_get()>=3;
 
+					/* port: a structure bsp switch that failed left no bsp and
+					the main menu on its way (scenario_switch_structure_bsp):
+					nothing is drawn, and the camera and Forge's monitor don't
+					move, in a bsp that isn't there (game_time_update runs no
+					tick either) */
+					if (!global_structure_bsp_try_and_get())
+						render_frame = FALSE;
+
 					MAIN_STAGE("collision_log_continue_period");
 					collision_log_continue_period(1);
+					if (global_structure_bsp_try_and_get())
+					{
 					MAIN_STAGE("director_update");
 					director_update((real)main_globals.halt_time_scale*main_globals.seconds_elapsed);
 					MAIN_STAGE("observer_update");
 					observer_update((real)main_globals.halt_time_scale*main_globals.seconds_elapsed);
+#ifndef HALO_CONSOLE_NO_FORGE
+					/* (port: Forge's monitor: what it holds goes where the
+					camera just went, before the tick starts;
+					port/linux/game/forge.c) */
+					{
+						void forge_update(void);
+
+						forge_update();
+					}
+#endif
+					}
 					MAIN_STAGE("collision_log_end_period");
 					collision_log_end_period();
 					MAIN_STAGE("game_engine_update_non_deterministic");

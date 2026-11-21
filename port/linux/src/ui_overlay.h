@@ -346,6 +346,9 @@ void ui_style_glass(float x, float y, float width, float height, float radius, u
 	unsigned int edge);
 /* a row's capsule: glass, the selected one lit with the plasma */
 void ui_style_row(float x, float y, float width, float height, int selected);
+/* a row's capsule for the one chosen while the focus is elsewhere (the
+item whose page is open beside the list): glass, with the selection's edge */
+void ui_style_row_chosen(float x, float y, float width, float height);
 /* a setting's row (settings_rows.h's, the Guide's and the setup screen's):
 its capsule (ui_style_row), its label in ui_style_text's UI_TEXT_NAME at
 scale times its size, a tag after it (badge, as "NEEDS A RESTART"; NULL:
@@ -354,8 +357,15 @@ an action row, its label alone) */
 /* the next ui_style_setting's value shown alone, without the arrows (a
 row that opens something rather than steps through values) */
 void ui_style_setting_plain(void);
+/* the next ui_style_setting opens something (a list, a screen): a chevron
+at the arrow's place, its value (if any) alone before it */
+void ui_style_setting_opens(void);
 void ui_style_setting(float x, float y, float width, float height, float scale, const char *label, const char *badge,
 	const char *value, int selected);
+/* a chevron at the right end of a row from x, width wide, height tall,
+its text size high: a row that opens something (a list, a screen); the
+room it takes from the row's right edge */
+float ui_style_row_chevron(float x, float y, float width, float height, float size);
 /* section tabs between left and right, height tall: the bumpers' glyphs at
 the ends (the keyboard's: left_key and right_key, as "Q" and "E", or the
 device's LB and RB when NULL), the names centered, the selected one lit.

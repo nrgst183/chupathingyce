@@ -263,7 +263,7 @@ a later version may append):
 | 26 | BADGE | host to client | nonce (32, the BADGE_ASK's), signature (64, the certificate's server key's, of the proof below), certificate length (2, at most 143; 0 for none), proof (1: 2, "chupathingy server badge proof v2\n", the nonce, the host's invite and the session, [server-badges.md](https://github.com/ChupathingyCE/chupathingyce/blob/main/docs/server-badges.md); 0, the first drafts' nonce alone, shows no badge), reserved (1), then the certificate |
 | 27 | UNIT_VITALS | host to client | count (1, at most 98), flags (1: 0x01 the last datagram of a full pass), reserved (2), then 12-byte entries: the host's object (4, its datum index, which a client's copy shares), flags (1: 0x01 shield depleted, 0x02 shield charging, 0x04 shield over charging), reserved (1), body vitality (2), shield vitality (2), reserved (2); vitality in 16384ths, as the game's own unit states have it |
 | 28 | OBJECT_NAMES | host to client | total (2, the host's named objects and removed names in all, at most 512), first (2, this datagram's first entry's place among them), count (1, at most 98), reserved (3), then 12-byte entries: the host's object (4; 0xFFFFFFFF for a removed name), its scenario name index (2), flags (1: 0x01 removed, a name the host had an object of this game and has none of now; others ignored), and for a removed name its unit's last vitals: shield flags (1, as UNIT_VITALS's), body vitality (2), shield vitality (2) (full for an object that was not a unit; 0 for the others) |
-| 29 | HOST_RULES | host to client | version (1; 1 now, 0 refused, a later one read as far as this build knows it), flags (1: 0x01 names above heads allowed, 0x02 the follow camera allowed, 0x04 late joiners wait for the next game, 0x08 joins are locked; others ignored), team changes (1: 0 off, 1 balanced, 2 allow), their margin (1, 0 to 16), reserved (4); values past their ranges refused. Sent at once when they change and every 5 seconds |
+| 29 | HOST_RULES | host to client | version (1; 1 now, 0 refused, a later one read as far as this build knows it), flags (1: 0x01 names above heads allowed, 0x02 the follow camera allowed, 0x04 late joiners wait for the next game, 0x08 joins are locked, 0x10 shots turned around in mid-air go where the player aims; others ignored), team changes (1: 0 off, 1 balanced, 2 allow), their margin (1, 0 to 16), reserved (4); values past their ranges refused. Sent at once when they change and every 5 seconds |
 | 30 | ID_CHALLENGE | host to client | version (1; 1 now, 0 refused, a later one read as this), binding length (1, at most 64), reserved (2), nonce (32: this session's), binding (printable ASCII) |
 | 31 | ID_PROOF | client to host | version (1), local player (1, 0 to 3), certificate length (1: 0 withdraws the local player and nothing follows; else 148 to 168), name length (1, at most 20), flags (1: 0x01 bound), reserved (3), time (4, Unix seconds), signature (64), issuer certificate (CISS, 112), device certificate (CDEV, the length's bytes), name (the handle in the player's capitals: `A-Z a-z 0-9 _ -`) |
 | 32 | ID_CARD | host to client | version (1), machine index (1), local player (1, 0 to 3), certificate length (1: 0 withdraws the card and nothing follows; else 148 to 168), name length (1, at most 20), reserved (3), flags (1, the proof's), reserved (3), time (4, the proof's), nonce (32: the one the host challenged that machine's session with), signature (64), CISS (112), CDEV, name. At most 412 bytes |
@@ -724,18 +724,15 @@ of Delta's goes into the game protocol.
     filter and their mutes. It takes nothing but the host's stream. Such a
     host's console notices (the game's notice message, which an OpenCE
     server uses for its server messages and its message of the day) show
-    in the chat too, as a system line, blank ones and repeats within 15
-    seconds left out; a host with Delta chat keeps them on the console. A host
+    in the chat too, as a system line, blank ones left out. Any host's do,
+    one with Delta chat too (a server built on ours may send its welcome
+    and its announcements as notices), and the console keeps its copy. A
+    server line the chat had within 15 seconds, as a notice or over Delta,
+    is left out, so a host that sends a line both ways shows it once. A host
     with Delta chat is never bridged: its lines come over Delta alone.
   - A message of the wrong size is dropped and the log says so once (the
     machine's index, never its address); nothing about chat ever ends a
     connection.
-
-The game's side is `port/linux/game/chat.c` (keys, the log, routing, the
-bridge), `port/linux/src/delta_chat.c` (the filter and the host's rules)
-and `port/linux/src/delta_chat_bridge.c` (OpenCE's entries, the text's
-conversion, the bridge's checks), both tested in `delta_test.c`, and the dedicated server's `sv_say`, `sv_chat`, `sv_mute`
-and `sv_unmute`.
 
 ## Game modes
 
@@ -852,10 +849,6 @@ ask goes over Delta Peer and the change itself through the game:
   start the round on the new team. A bomb carrier keeps the bomb for their
   own team until then (their death drops it; a new round takes it back).
 
-The game's side is `port/linux/game/team_change.c`, its pause menu row in
-all the menu sets, and the dedicated
-server's settings and `sv_team`.
-
 ## Host rules
 
 Chupathingy plays multiplayer as the Xbox did. A few extras change what a
@@ -897,12 +890,24 @@ game, over `host_rules` (bit 19):
   players, or a player's host's players of other machines). The host's Delta
   List announcement says `locked=1`, which the site keeps as
   `joins_locked` (games.txt's field 25), and the game list shows it.
+- **Shots turned around in mid-air** (0x10, off by default: a player's
+  host's `network.air_turn_aim`, a dedicated server's `air_turn_aim`). A
+  player's aim is held within their body's aiming bounds, and a body turned
+  away in mid-air doesn't turn back until it lands, so on the Xbox a shot
+  fired after turning around in a jump leaves at an angle (the "180
+  glitch"). With the rule a player on foot shoots where they aim, from no
+  further back than their eye. It lifts the aim holding wherever it happens,
+  on the ground too (during some animations), not only in mid-air. Each
+  machine fires its own players' shots by its own build: only players on a
+  build that knows 0x10 get the fix, and OpenCE, Custom Edition, console and
+  older Chupathingy players fire as on the Xbox. A machine that knows the
+  rule draws every player's shots by it, though, so it shows an older or
+  OpenCE player's turned shot going where they look while their own machine
+  fired it at an angle. That's only what is drawn: hits follow each
+  shooter's own machine.
 - **A host that says nothing** (OpenCE's, an older Chupathingy, a console
   without Delta) gets the Xbox's rules: no extras. A game played alone
   (split screen) is its own host's.
-
-The game's side is `port/linux/game/host_rules.c` and
-`port/linux/game/late_join.c`.
 
 ## Reports
 
@@ -968,10 +973,6 @@ device token):
   refuses a body that isn't an MP4 (its top-level boxes, `ftyp` first and
   a `moov`), and drops an upload that sends nothing for a minute.
 
-The game's side is `port/linux/game/report_player.c` (the Delta Guide's PLAYERS
-HERE and the scoreboard's REPORT), the dedicated server's
-`server/src/server_reports.c` (`sv_reports`, the control panel's Reports).
-
 ## Server badges
 
 A dedicated server's OFFICIAL, DEVELOPER or COMMUNITY badge, over
@@ -991,10 +992,6 @@ one is issued are in [server-badges.md](https://github.com/ChupathingyCE/chupath
   answer in time, or fails the check shows no badge in Online Games from
   then on, whatever the list says; one that proves a badge shows the
   list's only while the list names the same tier, label and server key.
-
-The game's side is `port/linux/src/server_badge.c` and
-`port/linux/src/delta_peer_game.c`; the dedicated server's certificate is
-`server_badge.cert` in its data folder.
 
 ## Voice
 
@@ -1068,15 +1065,6 @@ the site.
   0.12 ms a frame on an Apple M4 (0.6% of a core while talking), decoding
   about 0.015 ms a frame for each speaker heard.
 
-The game's side is `port/linux/game/voice_game.c` (the channels, the host's
-rules and its view of the game), `port/linux/src/voice.c` (the microphone,
-Opus and the voices' playback, through the game's mixer, `dsound_sdl.c`)
-and `port/linux/src/voice_jitter.c`; Delta Peer's checks and routing are in
-`delta_peer.c`, all tested in `delta_test.c` and
-`voice_test.c`. A dedicated server relays without any audio or Opus of its
-own. The consoles leave voice out for now: a
-console is never sent any.
-
 ## Party teams
 
 A party (the Delta Guide's PARTY: up to 8 players who follow their leader into
@@ -1121,11 +1109,6 @@ places the party as it always did.
   changes, an admin's `sv_team`) stay as they are, and a party never
   overrides them. A client that doesn't speak `party_teams` sends nothing
   and is placed as before.
-
-The host's side is `port/linux/game/party_teams.c` (which change: the
-plan in `port/linux/src/party_teams_plan.c`, tested by
-`tools/test_party_teams.py`); the members' tag comes from
-`port/linux/game/guide.c`.
 
 ## Object sync
 
@@ -1189,10 +1172,6 @@ the map and the report):
   its scripts (so they decide as the host's did), then goes at the tick
   after the next. A name the host never had an object of is not listed,
   and the client keeps its own copy of it as above.
-
-It is offered by the builds with the game list (`HALO_GAME_BROWSER`: the
-desktop builds, Android, the Switch and the dedicated server), not by the
-original Xbox's. The game's side is `port/linux/game/network_objects.c`.
 
 ## Verified names
 

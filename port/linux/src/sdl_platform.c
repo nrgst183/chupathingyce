@@ -1645,6 +1645,19 @@ static int platform_resolution_add(long *widths, long *heights, int count, int m
 	return count;
 }
 
+int platform_display_native_size(long *width, long *height)
+{
+	SDL_DisplayID display;
+
+	*width = *height = 0;
+	if (!platform_sdl_initialize())
+		return 0;
+	display = platform_window ? SDL_GetDisplayForWindow(platform_window) : 0;
+	if (!display)
+		display = SDL_GetPrimaryDisplay();
+	return platform_display_size(display, width, height) ? 1 : 0;
+}
+
 int platform_display_resolutions(long *widths, long *heights, int maximum)
 {
 	SDL_DisplayID display;
@@ -1735,6 +1748,12 @@ int platform_window_sizes(long *widths, long *heights, int maximum)
 }
 
 #else
+int platform_display_native_size(long *width, long *height)
+{
+	*width = *height = 0;
+	return 0;
+}
+
 int platform_display_resolutions(long *widths, long *heights, int maximum)
 {
 	(void)widths;
@@ -2073,6 +2092,15 @@ driver (XWayland, gamescope's own): SDL's Wayland one takes any interval
 above 1 as 1, so there a fraction keeps the clock's limit. Everywhere else
 vsync off is as it was, the clock's limit, for the least latency. Based on
 work by goatbutt and the OpenH1 team. */
+/* tuning.present_mode = "adaptive" (config.toml's [tuning]): with V-Sync, a
+frame that missed the display shown at once, with a tear, rather than a
+whole refresh later (a swap interval of -1, the drivers' late swap tearing).
+Not with VRR, which shows each frame as it is ready anyway. */
+static int platform_present_adaptive(void)
+{
+	return !strcmp(config_string("tuning.present_mode"), "adaptive") && !platform_vrr();
+}
+
 static int platform_swap_interval(int vsync, long maximum)
 {
 #ifdef SWAP_INTERVAL_IN_STEP
@@ -2084,7 +2112,7 @@ static int platform_swap_interval(int vsync, long maximum)
 #endif
 
 	if (vsync)
-		return 1;
+		return platform_present_adaptive() ? -1 : 1;
 #ifdef SWAP_INTERVAL_IN_STEP
 #ifdef HALO_BGFX
 	if (xgpu_bgfx)
@@ -2127,6 +2155,18 @@ static void platform_swap_interval_apply(BOOL force, int vsync, long maximum)
 	if (!platform_gl_context || (!force && wanted == platform_interval_wanted))
 		return;
 	platform_interval_wanted = wanted;
+	if (interval < 0)
+	{
+		if (SDL_GL_SetSwapInterval(interval))
+		{
+			platform_log("tuning: present=adaptive, a late frame shown at once");
+			platform_interval = interval;
+			return;
+		}
+		platform_log("tuning: present=adaptive refused by the driver (%s): each frame waits for the display",
+			SDL_GetError());
+		interval = 1;
+	}
 	if (!SDL_GL_SetSwapInterval(interval))
 	{
 		platform_log("frame rate: a swap interval of %d refused (%s): the clock paces the frames", interval,
@@ -4094,6 +4134,13 @@ void platform_pump_events(void)
 		case SDL_EVENT_GAMEPAD_AXIS_MOTION:
 			gamepad_trigger_moved(event.gaxis.which, event.gaxis.axis, event.gaxis.value);
 			break;
+#ifdef HALO_PORT_GYRO_SDL
+		/* (gyro aim: only the pads whose sensors it turned on send these) */
+		case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
+			platform_gamepad_sensor(event.gsensor.which, event.gsensor.sensor, event.gsensor.data,
+				event.gsensor.sensor_timestamp ? event.gsensor.sensor_timestamp : event.gsensor.timestamp);
+			break;
+#endif
 		case SDL_EVENT_GAMEPAD_ADDED:
 #if defined(HALO_ANDROID) && !defined(HALO_IOS)
 			/* (the guest reaches SDL only through host_imports.list, which

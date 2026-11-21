@@ -12,7 +12,7 @@ the file.
 | `HALO_DEDICATED` | (none) | The playlist, a path inside the data folder: `playlists/free_for_all.txt`. Without it, a server whose control panel is on waits for its [first-run setup](moderation.md#first-run-setup-no-console-needed), where you pick the playlist. With the panel off, it only says how to start one. |
 | `HALO_DEDICATED_NAME` | `Dedicated` | The server's name on the lists. 15 characters at most, the game's limit. |
 | `HALO_DEDICATED_MINIMUM_PLAYERS` | `1` | The players a game waits for before its countdown starts. |
-| `HALO_DEDICATED_MAXIMUM_PLAYERS` | `12` | The players a game takes, up to 128 (`sv_maxplayers` in [admin.md](admin.md) changes it while running, until a restart: set here, the environment wins over the settings file). |
+| `HALO_DEDICATED_MAXIMUM_PLAYERS` | `16` | The players a game takes, up to 128 (`sv_maxplayers` in [admin.md](admin.md) changes it while running, until a restart: set here, the environment wins over the settings file). |
 | `HALO_DEDICATED_IDLE_LIMIT` | `5` | A game in which nobody scores for this many minutes ends. `0`: never. |
 | `HALO_DEDICATED_PUBLIC` | `true` | A public game, listed in every in-game Server Browser (OpenCE's and Chupathingy's) through internet play's brokers. `false`: not listed there; the game list still lists it, and its invite still works. |
 | `HALO_DEDICATED_NAME_FILTER` | `false` | `true`: players with a blocked name are warned and kicked ([below](#blocked-names)); `sv_name_filter 1` on the console does the same. |
@@ -30,6 +30,7 @@ the file.
 | `HALO_DEDICATED_VOICE_KBPS` | `24` | Voice quality, 8 to 64 kbps (`voice_kbps`). Each talker costs the server about 5 KB/s of upload for each player hearing them at 24. |
 | `HALO_DEDICATED_ALLOW_FOLLOW_CAMERA` | `false` | `true`: Chupathingy players may watch a living player's view while they wait to respawn (their `display.follow_camera`). `false` plays as the Xbox did: the death camera alone (`allow_follow_camera`). |
 | `HALO_DEDICATED_LATE_JOIN_HOLD` | `false` | `true`: a player who joins a game in progress watches through the follow camera until the next game starts (everyone, OpenCE players too). `false` spawns them at once, as Halo does (`late_join_hold`). |
+| `HALO_DEDICATED_AIR_TURN_AIM` | `false` | `true`: a shot fired while turned around in mid-air goes where the player aims (the "180 glitch" fixed) for Chupathingy players, who are told over Delta Peer. OpenCE, Custom Edition, console and older Chupathingy players fire as on the Xbox (Chupathingy players' games draw their turned shots as fixed; hits follow each shooter's own game). It also lifts aim holding on the ground. `false` plays as the Xbox did (`air_turn_aim`). |
 | `HALO_DEDICATED_BAN_SHARE` | `false` | `true`: while linked, your bans that name a Delta account or device go to your shared ban list on the site (`ban_share`). Never an address. |
 | `HALO_DEDICATED_WELCOME` | (none) | A welcome: a server message each Chupathingy player gets in their chat as they join, up to 127 printable ASCII characters (`sv_welcome` sets it). OpenCE players get it as the host's notice in their chat, while they may chat. |
 | `HALO_DEDICATED_OPENCE_WELCOME` | `false` | `true`: each OpenCE player (no Delta) gets one line in their chat, a few seconds after they first spawn, once each time they join: that this is a Chupathingy server (`opence_welcome`). It goes as the host's notice, which OpenCE's client shows in its chat even where its own chat is off. Chupathingy players never see it. |
@@ -63,7 +64,7 @@ The settings file's keys (`sv_settings` lists them, with where each value
 comes from): `name`, `maximum_players`, `minimum_players`, `idle_limit`,
 `public` (from the next start), `name_filter`, `chat`, `chat_filter`,
 `welcome`, `postgame_seconds`, `skip_lobby`, `chat_cooldown`, `team_change`
-(0 off, 1 balanced, 2 allow), `team_change_margin`, `playlist_shuffle`, `chat_legacy`, `gamespy_listing`, `gamespy_port`, `ce_joins`, `allow_player_names`, `allow_follow_camera`, `max_machines_per_address`, `betrayal_kick`, `afk_kick_minutes`, `keep_parties_together`, `late_join_hold`, `ban_share`, `voice`, `voice_team`, `voice_proximity`, `voice_everyone`, `voice_party`, `voice_lobby`, `voice_range`, `voice_kbps`, `opence_welcome`, `opence_welcome_text`, and the playlist
+(0 off, 1 balanced, 2 allow), `team_change_margin`, `playlist_shuffle`, `chat_legacy`, `gamespy_listing`, `gamespy_port`, `ce_joins`, `allow_player_names`, `allow_follow_camera`, `max_machines_per_address`, `betrayal_kick`, `afk_kick_minutes`, `keep_parties_together`, `late_join_hold`, `ban_share`, `voice`, `voice_team`, `voice_proximity`, `voice_everyone`, `voice_party`, `voice_lobby`, `voice_range`, `voice_kbps`, `opence_welcome`, `opence_welcome_text`, `air_turn_aim`, and the playlist
 `sv_playlist_use` chose. `sv_set welcome Hello and welcome` takes
 the rest of the line as the value (quotes optional).
 

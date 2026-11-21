@@ -126,6 +126,8 @@ symbols in this file:
 #include "mcc_cache.h"
 #include "mcc_checkpoint.h"
 #include "stubbs_regions.h"
+#include "opensauce_scripts.h"
+#include "ragdolls.h" /* port: display.ragdolls (port/linux/game/ragdolls.c) */
 /* port: object_bounds_cache.c's */
 void object_bounds_cache_invalidate(void);
 /* port: hs_runtime.c's and hs_globals_external.c's (game_state_image_accept) */
@@ -203,6 +205,11 @@ static game_state_before_load_proc before_load_procs[] =
 	cluster_partitions_port_forget,
 	/* port: (the objects are put back: object_bounds_cache.c) */
 	object_bounds_cache_invalidate,
+#ifdef HALO_PORT_RAGDOLLS
+	/* port: the ragdolls let go: their bodies are not these
+	(port/linux/game/ragdolls.c) */
+	ragdolls_reset,
+#endif
 };
 
 static game_state_after_load_proc after_load_procs[] =
@@ -287,6 +294,8 @@ void game_state_dispose(
 /* port: what last rewrote the game state, and when (game time), for
 game_state_check_data_arrays' report */
 static char const *game_state_last_event = "startup";
+/* port: checkpoints saved (game_state_port_checkpoints_saved) */
+static unsigned long game_state_checkpoints_saved = 0;
 static long game_state_last_event_time = NONE;
 
 static void game_state_note_event(
@@ -350,8 +359,17 @@ void game_state_save(
 	game_state_globals.saved_game_valid = (game_state_write_to_file()!=FALSE);
 	main_start_time();
 	game_state_note_event("checkpoint saved");
+	game_state_checkpoints_saved++;
 
 	return;
+}
+
+/* port: how many checkpoints have saved since the game started (Lua
+scripts tell a new checkpoint by it changing: lua_twiddlings.c) */
+unsigned long game_state_port_checkpoints_saved(
+	void)
+{
+	return game_state_checkpoints_saved;
 }
 
 /* port: whether game_state_revert has a saved state to go back to */
@@ -370,9 +388,20 @@ void game_state_port_restamp_revert_time(
 	game_state_globals.revert_time = game_time_get();
 }
 
+/* port: the reverts so far, for player_control.c: a cinematic skip's press
+makes one revert, not one for each tick it is held */
+static unsigned long game_state_revert_count;
+
+unsigned long game_state_port_revert_count(
+	void)
+{
+	return game_state_revert_count;
+}
+
 void game_state_revert(
 	void)
 {
+	game_state_revert_count++;
 	if (!game_state_globals.saved_game_valid && !recover_saved_games_hack)
 	{
 		main_reset_map();
@@ -963,7 +992,9 @@ boolean game_state_image_accept(
 	if (global_scenario_index != NONE && hs_global_data && hs_global_data->valid)
 	{
 		struct data_array const *globals = game_state_image_pointer(image, hs_global_data);
-		long scenario_count = global_scenario_get()->hs_globals.count;
+		/* (and OpenSauce's after the map's, on an OpenSauce map:
+		port/linux/game/opensauce_scripts.c) */
+		long scenario_count = global_scenario_get()->hs_globals.count + opensauce_script_global_count();
 
 		if (!game_state_image_hs_globals_valid(globals->count, hs_external_global_count, scenario_count))
 		{

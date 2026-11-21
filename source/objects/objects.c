@@ -148,6 +148,11 @@ makes the host's objects at the host's datum indices, and deletes them only
 on the host's word */
 long network_objects_new_object_index(void);
 boolean network_objects_creating_host_object(void);
+#ifndef HALO_CONSOLE_NO_FORGE
+/* (port: Forge's placement, port/linux/game/forge.c: the object chosen, as
+it is, not the game type's in its place) */
+extern int forge_placing_exact;
+#endif
 boolean network_objects_may_delete(long object_index);
 /* source/networking/network_game_globals.c's */
 boolean network_game_distributed_client(void);
@@ -305,7 +310,9 @@ void *object_try_and_get_and_verify_type(
 	return result;
 }
 
-void *object_get_and_verify_type(
+/* (the name in parentheses: on the consoles it is also the inline form's
+macro, objects.h) */
+void *(object_get_and_verify_type)(
 	long object_index,
 	unsigned long valid_type_flags)
 {
@@ -423,7 +430,27 @@ void objects_fix_for_deleted_object(
 	struct object_datum *object;
 
 	struct object_iterator iterator;
+#ifdef HALO_CONSOLE_FEWER_WALKS
+	unsigned long handling_types = object_types_handling_deleted_objects();
+
+#if defined(HALO_RELEASE) || defined(HALO_CONSOLE_NO_DEBUG_ASSERTS)
+	/* port: a release-style build visits only the objects of the types with
+	a handler (units and projectiles). The other reference cleared here, an
+	object's umbrella shield, is never anything but NONE: object_new sets it
+	so, nothing sets it to an object, damage.c only reads it. So the walk read every object
+	in the game (about a thousand in b30's beach fight) for every projectile
+	that hit or timed out, and found nothing to clear in all but those. The
+	headers are still walked in order and the handlers called for the same
+	objects in the same order. Builds with assertions visit every object and
+	check that no umbrella shield names the deleted object (from Lord
+	BirchWood's Vita port) */
+	object_iterator_new(&iterator, handling_types, 0);
+#else
 	object_iterator_new(&iterator, _object_mask_all, 0);
+#endif
+#else
+	object_iterator_new(&iterator, _object_mask_all, 0);
+#endif
 
 	for (object = (struct object_datum *)object_iterator_next(&iterator);
 		object;
@@ -431,8 +458,15 @@ void objects_fix_for_deleted_object(
 	{
 		if (object->object.umbrella_shield_object_index==deleted_object_index)
 		{
+#if defined(HALO_CONSOLE_FEWER_WALKS) && !defined(HALO_RELEASE) && !defined(HALO_CONSOLE_NO_DEBUG_ASSERTS)
+			match_vassert("c:\\halo\\SOURCE\\objects\\objects.c", __LINE__, FALSE,
+				"objects_fix_for_deleted_object: an umbrella shield named an object (a release build skips the objects that have no handler)");
+#endif
 			object->object.umbrella_shield_object_index = NONE;
 		}
+#ifdef HALO_CONSOLE_FEWER_WALKS
+		if (TEST_FLAG(handling_types, object->object.type))
+#endif
 		object_type_handle_deleted_object(iterator.index, deleted_object_index);
 	}
 
@@ -1323,12 +1357,15 @@ short object_get_first_cluster(
 real_matrix4x3 *object_get_node_matrices(
 	long object_index)
 {
+#ifndef HALO_CONSOLE_VIEW_INTERPOLATION
 	/* while a frame is drawn, the pose between the last two ticks
-	(port/linux/game/render_interpolation.c) */
+	(port/linux/game/render_interpolation.c; a console that moves only the
+	view between ticks keeps no poses, and is not asked) */
 	real_matrix4x3 *interpolated = render_interpolation_object_node_matrices(object_index);
 
 	if (interpolated)
 		return interpolated;
+#endif
 	return (real_matrix4x3 *)object_header_block_get(object_index, &object_get(object_index)->object.node_matrices);
 }
 
@@ -1337,10 +1374,13 @@ the last two ticks (port/linux/game/render_interpolation.c) */
 real *object_get_function_values(
 	long object_index)
 {
+#ifndef HALO_CONSOLE_NO_SMOOTH_FUNCTIONS
+	/* (a console draws them as sampled each tick: none between) */
 	real *interpolated = render_interpolation_object_function_values(object_index);
 
 	if (interpolated)
 		return interpolated;
+#endif
 	return object_get(object_index)->object.outgoing_function_values;
 }
 
@@ -1349,10 +1389,12 @@ last two ticks (port/linux/game/render_interpolation.c) */
 real_rgb_color *object_get_change_colors(
 	long object_index)
 {
+#ifndef HALO_CONSOLE_NO_SMOOTH_FUNCTIONS
 	real_rgb_color *interpolated = render_interpolation_object_change_colors(object_index);
 
 	if (interpolated)
 		return interpolated;
+#endif
 	return object_get(object_index)->object.outgoing_change_colors;
 }
 
@@ -2002,12 +2044,14 @@ real_matrix4x3 *object_get_node_matrix(
 		}
 	}
 
+#ifndef HALO_CONSOLE_VIEW_INTERPOLATION
 	{
 		real_matrix4x3 *interpolated = render_interpolation_object_node_matrices(object_index);
 
 		if (interpolated)
 			return &interpolated[node_index];
 	}
+#endif
 	return &((real_matrix4x3 *)object_header_block_get(object_index, &object_get(object_index)->object.node_matrices))[node_index];
 }
 
@@ -2534,6 +2578,20 @@ if (!valid_real_matrix4x3(matrix)) \
 	ocnm_parent_matrix_internal(file, line, matrix, string); \
 }
 
+/* port: a console's release-style build (HALO_ASSERTS_COMPILED_OUT) doesn't
+check the node matrices it computes: the checks above only assert, and the
+root node's below only logs before them. The retail game has none of these
+checks or their messages. A desktop build checks them as before. */
+#ifdef HALO_ASSERTS_COMPILED_OUT
+#undef ocnm_root_matrix_custom
+#undef ocnm_parent_matrix_custom
+#define ocnm_root_matrix_custom(file, line, matrix, custom_string) ((void)(matrix))
+#define ocnm_parent_matrix_custom(file, line, matrix, custom_string) ((void)(matrix))
+#define OCNM_CHECKS_MATRICES FALSE
+#else
+#define OCNM_CHECKS_MATRICES TRUE
+#endif
+
 void object_compute_node_matrices(
 	long object_index)
 {
@@ -2845,7 +2903,7 @@ void object_compute_node_matrices(
 					object_nodes[node_stack_index] = node_matrix;
 				}
 
-				if (!valid_real_matrix4x3(&object_nodes[node_stack_index]))
+				if (OCNM_CHECKS_MATRICES && !valid_real_matrix4x3(&object_nodes[node_stack_index]))
 				{
 					real_matrix4x3 const *validated_root_node_matrix;
 
@@ -2968,7 +3026,7 @@ void object_compute_node_matrices(
 			if (node_stack_index==0)
 			{
 				real_matrix4x3 *final_matrix = &object_nodes[node_stack_index];
-				if (!valid_real_matrix4x3(final_matrix))
+				if (OCNM_CHECKS_MATRICES && !valid_real_matrix4x3(final_matrix))
 				{
 					char *name2 = tag_get_name(object->definition_index);
 					char *string = name2;
@@ -3035,6 +3093,7 @@ void object_compute_node_matrices(
 #undef ocnm_root_matrix_internal
 #undef ocnm_parent_matrix_custom
 #undef ocnm_parent_matrix_internal
+#undef OCNM_CHECKS_MATRICES
 
 static void object_postprocess_node_matrices(
 	long object_index)
@@ -3526,6 +3585,11 @@ long object_new(
 	if (game_engine_running() && definition_index!=NONE
 		/* (the host's object, which the host made as the game type has it) */
 		&& !network_objects_creating_host_object()
+#ifndef HALO_CONSOLE_NO_FORGE
+		/* (what Forge's monitor chose: a flamethrower, a Scorpion where the
+		vehicle set has Warthogs) */
+		&& !forge_placing_exact
+#endif
 		)
 	{
 		definition_index = game_engine_remap_object_definition(definition_index);
@@ -3812,6 +3876,23 @@ void object_attach_to_node(
 		}
 	}
 
+#ifdef HALO_CUSTOM_EDITION
+	/* port: a Halo PC map's scripts that attach an object to one of its own
+	children are refused the attach and go on, as Halo PC's release does
+	(the debug build's assert stopped SPV3's d30): said once */
+	if (!valid && cache_file_tags_are_ce())
+	{
+		static boolean logged = FALSE;
+
+		if (!logged)
+		{
+			logged = TRUE;
+			error(_error_silent, "an object attached to one of its own children: not attached, as Halo PC "
+				"leaves it");
+		}
+	}
+	else
+#endif
 	match_vassert(
 		"c:\\halo\\SOURCE\\objects\\objects.c",
 		1225,
@@ -3931,8 +4012,43 @@ static int object_update_perf_phase(
 	}
 }
 #define OBJECT_UPDATE_PERF_PHASE(type) object_update_perf_phase(type)
+
+/* port: a biped's update timed by who drives it (halo_perf_log.h): this
+machine's players, other machines' players, or neither (the AI's actors,
+empty bodies: NONE, untimed). Begun here, inside objects bipeds; the caller
+ends the phase returned */
+static int object_update_perf_driver_begin(
+	long object_index,
+	short type)
+{
+	struct unit_datum *unit;
+	struct player_datum *player;
+	int phase;
+
+	if (!halo_perf_log_on || type != _object_type_biped)
+		return NONE;
+	HALO_PERF_COUNT(_halo_perf_bipeds_updated, 1);
+	unit = unit_get(object_index);
+	player = unit->unit.player_index != NONE ? player_try_and_get(unit->unit.player_index) : NULL;
+	if (!player)
+		return NONE;
+	if (player->local_player_index != NONE)
+	{
+		phase = _halo_perf_bipeds_local;
+		HALO_PERF_COUNT(_halo_perf_bipeds_local_updated, 1);
+	}
+	else
+	{
+		phase = _halo_perf_bipeds_remote;
+		HALO_PERF_COUNT(_halo_perf_bipeds_remote_updated, 1);
+	}
+	halo_perf_begin(phase);
+	return phase;
+}
+#define OBJECT_UPDATE_PERF_DRIVER_BEGIN(index, type) object_update_perf_driver_begin(index, type)
 #else
 #define OBJECT_UPDATE_PERF_PHASE(type) 0
+#define OBJECT_UPDATE_PERF_DRIVER_BEGIN(index, type) NONE
 #endif
 
 static boolean object_update(
@@ -3945,6 +4061,8 @@ static boolean object_update(
 	boolean result = TRUE;
 	boolean elevator_sampled = FALSE;
 	real_point3d elevator_sample;
+	/* port: the perf log's phase for who drives a biped */
+	int perf_driver;
 	if (!TEST_FLAG(header->flags, _object_header_do_not_update_bit))
 	{
 		if (TEST_FLAG(object->object.flags, _object_garbage_bit))
@@ -3968,7 +4086,10 @@ static boolean object_update(
 
 		HALO_PERF_COUNT(_halo_perf_objects_updated, 1);
 		HALO_PERF_BEGIN(OBJECT_UPDATE_PERF_PHASE(object->object.type));
+		perf_driver = OBJECT_UPDATE_PERF_DRIVER_BEGIN(object_index, object->object.type);
 		object_type_update(object_index);
+		if (perf_driver != NONE)
+			HALO_PERF_END(perf_driver);
 		HALO_PERF_END(OBJECT_UPDATE_PERF_PHASE(object->object.type));
 		if (object_definition->object.collision_model.index!=NONE)
 		{
@@ -4764,6 +4885,11 @@ static void object_connect_lights(
 		{
 			if (!object->object.attachment_types[i] && object->object.attachment_indices[i]!=NONE)
 			{
+#ifdef HALO_CONSOLE_SKIP_DARK_LIGHTS
+				/* port: a dark light stays out of the clusters
+				(object_lights.c, light_port_connect_lit) */
+				light_port_connect_lit(object->object.attachment_indices[i], disconnect, reconnect);
+#else
 				if (disconnect)
 				{
 					light_disconnect_from_map(object->object.attachment_indices[i]);
@@ -4772,6 +4898,7 @@ static void object_connect_lights(
 				{
 					light_reconnect_to_map(object->object.attachment_indices[i]);
 				}
+#endif
 			}
 		}
 	}

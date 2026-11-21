@@ -8490,16 +8490,16 @@ static void host_game_type_text(wchar_t *text)
 	text[ROW_TEXT_LENGTH - 1] = 0;
 }
 
-/* a bot skill's name (bots.skill: 1 easy, 3 normal, 5 hard, 8 legendary,
+/* a bot skill's name (bots.skill: 1 easy, 5 normal, 7 hard, 9 legendary,
 10 near perfect; the levels between them their number alone) */
 static wchar_t const *host_bot_skill_name(long skill)
 {
 	switch (skill)
 	{
 	case 1: return L"EASY";
-	case 3: return L"NORMAL";
-	case 5: return L"HARD";
-	case 8: return L"LEGENDARY";
+	case 5: return L"NORMAL";
+	case 7: return L"HARD";
+	case 9: return L"LEGENDARY";
 	case 10: return L"NEAR PERFECT";
 	}
 	return L"";

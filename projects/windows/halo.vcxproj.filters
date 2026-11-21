@@ -993,6 +993,9 @@
     <ClCompile Include="$(HaloRoot)source\main\debug_keys.c">
       <Filter>source\main</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)source\main\halt_facts.c">
+      <Filter>source\main</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)source\main\main.c">
       <Filter>source\main</Filter>
     </ClCompile>
@@ -1783,6 +1786,9 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\guide_workshop.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\halt_screen.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\host_evidence.c">

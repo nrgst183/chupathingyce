@@ -1583,7 +1583,7 @@ static const struct config_setting config_settings[] =
 		"the lobby and in the game. 0: bots.count bots, whoever joins (the\n"
 		"console's \"bots_fill <n>\")." },
 	{ "bots.skill", _config_integer, "5", "HALO_BOT_SKILL", _environment_value, _platform_all,
-		"How good the bots are, from 1 to 10: 1 easy, 3 normal, 5 hard, 8\n"
+		"How good the bots are, from 1 to 10: 1 easy, 5 normal, 7 hard, 9\n"
 		"legendary, 10 near perfect (the console's \"bot_skill <n>\"). The\n"
 		"levels went from 1 to 5 before: what was 5 is 10, and what was 3 is\n"
 		"between 5 and 6." },

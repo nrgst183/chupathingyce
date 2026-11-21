@@ -145,9 +145,9 @@ static char const *bots_screen_skill_name(
 	switch (skill)
 	{
 	case 1: return " EASY";
-	case 3: return " NORMAL";
-	case 5: return " HARD";
-	case 8: return " LEGENDARY";
+	case 5: return " NORMAL";
+	case 7: return " HARD";
+	case 9: return " LEGENDARY";
 	case 10: return " NEAR PERFECT";
 	}
 	return "";

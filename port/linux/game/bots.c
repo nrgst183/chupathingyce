@@ -82,7 +82,7 @@ struct player_starting_location *player_get_starting_location(short starting_loc
 void game_engine_player_added(long player_index);
 long player_new(long machine_index, long player_index, short local_player_index, struct network_player const *network_player);
 
-long bot_skill = 5; /* 1 easy, 3 normal, 5 hard, 8 legendary, 10 near perfect */
+long bot_skill = 5; /* 1 easy, 5 normal, 7 hard, 9 legendary, 10 near perfect */
 /* ... and how many levels under that a bot may be: each bot's own level is
    drawn between the two for the game (bots.skill_spread; 0: all of them at
    bot_skill) */
@@ -94,6 +94,9 @@ long bot_balance = 0;
 /* (the level of the bot that is thinking, on the scale of 1 to 5 that this
    file works on: bot_skill_of) */
 static real bot_skill_now = 1.f + 4.f * 4.f / 9.f;
+/* (... and its own level without its spell, hot or cold, in it: what its
+   accuracy, reactions and agility are set by, bot_skill_traits) */
+static real bot_skill_base = 1.f + 4.f * 4.f / 9.f;
 
 /* flag juggling (a carrier dropping the flag ahead on the run and snatching
 it up again, to be home quicker): 1 to have the bots do it */
@@ -1333,7 +1336,11 @@ enum
 	BOT_G_BEHIND = 2048,    /* "behind": a look behind after a kill, or standing */
 	BOT_G_ROUTES = 4096,    /* "routes": hurt, by the ways nobody watches */
 	BOT_G_STYLE = 8192,     /* "style": a way of playing the free-for-all of its own */
-	BOT_G_POWERTIME = 16384 /* "powertime": the timing of power weapons and powerups, sooner and keener */
+	BOT_G_POWERTIME = 16384, /* "powertime": the timing of power weapons and powerups, sooner and keener */
+	/* (and one for every game, sides or none, the same way: HALO_BOT_OFF2_T1=smarts
+	   pits the bots without these against those with them) */
+	BOT_G_SMARTS = 32768    /* "smarts": reloading when it can, no grenade or rocket by one of ours, the overcharge
+	                           timed by the gun, no chase on no shields, no glance or hunt at whoever it can't know of */
 };
 static unsigned bot_off2;
 
@@ -1344,7 +1351,8 @@ static unsigned bot_off2_parse(char const *text)
 		{ "third", BOT_G_THIRD }, { "focus", BOT_G_FOCUS }, { "leader", BOT_G_LEADER }, { "reset", BOT_G_RESET },
 		{ "spots", BOT_G_SPOTS }, { "spawnwise", BOT_G_SPAWNWISE }, { "crowd", BOT_G_CROWD }, { "range", BOT_G_RANGE },
 		{ "disengage", BOT_G_DISENGAGE }, { "combo", BOT_G_COMBO }, { "sounds", BOT_G_SOUNDS }, { "behind", BOT_G_BEHIND },
-		{ "routes", BOT_G_ROUTES }, { "style", BOT_G_STYLE }, { "powertime", BOT_G_POWERTIME }, { "all", 0xFFFFFFFFu },
+		{ "routes", BOT_G_ROUTES }, { "style", BOT_G_STYLE }, { "powertime", BOT_G_POWERTIME }, { "smarts", BOT_G_SMARTS },
+		{ "all", 0xFFFFFFFFu },
 	};
 	unsigned mask = 0;
 	long i;
@@ -1389,7 +1397,10 @@ static real bot_skill_mastery(void)
 
 static void bot_skill_traits(struct bot_personality *personality)
 {
-	real t = bot_skill_fraction();
+	/* (its own level, not the spell it is in: the spell is in the level's
+	   numbers already, bot_skill_parameters_now, and a life's traits set in
+	   a hot spell were the spell twice over, for the whole life) */
+	real t = (PIN(bot_skill_base, 1.f, 5.f) - 1.f) / 4.f;
 	personality->accuracy = 1.3f - 0.8f * t;
 	personality->reaction = 1.4f - 0.7f * t;
 	personality->agility = 0.3f + 0.7f * t;
@@ -1400,7 +1411,11 @@ static void bot_skill_traits(struct bot_personality *personality)
 	if (!bot_env_off("spread"))
 	{
 		personality->accuracy *= 1.4f - 0.8f * personality->accuracy_luck;
-		personality->reaction *= 1.4f - 0.8f * personality->reaction_luck;
+		/* (its reactions within a sixth either way: at 0.6 to 1.4 times, the
+		   luck of the draw was more than three levels' difference, and a
+		   game of one level against the next was a coin's toss.
+		   HALO_BOT_OFF=reactluck: as it was) */
+		personality->reaction *= bot_env_off("reactluck") ? 1.4f - 0.8f * personality->reaction_luck : 1.15f - 0.3f * personality->reaction_luck;
 		personality->agility = PIN(personality->agility + 0.6f * (personality->agility_luck - 0.5f), 0.1f, 1.f);
 	}
 }
@@ -1624,7 +1639,7 @@ static void bot_pin_traits(long slot, struct bot_personality *personality)
 static void bot_make_personality(long slot, struct bot_personality *personality)
 {
 	unsigned long seed = bot_hash((unsigned long)(slot * 2654435761UL) ^ 0x9e3779b9UL ^ bots_match());
-	bot_skill_now = bot_skill_of(slot);
+	bot_skill_now = bot_skill_base = bot_skill_of(slot);
 #define BOT_TRAIT(low, high) ((low) + ((high) - (low)) * bot_trait_contrast((real)((seed = bot_hash(seed)) & 0xFFFF) / 65535.f))
 	/* (its aggression: its own, bot_own_aggression) */
 	seed = bot_hash(seed); /* (aggression's draw: the rest stay as they were) */
@@ -2283,7 +2298,7 @@ struct bot_skill_parameters
 
 static struct bot_skill_parameters const bot_skills[5] =
 {
-	{ 12, 4.0f, 0.08f, 0.90f },
+	{ 18, 4.0f, 0.11f, 0.92f },
 	{ 8, 6.5f, 0.045f, 0.86f },
 	{ 5, 10.0f, 0.025f, 0.82f },
 	{ 3, 15.0f, 0.012f, 0.76f },
@@ -2442,6 +2457,9 @@ struct bot_weapon
 	int spent; /* can't fire any more (a plasma weapon's battery run down) */
 	int held_to_fire; /* fires only once its trigger has been held down a good while (a beam that charges) */
 	int rounds_capacity; /* in it and carried, full up (0: not a weapon that takes rounds) */
+	int rounds_magazine; /* a full magazine (0: not a weapon that takes rounds) */
+	long charge_ticks; /* how long its trigger takes to charge, in ticks (0: not a charging one) */
+	long charged_ticks; /* how long it holds a full charge before it goes off by itself (0: never) */
 	real value;
 	real cycle; /* ticks from one shot to the next, at its quickest (0: not known) */
 	long last_fired; /* the game tick of its last shot (0: none yet) */
@@ -2810,6 +2828,7 @@ static void bot_weapon_describe(long weapon_index, struct bot_weapon *result)
 	{
 		struct weapon_magazine_definition const *magazine = TAG_BLOCK_GET_ELEMENT(&definition->weapon.magazines, 0, struct weapon_magazine_definition);
 		result->rounds_capacity = MAX(1, magazine->rounds_total_maximum + magazine->rounds_loaded_maximum);
+		result->rounds_magazine = magazine->rounds_loaded_maximum;
 	}
 	result->rounds_loaded = weapon->weapon.magazines[0].rounds_loaded;
 	result->rounds_total = weapon->weapon.magazines[0].rounds_total;
@@ -2827,6 +2846,8 @@ static void bot_weapon_describe(long weapon_index, struct bot_weapon *result)
 		BOT_TICKS_PER_SECOND / MAX(trigger->initial_rate_of_fire, trigger->final_rate_of_fire) : 0.f;
 	result->last_fired = weapon->weapon.game_time_last_fired;
 	result->charging = trigger->charging_time >= BOT_CHARGE_LEAST;
+	result->charge_ticks = result->charging ? (long)(trigger->charging_time * BOT_TICKS_PER_SECOND + 0.999f) : 0;
+	result->charged_ticks = result->charging && trigger->charged_time > 0.f ? (long)(trigger->charged_time * BOT_TICKS_PER_SECOND) : 0;
 	result->held_to_fire = trigger->charging_time >= BOT_CHARGE_BEAM && result->kind != _bot_gun_plasma_pistol;
 	if (trigger->projectile.index != NONE)
 	{
@@ -3046,6 +3067,25 @@ static int bot_friend_in_line(struct player_datum *me, real_point3d const *eye, 
 			continue;
 		across2 = ox * ox + oy * oy + oz * oz - along * along;
 		if (across2 < 0.45f * 0.45f)
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/* one of ours within so far of a point (a team game): no grenade or rocket
+   there */
+static int bot_friend_near(struct player_datum *me, real_point3d const *point, real within)
+{
+	struct data_iterator iterator;
+	struct player_datum *player;
+	if (!game_engine_has_teams())
+		return FALSE;
+	data_iterator_new(&iterator, player_data);
+	while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+	{
+		if (player == me || player->unit_index == NONE || player->team_index != me->team_index || !bot_unit_alive(player->unit_index))
+			continue;
+		if (distance3d(&object_get(object_get_ultimate_parent(player->unit_index))->object.position, point) < within)
 			return TRUE;
 	}
 	return FALSE;
@@ -9100,6 +9140,33 @@ static void bot_goal_idle(struct bot_goal_pass *g)
 		int known = bot_side_nearest_known(bot_side_of(player), position, 8.f, &point);
 		if (known)
 			distance = distance3d(&point, position);
+		if (!known && bot_nearest_enemy(player, position, &point, &distance) && BOT_ON2(BOT_G_SMARTS))
+		{
+			/* (roughly: as near as the level's sense of the game takes it,
+			   up to fifteen units off at the bottom, the same guess for a few
+			   seconds. It was exactly where they were) */
+			real off = 15.f * (1.f - bot_awareness());
+			unsigned long guess = bot_hash((unsigned long)(bot - bot_states) * 2246822519UL ^ (unsigned long)(game_time_get() / BOT_SECONDS(6.f)));
+			real angle = 6.2832f * (real)(guess & 0xFFFF) / 65535.f;
+			real far = off * (real)((guess >> 16) & 0xFFFF) / 65535.f;
+			/* (somewhere it can stand: off the ground, in a wall, it was a
+			   goal with no way to it, and the bots of the bottom levels stood
+			   stuck on it. Nearer each try, and at last where they are) */
+			long tries;
+			for (tries = 0; tries < 3 && far > 0.5f; tries++, far *= 0.5f)
+			{
+				real_point3d guessed = point;
+				guessed.x += far * (real)cos(angle);
+				guessed.y += far * (real)sin(angle);
+				if (!aas_ready() || aas_nearest_area(AAS_FOOT, &guessed, 1.5f, NULL) != NONE)
+				{
+					point = guessed;
+					break;
+				}
+			}
+			distance = distance3d(&point, position);
+			known = TRUE;
+		}
 		if ((known || bot_nearest_enemy(player, position, &point, &distance)) && distance > 8.f)
 		{
 			/* (the interceptor: to where they will be, on their way, not
@@ -10451,7 +10518,8 @@ static real bot_lane_known(struct bot_lanes const *lanes, long lane)
 static long bot_lane_draw(struct bot_state *bot, struct bot_lanes *lanes, long not_this)
 {
 	real weight[BOT_LANES], total = 0.f, pick;
-	real aware = bot_awareness();
+	/* (its own: drawn again for a mate, the thinking bot's was not its) */
+	real aware = bot_awareness_of(bot_skill_of((long)(bot - bot_states)));
 	long k;
 	if (lanes->count <= 0)
 		return NONE;
@@ -12897,6 +12965,14 @@ static void bot_fire_control(struct bot_state *bot, struct bot_weapon const *wea
 
 	if (bot->shot_cooldown > 0)
 		bot->shot_cooldown--;
+	/* (empty: reloaded, whether they are in range or not. Out of range,
+	   the check for it came first, and a bot stood empty in sight of
+	   someone out of its range until they came in or went) */
+	if (BOT_ON2(BOT_G_SMARTS) && !weapon->none && weapon->uses_ammunition && weapon->rounds_loaded <= 0 && weapon->rounds_total > 0)
+	{
+		action->control_flags |= FLAG(_unit_control_weapon_reload_bit);
+		return;
+	}
 	if (weapon->none || target_distance >= weapon->range)
 		return;
 	if (weapon->uses_ammunition && weapon->rounds_loaded <= 0 && weapon->rounds_total > 0)
@@ -12961,18 +13037,29 @@ static void bot_fire_control(struct bot_state *bot, struct bot_weapon const *wea
 			bot->charge_ticks = 0;
 		if (target_shield > 0.5f && target_distance < 15.f && bot->charge_ticks >= 0)
 		{
+			/* (as long as the gun's own charge takes, and a tick: let go
+			   short of it and the charge is gone for nothing. And held on
+			   past what it holds, it goes off by itself, wherever the aim
+			   is: let go before then, on them or not. 30 ticks, as it was,
+			   with HALO_BOT_OFF2=smarts) */
+			int smart = BOT_ON2(BOT_G_SMARTS) && weapon->charge_ticks > 0;
+			long full = smart ? weapon->charge_ticks + 1 : 30;
 			bot->charge_time = game_time_get();
-			if (bot->charge_ticks < 30)
+			if (bot->charge_ticks < full)
 			{
 				bot->charge_ticks++;
 				pull = TRUE;
 			}
-			else if (on_target)
+			else if (on_target || (smart && weapon->charged_ticks > 0 && bot->charge_ticks >= full + weapon->charged_ticks * 3 / 4))
 			{
 				bot->charge_ticks = -20; /* released: tap for a while */
 			}
 			else
+			{
+				if (smart)
+					bot->charge_ticks++;
 				pull = TRUE; /* keep holding until the aim's on */
+			}
 			break;
 		}
 		if (bot->charge_ticks < 0)
@@ -13089,7 +13176,13 @@ static real bot_glance(struct bot_state *bot, struct player_datum *player, real_
 		real_point3d enemy;
 		real distance;
 		bot->glance_ticks = 40 + (long)(bot_random(bot) * 50.f);
-		if (bot_nearest_enemy(player, position, &enemy, &distance) && bot_random(bot) < 0.7f)
+		/* (toward one the side knows of; else toward the nearest only as
+		   far as the level has a sense of where people are, bot_awareness.
+		   It was the nearest, wherever they were, behind walls, at every
+		   level: aimed round the corner they would come by) */
+		if (BOT_ON2(BOT_G_SMARTS) ? (bot_side_nearest_known(bot_side_of(player), position, 8.f, &enemy) ||
+				(bot_random(bot) < bot_awareness() && bot_nearest_enemy(player, position, &enemy, &distance))) && bot_random(bot) < 0.7f :
+			bot_nearest_enemy(player, position, &enemy, &distance) && bot_random(bot) < 0.7f)
 			bot->glance_yaw = bot_wrap(bot_yaw_to(position, &enemy) + (bot_random(bot) - 0.5f) * 1.2f);
 		else
 			bot->glance_yaw = bot_wrap(bot->yaw + (bot_random(bot) - 0.5f) * 3.f);
@@ -14672,11 +14765,24 @@ static void bot_drive_aircraft(struct bot_think *t)
 	{
 		/* (something with a blast coming at it: across its line, away
 		   from the side it will pass) */
+		/* (as a pilot of its level sees it: the poorer, the likelier one
+		   goes by unseen (one in three at the bottom, every one at the top),
+		   and the later the turn away. Each rocket seen or not once, not a
+		   new chance at it every tick. Every one, at once, at every level,
+		   with HALO_BOT_OFF=airdodge) */
 		real_point3d at;
 		real_vector3d going;
 		real ticks, wide, hurts;
-		if (bot_blast_incoming(bot, unit->object.parent_object_index != NONE ? object_get_ultimate_parent(t->me->unit_index) : NONE,
-			position, position, &at, &going, &ticks, &wide, &hurts) != NONE && ticks < 40.f)
+		real frac = bot_skill_fraction();
+		long blast = bot_blast_incoming(bot, unit->object.parent_object_index != NONE ? object_get_ultimate_parent(t->me->unit_index) : NONE,
+			position, position, &at, &going, &ticks, &wide, &hurts);
+		int seen = blast != NONE;
+		if (seen && !bot_env_off("airdodge"))
+		{
+			unsigned long roll = bot_hash((unsigned long)blast * 2654435761UL ^ (unsigned long)player_absolute_index * 40503UL ^ bots_match());
+			seen = (real)(roll & 0xFFFF) / 65535.f < 0.65f + 0.35f * frac && ticks < 40.f - 16.f * (1.f - frac);
+		}
+		if (seen && ticks < 40.f)
 		{
 			real along = (real)atan2(going.j, going.i);
 			real side = (position->x - at.x) * -going.j + (position->y - at.y) * going.i;
@@ -20153,6 +20259,14 @@ static int bot_overchase(struct bot_state *bot, long vehicle_index)
 	return TRUE;
 }
 
+/* its shields are down, and the one it lost has more: no chase */
+static int bot_chase_unshielded(struct bot_state const *bot)
+{
+	struct object_datum *mine = bot->unit_index != NONE ? object_try_and_get(bot->unit_index) : NULL;
+	struct object_datum *theirs = bot->target_unit != NONE ? object_try_and_get(bot->target_unit) : NULL;
+	return mine && theirs && mine->object.shield_vitality < 0.4f && theirs->object.shield_vitality > mine->object.shield_vitality + 0.2f;
+}
+
 static void bot_target_lost(struct bot_state *bot, long vehicle_index, struct bot_weapon const *weapon)
 {
 	int over;
@@ -20174,7 +20288,10 @@ static void bot_target_lost(struct bot_state *bot, long vehicle_index, struct bo
 			bot->goal_score = 30.f + 30.f * MAX(bot->personality.grudge, bot->personality.swagger);
 		}
 	}
+	/* (its shields down and theirs not: not after them round the corner
+	   into a fresh fight on nothing; its shields back first) */
 	else if (bot->goal_kind != _bot_goal_enemy && bot->personality.aggression > 0.2f && vehicle_index == NONE &&
+		!(BOT_ON2(BOT_G_SMARTS) && bot_chase_unshielded(bot)) &&
 		bot->personality.style != _bot_style_lurker && /* (waits for them to come back) */
 		!bot->goal_perch && !bot->goal_lurk && /* (up high, or lying in wait: they'll come by again; bot_goal_perch) */
 		(weapon->value >= 3.5f || bot->personality.aggression > 0.7f) && !bot->goal_objective)
@@ -20455,8 +20572,12 @@ static void bot_turn_look(struct bot_state *bot, struct bot_skill_parameters con
 		   not their neck, make them good.) */
 		/* (the very best flick round faster: a half turn in a quarter
 		   of a second, onto someone at their side or behind) */
+		/* (a person's most, from the levels under a master's a little less
+		   the lower: capped at the same 8 from level 4 up, every level from 4
+		   to 7 turned as fast. HALO_BOT_OFF=neckramp: as it was) */
 		if (BOT_ON(BOT_F_NECK))
-			max_turn = MIN(max_turn, (BOT_HUMAN_TURN_MOST + 4.5f * bot_purposeful()) * BOT_TICK);
+			max_turn = MIN(max_turn, ((bot_env_off("neckramp") ? BOT_HUMAN_TURN_MOST :
+				BOT_HUMAN_TURN_MOST - 2.f * (1.f - PIN(bot_skill_fraction() / 0.75f, 0.f, 1.f))) + 4.5f * bot_purposeful()) * BOT_TICK);
 		/* As a hand turns it: the turn starts, gathers speed over a
 		   few ticks, and slows into where it is looking: a part of
 		   what is left each tick (a big turn, half; the small ones of
@@ -21517,6 +21638,11 @@ static void bot_grenade_at_target(struct bot_think *t)
 						far_throw ? " (a long throw)" : "");
 			}
 		}
+		/* (one of ours there, at them: never. The look for ours was only in
+		   the look for a crowd, every couple of seconds, and it threw the
+		   opening one into a mate's fight with them) */
+		if (BOT_ON2(BOT_G_SMARTS) && chance > 0.f && bot_friend_near(me, &bot->last_seen_feet, 5.f))
+			chance = 0.f;
 		if (bot_random(bot) < chance)
 		{
 			/* where they'll be when it lands (it takes a second or so) */
@@ -21550,7 +21676,8 @@ static void bot_grenade_at_popout(struct bot_think *t)
 		bot->grenade_cooldown <= 0 && bot->grenade_pending_ticks <= 0 && !t->look_forced &&
 		distance3d(&position, &popout) > 6.f && distance3d(&position, &popout) < BOT_GRENADE_RANGE &&
 		(bot_grenades_refined() || bot_grenade_clear(eye, &popout, me->unit_index)) &&
-		bot_random(bot) < 0.015f + 0.09f * bot_grenade_keenness(bot, weapon, 1.0e9f))
+		bot_random(bot) < 0.015f + 0.09f * bot_grenade_keenness(bot, weapon, 1.0e9f) &&
+		!(BOT_ON2(BOT_G_SMARTS) && bot_friend_near(me, &popout, 5.f)))
 	{
 		if (bot_start_grenade(bot, unit, eye, &popout, me->unit_index))
 			bot_grenade_watch(bot, bot->target_unit);
@@ -22074,7 +22201,10 @@ static void bot_aim_at_target(struct bot_think *t)
 		   or not, where a rocket at the body is one they sidestep);
 		   in the air, or far off, or their feet out of sight (up on a
 		   ledge, behind a rise): at the body, low. */
-		if (bot_name_has(unit->unit.current_weapon_index >= 0 && unit->unit.weapon_object_indices[unit->unit.current_weapon_index] != NONE ?
+		/* (the gun it is shooting: on a vehicle's gun, the one it carries is
+		   not it) */
+		if (BOT_ON2(BOT_G_SMARTS) ? weapon->kind == _bot_gun_rocket :
+			bot_name_has(unit->unit.current_weapon_index >= 0 && unit->unit.weapon_object_indices[unit->unit.current_weapon_index] != NONE ?
 			object_get(unit->unit.weapon_object_indices[unit->unit.current_weapon_index])->definition_index : NONE, "rocket"))
 		{
 			struct object_datum *root = object_get(object_get_ultimate_parent(target));
@@ -22158,7 +22288,12 @@ static void bot_aim_at_target(struct bot_think *t)
 	   bot of level 1 aimed as one of level 10. HALO_BOT_OFF=wander */
 	if (!bot_env_off("wander"))
 	{
-		real spread = (0.06f - 0.056f * bot_skill_fraction()) * bot->personality.accuracy;
+		/* (and more again at the bottom three levels, which wandered little
+		   more than the one over them: levels 1, 2 and 3 played as one. As it
+		   was from level 5 up) */
+		real low = 1.f - bot_skill_fraction();
+		real spread = (0.06f - 0.056f * bot_skill_fraction() + (bot_env_off("lowwander") ? 0.f : 0.05f * low * low * low * low)) *
+			bot->personality.accuracy;
 		real pull = 1.f / (0.5f * BOT_TICKS_PER_SECOND);
 		real kick = spread * (real)sqrt(2.f * pull);
 		real n1 = (bot_random(bot) + bot_random(bot) + bot_random(bot) - 1.5f) * 2.f;
@@ -22537,8 +22672,13 @@ static void bot_safe_reload(struct bot_think *t)
 	struct weapon_definition *definition;
 	long magazine;
 	real quiet;
+	/* (... and while someone it was fighting is out of sight, a second and
+	   more, gone behind something, not shooting at it: the lull a person
+	   reloads in. It waited the whole chase out, three seconds and more, and
+	   came round the corner on them with what it had left) */
+	int lull = BOT_ON2(BOT_G_SMARTS) && bot->target_unit != NONE && bot->lost_ticks > BOT_SECONDS(1.f);
 	if (bot_env_off("safereload") || frac < 0.35f || t->vehicle_index != NONE || weapon->none || !weapon->uses_ammunition ||
-		weapon->rounds_total <= 0 || t->target != NONE || bot->target_unit != NONE || t->threatened || bot->hit_ticks > 0 ||
+		weapon->rounds_total <= 0 || t->target != NONE || (bot->target_unit != NONE && !lull) || t->threatened || bot->hit_ticks > 0 ||
 		bot->weapon_switch_ticks > 0 || bot->grenade_pending_ticks > 0 || bot->quiet_since <= 0)
 		return;
 	/* (pressed and let go and pressed again for half a second once begun,
@@ -23518,15 +23658,25 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	action->desired_zoom_level = NONE;
 	if (player_absolute_index < 0 || player_absolute_index >= BOT_MAXIMUM_PLAYERS || !player_data || !player_data->valid)
 		return;
-	bot_skill_now = bot_skill_of(player_absolute_index);
+	bot_skill_now = bot_skill_base = bot_skill_of(player_absolute_index);
 	/* (its spells, hot and cold, the streaky ones: a level or so either
-	   way, over a minute or two. HALO_BOT_OFF=streaky) */
+	   way, over a minute or two. As far either way: no further than the
+	   level has room for, under the top and over the bottom. Cut off at the
+	   ends, the top level's spells were all cold and the bottom's all hot,
+	   and on the whole 10 played as 9 and 1 as 2. HALO_BOT_OFF=streaky;
+	   HALO_BOT_OFF=streakwide: a whole level, cut off at the ends, as it was) */
 	if (bot_states[player_absolute_index].has_personality && !bot_env_off("streaky"))
 	{
-		struct bot_personality const *personality = &bot_states[player_absolute_index].personality;
-		real form = 1.f * personality->streaky * (real)sin(personality->streak_phase +
+		struct bot_personality *personality = &bot_states[player_absolute_index].personality;
+		int wide = bot_env_off("streakwide");
+		real room = wide ? 1.f : MIN(0.5f, MIN(bot_skill_now - 1.f, 5.f - bot_skill_now));
+		real form = room * personality->streaky * (real)sin(personality->streak_phase +
 			6.2832f * (real)game_time_get() / (MAX(personality->streak_period, 30.f) * BOT_TICKS_PER_SECOND));
 		bot_skill_now = PIN(bot_skill_now + form, 1.f, 5.f);
+		/* (and the level changed under it, from the menu or the console, or
+		   moved by the score: its aim, reactions and feet the new level's at
+		   once, not at its next life) */
+		bot_skill_traits(personality);
 	}
 	bot_skill_parameters_now(&t->skill);
 	bots_thought_tick[player_absolute_index] = game_time_get();
@@ -24192,8 +24342,11 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 				bot->melee_cooldown = 18 + (long)(bot_random(bot) * 5.f);
 			}
 		}
+		/* (and a rocket's or a fuel rod's blast: not on one of ours beside them) */
 		else if (!(t->driving && t->vehicle_index != NONE && off_yaw > 0.3f) && !t->ambush_hold &&
-			!bot_friend_in_line(me, &t->eye, &object_get(t->target)->object.bounding_sphere_center, t->vehicle_index))
+			!bot_friend_in_line(me, &t->eye, &object_get(t->target)->object.bounding_sphere_center, t->vehicle_index) &&
+			!(BOT_ON2(BOT_G_SMARTS) && (t->weapon.kind == _bot_gun_rocket || t->weapon.kind == _bot_gun_fuel_rod) &&
+				bot_friend_near(me, &object_get(object_get_ultimate_parent(t->target))->object.position, 3.5f)))
 			bot_fire_control(bot, &t->weapon, off_yaw, off_pitch, t->target_distance, object_get(t->target)->object.shield_vitality, action);
 
 		bot_noob_combo(t);
@@ -24206,8 +24359,12 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		bot_grenade_at_popout(t);
 		bot_grenade_at_tracked(t);
 		bot_grenade_item(t);
+		/* (under a quarter of a magazine, nobody about. It was a quarter of
+		   what it carried besides, and with little carried it hardly ever
+		   reloaded) */
 		if (t->vehicle_index == NONE && !t->weapon.none && t->weapon.uses_ammunition && t->weapon.rounds_total > 0 &&
-			t->weapon.rounds_loaded < MAX(1, t->weapon.rounds_total / 4) && t->weapon.rounds_loaded < 8)
+			(BOT_ON2(BOT_G_SMARTS) && t->weapon.rounds_magazine > 0 ? t->weapon.rounds_loaded < MAX(1, t->weapon.rounds_magazine / 4) :
+				t->weapon.rounds_loaded < MAX(1, t->weapon.rounds_total / 4) && t->weapon.rounds_loaded < 8))
 		{
 			action->control_flags |= FLAG(_unit_control_weapon_reload_bit);
 		}
@@ -24480,7 +24637,7 @@ boolean bots_console_command(char const *text)
 	{
 		if (value != NONE)
 			bots_set_skill(value);
-		console_printf(FALSE, "bot_skill: %ld of 10 (1 easy, 3 normal, 5 hard, 8 legendary, 10 near perfect)", bots_get_skill());
+		console_printf(FALSE, "bot_skill: %ld of 10 (1 easy, 5 normal, 7 hard, 9 legendary, 10 near perfect)", bots_get_skill());
 	}
 	return TRUE;
 }

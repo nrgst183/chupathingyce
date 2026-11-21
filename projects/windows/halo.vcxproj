@@ -2242,6 +2242,14 @@
       <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)source\main\halt_facts.c">
+      <ObjectFileName>$(IntDir)halt_facts_08eb3298.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)source\main\main.c">
       <ObjectFileName>$(IntDir)main_3ce1cae7.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
@@ -4348,6 +4356,14 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\guide_workshop.c">
       <ObjectFileName>$(IntDir)guide_workshop_3eb217f3.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\halt_screen.c">
+      <ObjectFileName>$(IntDir)halt_screen_d6ba49a8.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>

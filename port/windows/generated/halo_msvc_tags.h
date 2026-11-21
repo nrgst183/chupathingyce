@@ -527,6 +527,7 @@ struct grenade_hud_interface_definition;
 struct guard_state_data;
 struct gz_stream;
 struct halo_ui_pointer;
+struct halt_facts;
 struct hardware_character;
 struct hardware_character_cache;
 struct hashtable;

@@ -8044,6 +8044,46 @@ static real bot_quiet(struct bot_state const *bot)
 	return PIN((seconds - from) / (full - from), 0.f, 1.f);
 }
 
+/* Where a hunter thinks someone is: where its side last knew them (seen,
+   on a tracker, heard, in the last eight seconds); else, as far as its
+   level has a sense of the game (bot_awareness), roughly where they are, the
+   rougher the poorer, and the same guess for a few seconds; else nowhere it
+   knows of. It was where they were, through the walls, at every level: a
+   person hiding was walked straight up to. HALO_BOT_OFF2=smarts: where they
+   are */
+static int bot_hunt_sense(struct bot_state const *bot, struct player_datum const *player, long unit, real_point3d *at)
+{
+	struct bot_side const *knowledge;
+	long side = bot_side_of(player);
+	long now = game_time_get();
+	long i;
+	unsigned long guess;
+	real aware, off, angle;
+	*at = object_get(object_get_ultimate_parent(unit))->object.position;
+	if (!BOT_ON2(BOT_G_SMARTS))
+		return TRUE;
+	if (side >= 0 && side < AAS_COST_SLOTS)
+	{
+		knowledge = &bot_sides[side];
+		for (i = 0; i < knowledge->known_count; i++)
+			if (knowledge->known[i].unit == unit && now - knowledge->known[i].seen <= BOT_SECONDS(8.f))
+			{
+				*at = knowledge->known[i].at;
+				return TRUE;
+			}
+	}
+	aware = bot_awareness();
+	guess = bot_hash(bot_hash((unsigned long)(bot - bot_states) * 2246822519UL ^ (unsigned long)unit) ^ (unsigned long)(now / BOT_SECONDS(6.f)));
+	if ((real)(guess & 0xFFFF) / 65535.f >= aware)
+		return FALSE;
+	guess = bot_hash(guess);
+	off = 15.f * (1.f - aware) * (real)(guess & 0xFFFF) / 65535.f;
+	angle = 6.2832f * (real)((guess >> 16) & 0xFFFF) / 65535.f;
+	at->x += off * (real)cos(angle);
+	at->y += off * (real)sin(angle);
+	return TRUE;
+}
+
 static void bot_goal_hunt(struct bot_goal_pass *g)
 {
 	struct bot_state *bot = g->bot;
@@ -8075,7 +8115,8 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 			{
 				continue;
 			}
-			at = object_get(object_get_ultimate_parent(other->unit_index))->object.position;
+			if (!bot_hunt_sense(bot, player, other->unit_index, &at))
+				continue;
 			total += 1.f / (1.f + distance3d(&at, position) / 40.f) / (1.f + bot_side_heading_near(me, player, &at, 20.f));
 		}
 		pick = bot_random(bot) * total;
@@ -8108,7 +8149,8 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 				{
 					continue;
 				}
-				at = object_get(object_get_ultimate_parent(other->unit_index))->object.position;
+				if (!bot_hunt_sense(bot, player, other->unit_index, &at))
+					continue;
 				if (distance3d(&at, position) < nearest)
 				{
 					nearest = distance3d(&at, position);
@@ -8128,7 +8170,8 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 			{
 				continue;
 			}
-			at = object_get(object_get_ultimate_parent(other->unit_index))->object.position;
+			if (!bot_hunt_sense(bot, player, other->unit_index, &at))
+				continue;
 			pick -= 1.f / (1.f + distance3d(&at, position) / 40.f) / (1.f + bot_side_heading_near(me, player, &at, 20.f));
 			if (pick <= 0.f)
 			{
@@ -8148,6 +8191,12 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 			int route_hunter = !bot_env_off("routehunt") && (bot->personality.flanker > 0.45f || bot->personality.intercept > 0.4f);
 			real keen = route_hunter ? 1.f + 1.5f * MAX(bot->personality.flanker - 0.45f, 0.f) / 0.55f +
 				1.5f * MAX(bot->personality.intercept - 0.4f, 0.f) / 0.6f : 1.f;
+			/* (... but in a game won by the flag, the hill or the ball, a third
+			   of that: up to four times the hunt, the flankers and interceptors
+			   of a big map (Sidewinder) went hunting over their flag 60 units off
+			   all game, and nobody took it up. HALO_BOT_OFF2=smarts: all of it) */
+			if (objective_game && BOT_ON2(BOT_G_SMARTS))
+				keen = 1.f + (keen - 1.f) / 3.f;
 			long kind = _bot_goal_roam;
 			if (route_hunter && !bot_env_off("intercept") && bot->personality.intercept > 0.4f)
 				bot_intercept_point(bot, &chosen, position);
@@ -8222,9 +8271,12 @@ static void bot_goal_quarry(struct bot_goal_pass *g)
 			struct player_datum *them = bot_player_at_index(quarry);
 			if (them && them->unit_index != NONE && bot_unit_alive(them->unit_index) && bot_is_enemy((short)player->team_index, them))
 			{
-				real_point3d at = object_get(object_get_ultimate_parent(them->unit_index))->object.position;
+				/* (where it thinks they are, not where they are: bot_hunt_sense.
+				   A grudge went straight to them, wherever they had got to) */
+				real_point3d at;
+				int known = bot_hunt_sense(bot, player, them->unit_index, &at);
 				real distance = distance3d(&at, position);
-				if (distance > 8.f)
+				if (known && distance > 8.f)
 				{
 					at = bot_approach_spot(bot, &at, position);
 					bot_consider(best, personal * worth / (1.f + distance / 100.f), _bot_goal_roam, &at, NONE, 6 * BOT_TICKS_PER_SECOND, FALSE);
@@ -9544,6 +9596,19 @@ static void bot_goal_spawnwatch(struct bot_goal_pass *g)
 		long n;
 		/* (made up once for each death: the better the bot, and the
 		   bolder, the likelier) */
+		/* (one of them at a time for each of theirs: two or three of a side
+		   waiting at where someone comes back, every life, is a spawn camp,
+		   no fun to come back into. HALO_BOT_OFF2=smarts: any number) */
+		if (BOT_ON2(BOT_G_SMARTS))
+		{
+			long other;
+			for (other = 0; other < BOT_MAXIMUM_PLAYERS; other++)
+				if (&bot_states[other] != bot && bot_states[other].has_personality && bot_states[other].unit_index != NONE &&
+					bot_states[other].spawnwatch_victim == victim && bot_states[other].spawnwatch_until > now)
+				{
+					return;
+				}
+		}
 		bot->spawnwatch_victim = victim;
 		bot->spawnwatch_guess = at;
 		bot->spawnwatch_until = now + due + BOT_SECONDS(3.f);
@@ -17387,7 +17452,15 @@ static void bot_fight_bait(struct bot_think *t, struct bot_fight *f)
 	{
 		return;
 	}
-	if (((now / BOT_SECONDS(3.f) + slot) % 10) >= (long)(10.f * bot->personality.bait))
+	/* (a bout of three seconds or so, each its own: whether it baits in it,
+	   and how long it shows itself, drawn for the bout. A tenth of the bouts
+	   in turn, and out a second and a tenth of each, were a beat to time it
+	   by. HALO_BOT_OFF2=smarts: as it was) */
+	long shift = BOT_ON2(BOT_G_SMARTS) ? (long)((bot_hash((unsigned long)slot * 40503UL ^ bots_match()) & 0xFF) * BOT_SECONDS(3.f) / 255) : 0;
+	long bout = (now + shift) / BOT_SECONDS(3.f);
+	unsigned long roll = bot_hash((unsigned long)slot * 2654435761UL ^ (unsigned long)bout ^ bots_match());
+	if (BOT_ON2(BOT_G_SMARTS) ? (real)(roll & 0xFFFF) / 65535.f >= bot->personality.bait :
+		((now / BOT_SECONDS(3.f) + slot) % 10) >= (long)(10.f * bot->personality.bait))
 		return;
 	tx = them->object.position.x - t->position.x;
 	ty = them->object.position.y - t->position.y;
@@ -17412,7 +17485,10 @@ static void bot_fight_bait(struct bot_think *t, struct bot_fight *f)
 	}
 	if (!found)
 		return;
-	f->forward = (now + slot * 37) % BOT_SECONDS(3.f) < BOT_SECONDS(1.1f) ? 1.f : -1.f;
+	if (BOT_ON2(BOT_G_SMARTS))
+		f->forward = (now + shift) % BOT_SECONDS(3.f) < BOT_SECONDS(0.7f + 0.8f * (real)((roll >> 16) & 0xFF) / 255.f) ? 1.f : -1.f;
+	else
+		f->forward = (now + slot * 37) % BOT_SECONDS(3.f) < BOT_SECONDS(1.1f) ? 1.f : -1.f;
 }
 
 static void bot_fight_range_habits(struct bot_think *t, struct bot_fight *f)
@@ -23750,6 +23826,23 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	bot->mover.unit_index = me->unit_index;
 	bot->mover.teamwork = bot->personality.teamwork;
 	bot->mover.fluency = bot_refined_is(512) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+	/* (hit in the last second, and a person close by: a fall or a hold-up
+	   then is not the way's to learn from, bot_move_blameless) */
+	bot->mover.hurt = bot->hit_ticks > 15;
+	bot->mover.person_near = FALSE;
+	{
+		struct data_iterator people;
+		struct player_datum *person;
+		data_iterator_new(&people, player_data);
+		while (!bot->mover.person_near && (person = (struct player_datum *)data_iterator_next(&people)) != NULL)
+		{
+			long index = DATUM_INDEX_TO_ABSOLUTE_INDEX(people.datum_index);
+			struct object_datum *body = person->unit_index != NONE ? object_try_and_get(person->unit_index) : NULL;
+			if (index != player_absolute_index && body && !bot_player_is_bot(people.datum_index) &&
+				bot_distance2d(&body->object.position, &unit->object.position) < 1.5f && fabs(body->object.position.z - unit->object.position.z) < 3.f)
+				bot->mover.person_near = TRUE;
+		}
+	}
 	/* routes round what our side knows is dangerous (the most daring
 	   don't bother) */
 	/* (not when going after someone: that's toward the danger; nor for

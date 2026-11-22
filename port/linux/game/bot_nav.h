@@ -161,6 +161,8 @@ void aas_reach_failed_alike(long type, long reach);
 /* seconds a way takes over what it is reckoned at, as found (not a failure:
    for as long as the map is up) */
 void aas_reach_handicap(long type, long reach, float seconds);
+/* a way made, all the way: one of its failures forgiven (aas_reach_failed) */
+void aas_reach_made(long type, long reach);
 float aas_reach_handicap_of(long type, long reach);
 
 /* places of interest (spawns, items, flags, teleporters) */

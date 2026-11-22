@@ -5156,7 +5156,11 @@ void aas_reach_failed(long type, long reach)
 	struct aas_world *world = &aas_worlds[type];
 	if (!aas_is_ready || reach < 0 || reach >= world->reach_count)
 		return;
-	if (world->failures[reach] < 255)
+	/* (no further past dead than a couple: kept from game to game and
+	   forgiven one a game, a way counted up to 255 by bots trying it over
+	   and over as their only way out was dead for hundreds of games.
+	   HALO_BOT_OFF=failcap: as it was) */
+	if (world->failures[reach] < (bot_env_off("failcap") ? 255 : AAS_DEAD_FAILURES + 2))
 		world->failures[reach]++;
 	/* (the routes still searching keep the penalties they began with) */
 	if (!aas_shared_writable(&world->penalty))
@@ -5202,6 +5206,35 @@ void aas_reach_failed_alike(long type, long reach)
 			alike++;
 		}
 	}
+}
+
+/* A way made: one failure of it forgiven. Failures were only ever counted
+   up through a game, and a jump made three times in four by the bots (the
+   ways about Wizard's ring, Boarding Action's gaps) was dead for everyone a
+   few minutes in, and a long way round for the rest of the game.
+   HALO_BOT_OFF=forgive: as it was */
+void aas_reach_made(long type, long reach)
+{
+	struct aas_world *world = &aas_worlds[type];
+	int was_dead;
+	if (!aas_is_ready || reach < 0 || reach >= world->reach_count || !world->failures || world->failures[reach] == 0 ||
+		bot_env_off("forgive"))
+		return;
+	was_dead = world->failures[reach] >= AAS_DEAD_FAILURES;
+	world->failures[reach]--;
+	if (!aas_shared_writable(&world->penalty))
+		return;
+	world->penalty[reach] = aas_failure_penalty(world->failures[reach]) + (world->handicap ? world->handicap[reach] : 0.f);
+	if (was_dead && world->failures[reach] < AAS_DEAD_FAILURES)
+	{
+		/* (a way again: what is only got to by it, back on the map) */
+		aas_find_flags(type);
+		aas_find_random_weights(type);
+	}
+	world->penalty_epoch++;
+	if (bot_logging())
+		bot_log("aas: %s reachability %ld made: %d failures now, +%.0f s", type == AAS_VEHICLE ? "vehicle" : "foot", reach,
+			world->failures[reach], world->penalty[reach]);
 }
 
 /* What a way costs over what it is reckoned at, as it is found: a gap that

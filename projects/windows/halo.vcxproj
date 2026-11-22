@@ -67,10 +67,10 @@
     <HaloOptimisation Condition="'$(Configuration)'!='Debug'">/clang:-O2</HaloOptimisation>
     <!-- x64: the 64-bit game (HALO_64BIT), which plays Halo PC's Custom Edition maps and HaloMD's
          (HALO_CUSTOM_EDITION), as ninja windows64 builds it -->
-    <HaloAbiOptions Condition="'$(Platform)'!='x64'">/clang:--target=i686-pc-windows-msvc /clang:-fms-extensions /clang:-fcommon /clang:-fno-strict-aliasing /clang:-fwrapv /clang:-fno-delete-null-pointer-checks /clang:-fno-omit-frame-pointer /clang:-ffp-contract=off /clang:-march=x86-64 /clang:-fstack-protector-strong $(HaloOptimisation)</HaloAbiOptions>
-    <HaloAbiOptions Condition="'$(Platform)'=='x64'">/clang:--target=x86_64-pc-windows-msvc /clang:-fms-extensions /clang:-fcommon /clang:-fno-strict-aliasing /clang:-fwrapv /clang:-fno-delete-null-pointer-checks /clang:-fno-omit-frame-pointer /clang:-ffp-contract=off /clang:-march=x86-64 /clang:-fstack-protector-strong $(HaloOptimisation)</HaloAbiOptions>
-    <HaloAbiDefines Condition="'$(Platform)'!='x64'">_USE_32BIT_TIME_T;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_CRT_NON_CONFORMING_SWPRINTFS;_CRT_NON_CONFORMING_WCSTOK;HALO_CUSTOM_EDITION;HALO_MAP_LIST;HALO_MODS;HALO_COMPRESSED_MAPS;HALO_GAME_BROWSER</HaloAbiDefines>
-    <HaloAbiDefines Condition="'$(Platform)'=='x64'">_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_CRT_NON_CONFORMING_SWPRINTFS;_CRT_NON_CONFORMING_WCSTOK;HALO_64BIT;HALO_CUSTOM_EDITION;HALO_MAP_LIST;HALO_MODS;HALO_COMPRESSED_MAPS;HALO_GAME_BROWSER</HaloAbiDefines>
+    <HaloAbiOptions Condition="'$(Platform)'!='x64'">/clang:--target=i686-pc-windows-msvc /clang:-fms-extensions /clang:-fcommon /clang:-fno-strict-aliasing /clang:-fwrapv /clang:-fno-delete-null-pointer-checks /clang:-fno-omit-frame-pointer /clang:-ffp-contract=off "/clang:-idirafter$(HaloRoot)port\third_party\lua" /clang:-march=x86-64 /clang:-fstack-protector-strong $(HaloOptimisation)</HaloAbiOptions>
+    <HaloAbiOptions Condition="'$(Platform)'=='x64'">/clang:--target=x86_64-pc-windows-msvc /clang:-fms-extensions /clang:-fcommon /clang:-fno-strict-aliasing /clang:-fwrapv /clang:-fno-delete-null-pointer-checks /clang:-fno-omit-frame-pointer /clang:-ffp-contract=off "/clang:-idirafter$(HaloRoot)port\third_party\lua" /clang:-march=x86-64 /clang:-fstack-protector-strong $(HaloOptimisation)</HaloAbiOptions>
+    <HaloAbiDefines Condition="'$(Platform)'!='x64'">_USE_32BIT_TIME_T;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_CRT_NON_CONFORMING_SWPRINTFS;_CRT_NON_CONFORMING_WCSTOK;HALO_CUSTOM_EDITION;HALO_MAP_LIST;HALO_MODS;HALO_COMPRESSED_MAPS;HALO_LUA;HALO_GAME_BROWSER</HaloAbiDefines>
+    <HaloAbiDefines Condition="'$(Platform)'=='x64'">_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_CRT_NON_CONFORMING_SWPRINTFS;_CRT_NON_CONFORMING_WCSTOK;HALO_64BIT;HALO_CUSTOM_EDITION;HALO_MAP_LIST;HALO_MODS;HALO_COMPRESSED_MAPS;HALO_LUA;HALO_GAME_BROWSER</HaloAbiDefines>
     <!-- Debug only: the callers of a header's __inline function that a unit also defines for everyone use
          that one; not inlined, their own copies would be duplicates (tools/visual_studio.py) -->
     <HaloDebugOnlyREAL_MATH_EXTERNAL_REAL_LOCAL_RANDOM Condition="'$(Configuration)'=='Debug'">REAL_MATH_EXTERNAL_REAL_LOCAL_RANDOM</HaloDebugOnlyREAL_MATH_EXTERNAL_REAL_LOCAL_RANDOM>
@@ -142,6 +142,11 @@
     <HaloZstdIncludes></HaloZstdIncludes>
     <HaloZstdForced></HaloZstdForced>
     <HaloZstdWarnings>TurnOffAllWarnings</HaloZstdWarnings>
+    <HaloLuaOptions>$(HaloAbiOptions) /clang:-std=gnu11</HaloLuaOptions>
+    <HaloLuaDefines>$(HaloAbiDefines)</HaloLuaDefines>
+    <HaloLuaIncludes>$(HaloRoot)port\third_party\lua</HaloLuaIncludes>
+    <HaloLuaForced></HaloLuaForced>
+    <HaloLuaWarnings>TurnOffAllWarnings</HaloLuaWarnings>
     <HaloOpusOptions>$(HaloAbiOptions) /clang:-std=gnu11</HaloOpusOptions>
     <HaloOpusDefines>$(HaloAbiDefines);OPUS_BUILD;VAR_ARRAYS;HAVE_LRINTF;HAVE_LRINT</HaloOpusDefines>
     <HaloOpusIncludes>$(HaloRoot)port\third_party\opus\include;$(HaloRoot)port\third_party\opus\celt;$(HaloRoot)port\third_party\opus\silk;$(HaloRoot)port\third_party\opus\silk\float</HaloOpusIncludes>
@@ -4290,8 +4295,40 @@
       <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\duct_tape_logo.c">
+      <ObjectFileName>$(IntDir)duct_tape_logo_949be1eb.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\follow_camera.c">
       <ObjectFileName>$(IntDir)follow_camera_6d490a2b.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\forge.c">
+      <ObjectFileName>$(IntDir)forge_ea121025.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\forge_files.c">
+      <ObjectFileName>$(IntDir)forge_files_8d17f2c1.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\forge_menu.c">
+      <ObjectFileName>$(IntDir)forge_menu_40a47933.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
@@ -4426,6 +4463,14 @@
       <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\latency_meter.c">
+      <ObjectFileName>$(IntDir)latency_meter_95def49f.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\lighting_config.c">
       <ObjectFileName>$(IntDir)lighting_config_8b323da7.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
@@ -4460,6 +4505,46 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\lobby_screen.c">
       <ObjectFileName>$(IntDir)lobby_screen_c7b0ebe0.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_chimera_api.c">
+      <ObjectFileName>$(IntDir)lua_chimera_api_f0881ec9.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_opensauce.c">
+      <ObjectFileName>$(IntDir)lua_opensauce_7424d432.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_scripting.c">
+      <ObjectFileName>$(IntDir)lua_scripting_b0236d70.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_twiddlings.c">
+      <ObjectFileName>$(IntDir)lua_twiddlings_63feabe5.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_twiddlings_objects.c">
+      <ObjectFileName>$(IntDir)lua_twiddlings_objects_db983691.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
@@ -5034,6 +5119,14 @@
       <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\net_monitor.c">
+      <ObjectFileName>$(IntDir)net_monitor_203e564f.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\network_actors.c">
       <ObjectFileName>$(IntDir)network_actors_3cbeca48.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
@@ -5108,6 +5201,22 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\opence_welcome.c">
       <ObjectFileName>$(IntDir)opence_welcome_1c3a7a8b.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\opensauce_map.c">
+      <ObjectFileName>$(IntDir)opensauce_map_e3fabcc9.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\opensauce_scripts.c">
+      <ObjectFileName>$(IntDir)opensauce_scripts_e2bc8b49.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
@@ -5202,6 +5311,14 @@
       <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\ragdolls.c">
+      <ObjectFileName>$(IntDir)ragdolls_79c7b964.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\render_enumerate.c">
       <ObjectFileName>$(IntDir)render_enumerate_3d1a5e81.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
@@ -5236,6 +5353,14 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\server_browser.c">
       <ObjectFileName>$(IntDir)server_browser_5bdf2b59.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\spv3_mode.c">
+      <ObjectFileName>$(IntDir)spv3_mode_9493a243.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
@@ -5396,6 +5521,22 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_objects.c">
       <ObjectFileName>$(IntDir)tag_schema_objects_06d67a17.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_opensauce.c">
+      <ObjectFileName>$(IntDir)tag_schema_opensauce_202b59d2.obj</ObjectFileName>
+      <WarningLevel>$(HaloGameWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloGameForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloGameOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_pc.c">
+      <ObjectFileName>$(IntDir)tag_schema_pc_f0572efd.obj</ObjectFileName>
       <WarningLevel>$(HaloGameWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloGameDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloGameIncludes)</AdditionalIncludeDirectories>
@@ -5818,6 +5959,14 @@
       <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
       <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\forge_store.c">
+      <ObjectFileName>$(IntDir)forge_store_c7497619.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\game_report.c">
       <ObjectFileName>$(IntDir)game_report_1a22a9d8.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
@@ -5844,6 +5993,14 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\guide_layout.c">
       <ObjectFileName>$(IntDir)guide_layout_204a0e08.obj</ObjectFileName>
+      <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles>$(HaloPlatformForced)</ForcedIncludeFiles>
+      <AdditionalOptions>$(HaloPlatformOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\gyro_aim.c">
+      <ObjectFileName>$(IntDir)gyro_aim_d2c2d611.obj</ObjectFileName>
       <WarningLevel>$(HaloPlatformWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloPlatformDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(HaloPlatformIncludes)</AdditionalIncludeDirectories>
@@ -7761,6 +7918,230 @@
       <WarningLevel>$(HaloZstdWarnings)</WarningLevel>
       <PreprocessorDefinitions>$(HaloZstdDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>$(HaloZstdOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lapi.c">
+      <ObjectFileName>$(IntDir)lapi_c40504de.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lauxlib.c">
+      <ObjectFileName>$(IntDir)lauxlib_36b5d868.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lbaselib.c">
+      <ObjectFileName>$(IntDir)lbaselib_cd58c45a.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lcode.c">
+      <ObjectFileName>$(IntDir)lcode_4fc83dd1.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lcorolib.c">
+      <ObjectFileName>$(IntDir)lcorolib_56dc7940.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lctype.c">
+      <ObjectFileName>$(IntDir)lctype_53f8cec2.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldblib.c">
+      <ObjectFileName>$(IntDir)ldblib_90f82501.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldebug.c">
+      <ObjectFileName>$(IntDir)ldebug_5508a92a.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldo.c">
+      <ObjectFileName>$(IntDir)ldo_be7f582b.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldump.c">
+      <ObjectFileName>$(IntDir)ldump_70131903.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lfunc.c">
+      <ObjectFileName>$(IntDir)lfunc_d4c61ac2.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lgc.c">
+      <ObjectFileName>$(IntDir)lgc_66992ee4.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\linit.c">
+      <ObjectFileName>$(IntDir)linit_460956a8.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\liolib.c">
+      <ObjectFileName>$(IntDir)liolib_dd98eaff.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\llex.c">
+      <ObjectFileName>$(IntDir)llex_c3fd9dc9.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lmathlib.c">
+      <ObjectFileName>$(IntDir)lmathlib_7e9532ed.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lmem.c">
+      <ObjectFileName>$(IntDir)lmem_a5ce23d3.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\loadlib.c">
+      <ObjectFileName>$(IntDir)loadlib_77c025b9.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lobject.c">
+      <ObjectFileName>$(IntDir)lobject_457da542.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lopcodes.c">
+      <ObjectFileName>$(IntDir)lopcodes_275d6f30.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\loslib.c">
+      <ObjectFileName>$(IntDir)loslib_043f8c38.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lparser.c">
+      <ObjectFileName>$(IntDir)lparser_fff6eb13.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lstate.c">
+      <ObjectFileName>$(IntDir)lstate_60939c75.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lstring.c">
+      <ObjectFileName>$(IntDir)lstring_3e1ab727.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lstrlib.c">
+      <ObjectFileName>$(IntDir)lstrlib_c6b77a28.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ltable.c">
+      <ObjectFileName>$(IntDir)ltable_fa6a7207.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ltablib.c">
+      <ObjectFileName>$(IntDir)ltablib_a18ca6a3.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ltm.c">
+      <ObjectFileName>$(IntDir)ltm_669ccbc0.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lundump.c">
+      <ObjectFileName>$(IntDir)lundump_218a24b5.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lutf8lib.c">
+      <ObjectFileName>$(IntDir)lutf8lib_e3b9ec1e.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lvm.c">
+      <ObjectFileName>$(IntDir)lvm_55ccf4cb.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lzio.c">
+      <ObjectFileName>$(IntDir)lzio_b132e8e4.obj</ObjectFileName>
+      <WarningLevel>$(HaloLuaWarnings)</WarningLevel>
+      <PreprocessorDefinitions>$(HaloLuaDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(HaloLuaIncludes)</AdditionalIncludeDirectories>
+      <AdditionalOptions>$(HaloLuaOptions) %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\bands.c">
       <ObjectFileName>$(IntDir)bands_e1c60342.obj</ObjectFileName>

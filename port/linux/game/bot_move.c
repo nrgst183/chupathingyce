@@ -790,6 +790,15 @@ static boolean bot_move_crowded(struct bot_mover const *bot)
 	return FALSE;
 }
 
+/* not the way's fault: someone in the way (a bot, or a person, at a
+   ladder, a doorway, a ledge), or knocked off it, a blast or a blow a moment
+   ago. The bot tries another way a while; nobody learns from it.
+   HALO_BOT_OFF=blameless: bots in the way only, as it was */
+static boolean bot_move_blameless(struct bot_mover const *bot)
+{
+	return bot_move_crowded(bot) || (!bot_env_off("blameless") && (bot->hurt || bot->person_near));
+}
+
 /* how far ahead the floor's end is looked for on the run at a gap: the jump
    is asked for when it ends this near */
 #define BOT_GAP_JUMP_AHEAD 0.27f
@@ -856,7 +865,7 @@ static void bot_move_reach_failed(struct bot_mover *bot, char const *why)
 			move->reach_started ? "" : " (not begun)");
 	/* in a crowd (someone in the way on the ladder, at the edge): not the
 	   way's fault; this bot tries another way a while, nobody learns from it */
-	if (!bot_move_crowded(bot))
+	if (!bot_move_blameless(bot))
 	{
 		aas_reach_failed(move->reach_type, move->reach);
 		/* (and the same jump beside it: a gap fallen at off a rock is
@@ -4006,7 +4015,7 @@ static void bot_move_landed_check(struct bot_mover *bot, struct bot_body const *
 				bot_log("bot%ld: fell off walking %ld (%.1f down, at %.2f %.2f %.2f)%s", bot->index, fell, move->walk_air_z - position->z,
 					position->x, position->y, position->z, again ? ", again" : "");
 			bot_move_avoid(move, fell, BOT_SECONDS(30));
-			if (again && !bot_move_crowded(bot))
+			if (again && !bot_move_blameless(bot))
 				aas_reach_failed(AAS_FOOT, fell);
 			move->walk_fell_reach = fell;
 			move->walk_fell_tick = game_time_get();
@@ -4019,14 +4028,21 @@ static void bot_move_landed_check(struct bot_mover *bot, struct bot_body const *
 	   a jump that carries past it: not the way it looked) */
 	if (move->landed_reach != NONE)
 	{
-		if (type != AAS_FOOT || game_time_get() > move->landed_until || move->reach != NONE)
+		if (type != AAS_FOOT)
 			move->landed_reach = NONE;
+		else if (game_time_get() > move->landed_until || move->reach != NONE)
+		{
+			/* (there still, or on to the next: made, and a failure of it
+			   forgiven) */
+			aas_reach_made(AAS_FOOT, move->landed_reach);
+			move->landed_reach = NONE;
+		}
 		else if (position->z < move->landed_z - 1.2f)
 		{
 			if (bot_logging())
 				bot_log("bot%ld: foot reachability %ld made, and off the far side of it (at %.2f %.2f %.2f)", bot->index, move->landed_reach,
 					position->x, position->y, position->z);
-			if (!bot_move_crowded(bot))
+			if (!bot_move_blameless(bot))
 				aas_reach_failed(AAS_FOOT, move->landed_reach);
 			bot_move_avoid(move, move->landed_reach, BOT_SECONDS(30));
 			move->landed_reach = NONE;

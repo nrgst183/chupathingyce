@@ -25,6 +25,9 @@
     <Filter Include="port\third_party\kcp">
       <UniqueIdentifier>{0d87a66e-f892-9839-6c79-2c342c858b45}</UniqueIdentifier>
     </Filter>
+    <Filter Include="port\third_party\lua">
+      <UniqueIdentifier>{6016a7da-c361-091f-1a31-0c9f0459490b}</UniqueIdentifier>
+    </Filter>
     <Filter Include="port\third_party\mbedtls">
       <UniqueIdentifier>{4c97d4b3-7b78-131b-6c0f-57499958748c}</UniqueIdentifier>
     </Filter>
@@ -1761,7 +1764,19 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\discord_game.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\duct_tape_logo.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\follow_camera.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\forge.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\forge_files.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\forge_menu.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\game_events.c">
@@ -1812,6 +1827,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\late_join.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\latency_meter.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\lighting_config.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -1825,6 +1843,21 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\lobby_screen.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_chimera_api.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_opensauce.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_scripting.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_twiddlings.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\lua_twiddlings_objects.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\map_families.c">
@@ -2040,6 +2073,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\needler_lighting.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\net_monitor.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\network_actors.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -2068,6 +2104,12 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\opence_welcome.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\opensauce_map.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\opensauce_scripts.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\pal_tags.c">
@@ -2103,6 +2145,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\game\profile_screen.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\ragdolls.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\render_enumerate.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
@@ -2116,6 +2161,9 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\server_browser.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\spv3_mode.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\stats_log.c">
@@ -2176,6 +2224,12 @@
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_objects.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_opensauce.c">
+      <Filter>port\linux\game</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_pc.c">
       <Filter>port\linux\game</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\game\tag_schema_render.c">
@@ -2334,6 +2388,9 @@
     <ClCompile Include="$(HaloRoot)port\linux\src\event_upload.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\forge_store.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\game_report.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
@@ -2344,6 +2401,9 @@
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\guide_layout.c">
+      <Filter>port\linux\src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\linux\src\gyro_aim.c">
       <Filter>port\linux\src</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\linux\src\halo_linker_common.c">
@@ -3131,6 +3191,102 @@
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\third_party\zstd\lib\decompress\zstd_decompress_block.c">
       <Filter>port\third_party\zstd\lib\decompress</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lapi.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lauxlib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lbaselib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lcode.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lcorolib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lctype.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldblib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldebug.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldo.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ldump.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lfunc.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lgc.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\linit.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\liolib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\llex.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lmathlib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lmem.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\loadlib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lobject.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lopcodes.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\loslib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lparser.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lstate.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lstring.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lstrlib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ltable.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ltablib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\ltm.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lundump.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lutf8lib.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lvm.c">
+      <Filter>port\third_party\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="$(HaloRoot)port\third_party\lua\lzio.c">
+      <Filter>port\third_party\lua</Filter>
     </ClCompile>
     <ClCompile Include="$(HaloRoot)port\third_party\opus\celt\bands.c">
       <Filter>port\third_party\opus\celt</Filter>

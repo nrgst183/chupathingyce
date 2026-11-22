@@ -165,6 +165,11 @@ struct bot_mover
 	   foot of it, round to face it, and up) to 1 (level 5: at a run, from
 	   where the run brings it) */
 	real fluency;
+	/* (hit a moment ago, a blast's or a blow's: a fall now is not the way's
+	   fault; and a person beside it, who is in the way as another bot is:
+	   bot_move_blameless) */
+	int hurt;
+	int person_near;
 	struct bot_move_state move;
 };
 

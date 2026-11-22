@@ -44,6 +44,7 @@ from tools.lp64_build import lp64_excluded  # noqa: E402
 from tools.version import VERSION_SOURCES  # noqa: E402
 from tools.windows_build import MONOCYPHER_DIR, ZLIB_DEFINES, ZLIB_DIR, ZLIB_SOURCES  # noqa: E402
 from tools.linux_build import ZSTD_DEFINES, ZSTD_DIR, ZSTD_SOURCES  # noqa: E402
+from tools.linux_build import LUA_DIR, lua_sources  # noqa: E402
 from tools.linux_build import OPUS_DEFINES, OPUS_DIR, opus_sources  # noqa: E402
 from tools.windows_build import (COMMENT, EXPAT_DIR, EXPAT_SOURCES, EXPORTED_INLINE, KCP_DIR, LINUX_DIR,  # noqa: E402
                                  PORT_DIR, QRCODEGEN_DIR, SDL_SHA256, SDL_VERSION, TOML_DIR, WIN32_FLAGS,
@@ -83,6 +84,11 @@ def split_flags(flags: List[str]) -> Tuple[List[str], List[str]]:
     defines = [flag[2:] for flag in flags if flag.startswith("-D")]
     others = [flag for flag in flags
               if not flag.startswith("-D") and not flag.startswith("-O") and flag not in ("-g", "-gcodeview")]
+    # (a directory after -idirafter is the ninja build's, from the root: from
+    # the project's folder it is the root's too, $(HaloRoot); and joined to
+    # it, one argument as /clang: passes it, not one with a space in it)
+    others = ["-idirafter" + (win(Path(flag[len("-idirafter "):])) if not Path(flag[len("-idirafter "):]).is_absolute()
+              else flag[len("-idirafter "):]) if flag.startswith("-idirafter ") else flag for flag in others]
     return defines, others
 
 
@@ -295,6 +301,8 @@ def main() -> None:
             # (Zstandard's decoder, for compressed Halo PC maps: port/third_party/zstd;
             # map_compressed.c)
             "Zstd": group(["-std=gnu11"], split_flags(list(ZSTD_DEFINES))[0], [], [], False),
+            # (the Lua library, for mods' Lua scripts: port/third_party/lua; lua_scripting.c)
+            "Lua": group(["-std=gnu11"], [], [win(LUA_DIR)], [], False),
             # (voice chat's codec: port/third_party/opus; voice.c)
             "Opus": group(["-std=gnu11"], split_flags(list(OPUS_DEFINES))[0],
                           [win(OPUS_DIR / name) for name in ("include", "celt", "silk", "silk/float")], [], False),
@@ -364,6 +372,9 @@ def main() -> None:
         add(ZLIB_DIR / name, "Zlib")
     for name in ZSTD_SOURCES:
         add(ZSTD_DIR / name, "Zstd")
+    # mods' Lua scripts' Lua (port/third_party/lua; lua_scripting.c)
+    for source in lua_sources():
+        add(source, "Lua")
     # voice chat's codec (port/third_party/opus; voice.c)
     for source in opus_sources():
         add(source, "Opus")

@@ -31,6 +31,11 @@ goes from 1 to 5 (bot_skill_inner): bot_skill 1 is its 1, bot_skill 10 its
 5, and each level between is four ninths of a step on it. That scale is what
 bot_skill_now holds and what the comments here mean by "the level", "level
 5" and "the levels over 3": bot_skill 10, and bot_skill 6 and up.
+
+What a bot knows to do goes by the levels as the menu has them instead
+(bot_tier_tricks, bot_tier_master, bot_tier_perfect, bot_tier_low): 1 to 3
+plays as a poor player, 4 to 6 has a good player's tricks, 7 to 10 a very
+good one's hand and eye, and 10 nothing human left in its aim or its feet.
 */
 
 #include "bot_internal.h"
@@ -1172,6 +1177,7 @@ static unsigned long bots_match(void)
    at 5: 0.5x, 0.7x, 1 */
 static real bot_skill_fraction(void);
 static real bot_skill_sharpness(void);
+static int bot_tiers_off(void);
 
 /* how aggressive the bots start a game: set by the skill level, the same
    for every bot (1: 0.25 .. 5: 0.7). From there it climbs as the game goes:
@@ -1390,9 +1396,10 @@ struct bot_state;
 static long bot_blips_near(struct bot_state const *bot, real_point3d const *point, real within);
 
 /* how much of a master the level is: 0 up to bot_skill 7.75, 1 at 10 */
+static real bot_tier_master(void);
 static real bot_skill_mastery(void)
 {
-	return PIN((bot_skill_fraction() - 0.75f) / 0.25f, 0.f, 1.f);
+	return bot_tier_master();
 }
 
 static void bot_skill_traits(struct bot_personality *personality)
@@ -1415,7 +1422,8 @@ static void bot_skill_traits(struct bot_personality *personality)
 		   luck of the draw was more than three levels' difference, and a
 		   game of one level against the next was a coin's toss.
 		   HALO_BOT_OFF=reactluck: as it was) */
-		personality->reaction *= bot_env_off("reactluck") ? 1.4f - 0.8f * personality->reaction_luck : 1.15f - 0.3f * personality->reaction_luck;
+		personality->reaction *= bot_env_off("reactluck") ? 1.4f - 0.8f * personality->reaction_luck :
+			1.f + (0.15f - 0.3f * personality->reaction_luck) * (1.f - (bot_tiers_off() ? 0.f : PIN((1.f + (PIN(bot_skill_base, 1.f, 5.f) - 1.f) * 9.f / 4.f) - 9.f, 0.f, 1.f)));
 		personality->agility = PIN(personality->agility + 0.6f * (personality->agility_luck - 0.5f), 0.1f, 1.f);
 	}
 }
@@ -2312,6 +2320,55 @@ static real bot_skill_fraction(void)
 	return (PIN(bot_skill_now, 1.f, 5.f) - 1.f) / 4.f;
 }
 
+/* The levels as people play (bot_skill 1 to 10, as the menu has them):
+     1 to 3   poor to a little under the middle: aims and moves, does little
+              else; sits in its places now and then
+     4 to 6   good: the tricks come in, and by 6 or 7 it has all of them
+              (timing the power weapons, reading spawns, pressing the hurt,
+              banking grenades, the movement, ways round)
+     7 to 10  very good to the best there is: the master's hand and eye, and
+              at 10 nothing human left in its aim or its feet
+   The aim, the reactions and the turn (bot_skills) go evenly from 1 to 10;
+   these are what it knows to do. (Before, the tricks came in from 5.5 and
+   were all there only at 10, and a 6 played as a 4.)
+   HALO_BOT_OFF=tiers: as it was */
+static real bot_level(void)
+{
+	return 1.f + (PIN(bot_skill_now, 1.f, 5.f) - 1.f) * 9.f / 4.f;
+}
+static int bot_tiers_off(void)
+{
+	static int off = -1;
+	if (off < 0)
+		off = bot_env_off("tiers");
+	return off;
+}
+/* (from one level of the menu's to another: 0 under it, 1 over) */
+static real bot_level_ramp(real from, real to)
+{
+	return PIN((bot_level() - from) / (to - from), 0.f, 1.f);
+}
+/* the tricks: none at 3 and under, all of them from about 6.5 */
+static real bot_tier_tricks(void)
+{
+	return bot_tiers_off() ? PIN((bot_skill_now - 3.f) * 0.5f, 0.f, 1.f) : bot_level_ramp(3.5f, 6.5f);
+}
+/* a master's hand and eye: from 6.5, all of it at 10 */
+static real bot_tier_master(void)
+{
+	return bot_tiers_off() ? PIN(((PIN(bot_skill_now, 1.f, 5.f) - 1.f) / 4.f - 0.75f) / 0.25f, 0.f, 1.f) : bot_level_ramp(6.5f, 10.f);
+}
+/* nothing human left: from 9, none at 10 */
+static real bot_tier_perfect(void)
+{
+	return bot_tiers_off() ? 0.f : bot_level_ramp(9.f, 10.f);
+}
+/* the poor ones' ways (camping in its places): all of them at 1, none from 4 */
+static real bot_tier_low(void)
+{
+	return bot_tiers_off() ? 0.f : 1.f - bot_level_ramp(1.f, 4.f);
+}
+
 /* How much of a good player's knack a bot has (timing the power weapons,
    reading spawns, keeping an eye about it, learning from a death): its
    level's, from the level `from` (of the inner 1 to 5) up to all of it at
@@ -2328,8 +2385,16 @@ static real bot_knack_of(real level, real trait)
 	level = PIN(level, 0.f, 1.f);
 	return PIN(level + 0.8f * level * (1.f - level) * (PIN(trait, 0.f, 1.f) - 0.5f), 0.f, 1.f);
 }
+static real bot_level(void);
 static real bot_knack(real trait, real from)
 {
+	/* (from the same level as before, all of it by 8, a very good player's,
+	   not only at 10) */
+	if (!bot_tiers_off())
+	{
+		real menu_from = 1.f + (from - 1.f) * 9.f / 4.f;
+		return bot_knack_of((bot_level() - menu_from) / MAX(8.f - menu_from, 1.f), trait);
+	}
 	return bot_knack_of((bot_skill_now - from) / (5.f - from), trait);
 }
 
@@ -2339,11 +2404,15 @@ static real bot_knack(real trait, real from)
    of it at the top. With it, the side's knowledge (bot_sides_aware) has
    more of them in it than its bots have seen, the routes and the lanes go
    round them, and drivers drive round them. HALO_BOT_OFF=mapaware: none */
+static int bot_tiers_off(void);
 static real bot_awareness_of(real skill)
 {
 	if (bot_env_off("mapaware"))
 		return 0.f;
-	return PIN((skill - 2.f) / 3.f, 0.f, 1.f);
+	if (bot_tiers_off())
+		return PIN((skill - 2.f) / 3.f, 0.f, 1.f);
+	/* (on the menu's levels: none at 3, all of it by 7) */
+	return PIN((1.f + (PIN(skill, 1.f, 5.f) - 1.f) * 9.f / 4.f - 3.f) / 4.f, 0.f, 1.f);
 }
 
 static real bot_awareness(void)
@@ -2356,7 +2425,7 @@ static real bot_awareness(void)
 #define BOT_TOP_LEVEL_NOTICE 0.5f
 static real bot_skill_sharpness(void)
 {
-	return 1.f - (1.f - BOT_TOP_LEVEL_NOTICE) * PIN(bot_skill_now - 4.f, 0.f, 1.f);
+	return 1.f - (1.f - BOT_TOP_LEVEL_NOTICE) * (bot_tiers_off() ? PIN(bot_skill_now - 4.f, 0.f, 1.f) : bot_tier_master());
 }
 
 /* How much of a good player's movement a bot has, over what its level gave
@@ -2364,7 +2433,7 @@ static real bot_skill_sharpness(void)
    with 1024 taken off it, or "agile" in HALO_BOT_OFF: none) */
 static real bot_skill_pro(void)
 {
-	return BOT_ON(BOT_F_AGILE) && bot_refined_is(1024) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+	return BOT_ON(BOT_F_AGILE) && bot_refined_is(1024) ? bot_tier_tricks() : 0.f;
 }
 
 /* How well it strafes: from 0 at level 1 to 1 at level 10, evenly, each
@@ -3172,7 +3241,7 @@ static int bot_notices(struct bot_state *bot, long player_absolute_index, long u
 		}
 		else
 		{
-			real pro = BOT_ON(BOT_F_AWARE) && bot_refined_is(4096) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+			real pro = BOT_ON(BOT_F_AWARE) && bot_refined_is(4096) ? bot_tier_tricks() : 0.f;
 			struct player_datum *me = pro > 0.f ? bot_player_at_index((long)(bot - bot_states)) : NULL;
 			if (!me || !bot_on_tracker(DATUM_INDEX_NEW((long)(bot - bot_states), (unsigned short)((struct datum_header *)me)->identifier), eye, unit_index))
 				return FALSE;
@@ -3325,7 +3394,7 @@ extern struct game_engine race_engine;
 static real bot_press(void)
 {
 	/* (not in a race, which is run, not fought) */
-	return BOT_ON(BOT_F_PRESS) && bot_refined_is(131072) && game_engine != &race_engine ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+	return BOT_ON(BOT_F_PRESS) && bot_refined_is(131072) && game_engine != &race_engine ? bot_tier_tricks() : 0.f;
 }
 
 /* someone with their gun on us and near: a reason to leave anyone */
@@ -3336,7 +3405,7 @@ static real bot_press(void)
 static real bot_ffa_pro(unsigned bit)
 {
 	return BOT_ON2(bit) && game_engine && !game_engine_has_teams() && game_engine != &race_engine ?
-		PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+		bot_tier_tricks() : 0.f;
 }
 
 /* who leads a game with no sides, alone (NONE: nobody alone at the top),
@@ -3460,7 +3529,7 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 			struct unit_datum *holder = unit_try_and_get(player->unit_index);
 			short slot = holder ? holder->unit.current_weapon_index : NONE;
 			long theirs = slot >= 0 && slot < MAXIMUM_WEAPONS_PER_UNIT ? holder->unit.weapon_object_indices[slot] : NONE;
-			real mind = 0.6f * PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f);
+			real mind = 0.6f * (bot_tiers_off() ? PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f) : bot_level_ramp(2.f, 7.f));
 			if (theirs != NONE && object_try_and_get(theirs) && mind > 0.f)
 			{
 				struct bot_weapon gun;
@@ -3514,7 +3583,7 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 			   far off as from near. HALO_BOT_OFF=thirdparty) */
 			if (player->unit_index != current && !bot_env_off("thirdparty"))
 			{
-				real taste = bot->personality.opportunist * (0.4f + 0.6f * PIN((bot_skill_now - 2.f) / 3.f, 0.f, 1.f));
+				real taste = bot->personality.opportunist * (0.4f + 0.6f * (bot_tiers_off() ? PIN((bot_skill_now - 2.f) / 3.f, 0.f, 1.f) : bot_level_ramp(3.f, 7.f)));
 				if (bot_unit_busy(player->unit_index, eye))
 					score *= 1.f - 0.7f * taste;
 				if (unit->object.shield_vitality < 0.35f)
@@ -3571,7 +3640,7 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 			real cosine;
 			/* (a good player more so: whoever has him in their sights is who he turns on) */
 			if (enemy && bot_unit_aim_cosine(enemy, eye, 0.1f, &cosine) && cosine > 0.97f)
-				score *= 0.7f - (BOT_ON(BOT_F_AWARE) && bot_refined_is(4096) ? 0.15f * PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f);
+				score *= 0.7f - (BOT_ON(BOT_F_AWARE) && bot_refined_is(4096) ? 0.15f * bot_tier_tricks() : 0.f);
 			if (enemy && enemy->unit.current_weapon_index >= 0 && enemy->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT &&
 				enemy->unit.weapon_object_indices[enemy->unit.current_weapon_index] != NONE &&
 				object_try_and_get(enemy->unit.weapon_object_indices[enemy->unit.current_weapon_index]) &&
@@ -3600,7 +3669,7 @@ static long bot_find_target(struct bot_state *bot, int hit_lately, long my_unit,
 		   again when the first went down.) */
 		if (score >= best_score)
 		{
-			if (BOT_ON(BOT_F_AWARE) && bot_refined_is(4096) && bot_skill_now > 3.f && distance < BOT_AWARE_WITHIN &&
+			if (BOT_ON(BOT_F_AWARE) && bot_refined_is(4096) && bot_tier_tricks() > 0.f && distance < BOT_AWARE_WITHIN &&
 				bot_line_clear(bot_sight_flags, eye, &unit->object.bounding_sphere_center, my_root) &&
 				bot_sees_camouflaged(player->unit_index, distance, FALSE))
 			{
@@ -7677,7 +7746,7 @@ static void bot_goal_items(struct bot_goal_pass *g)
 				   against whoever it was after, and it came out about
 				   even.) */
 				if (value >= 8.5f && (bot_weapons_held(unit) < 2 || theirs > worst + 1.f) && BOT_ON(BOT_F_TIMING) && bot_refined_is(16384))
-					score *= 1.f + (BOT_TIMING_WORTH - 1.f) * PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f);
+					score *= 1.f + (BOT_TIMING_WORTH - 1.f) * bot_tier_tricks();
 				/* its favourite: worth a detour */
 				{
 					struct bot_weapon described;
@@ -8188,7 +8257,9 @@ static void bot_goal_hunt(struct bot_goal_pass *g)
 			   hunt is their game, worth up to two and a half times as much;
 			   the interceptor to where they will be, the flanker after them
 			   by a way round, bot_plan_via. HALO_BOT_OFF=routehunt) */
-			int route_hunter = !bot_env_off("routehunt") && (bot->personality.flanker > 0.45f || bot->personality.intercept > 0.4f);
+			/* (... a trick: not the poor ones, who go at them the way there is) */
+			int route_hunter = !bot_env_off("routehunt") && (bot->personality.flanker > 0.45f || bot->personality.intercept > 0.4f) &&
+				(bot_tiers_off() || bot_tier_tricks() > 0.f);
 			real keen = route_hunter ? 1.f + 1.5f * MAX(bot->personality.flanker - 0.45f, 0.f) / 0.55f +
 				1.5f * MAX(bot->personality.intercept - 0.4f, 0.f) / 0.6f : 1.f;
 			/* (... but in a game won by the flag, the hill or the ball, a third
@@ -8372,8 +8443,11 @@ static void bot_goal_haunts(struct bot_goal_pass *g)
 				if (since > BOT_SECONDS(45.f))
 				{
 					bot->memory.haunt_visited[i] = game_time_get();
-					bot_consider(best, gone * stay * personal * (3.f + bot_shown(5.f, 7.5f) * bot->personality.camping), _bot_goal_hold, &bot->memory.haunts[i], NONE,
-						(long)((3.f + bot_shown(12.f, 18.f) * bot->personality.camping) * personal * BOT_TICKS_PER_SECOND), FALSE);
+					/* (the poor ones, the longer and the keener: a corner they like
+					   and sit in, a new player's way) */
+					bot_consider(best, gone * stay * personal * (3.f + bot_shown(5.f, 7.5f) * bot->personality.camping) * (1.f + 0.8f * bot_tier_low()),
+						_bot_goal_hold, &bot->memory.haunts[i], NONE,
+						(long)((3.f + bot_shown(12.f, 18.f) * bot->personality.camping) * personal * (1.f + 1.f * bot_tier_low()) * BOT_TICKS_PER_SECOND), FALSE);
 				}
 			}
 			else if (since > BOT_SECONDS(45.f))
@@ -9428,7 +9502,7 @@ static real bot_spawnwatch_level(void)
 	/* (a free-for-all too, as the spawn readers go: HALO_BOT_OFF=spawnread,
 	   in team games alone as before) */
 	return !bot_env_off("spawnwatch") && game_engine && (game_engine_has_teams() || !bot_env_off("spawnread")) && game_engine != &race_engine && aas_ready() ?
-		PIN((bot_skill_now - 2.7f) / 1.f, 0.f, 1.f) : 0.f; /* (bot_skill_now is 1 to 5: level 5 of 10 is 2.8, 7 is 3.7) */
+		(bot_tiers_off() ? PIN((bot_skill_now - 2.7f) / 1.f, 0.f, 1.f) : bot_level_ramp(4.f, 6.5f)) : 0.f; /* (bot_skill_now is 1 to 5: level 5 of 10 is 2.8, 7 is 3.7) */
 }
 
 /* where the one at this index, dead, will likely come back: FALSE when there
@@ -13023,7 +13097,7 @@ static void bot_fire_control(struct bot_state *bot, struct bot_weapon const *wea
 	real target_distance, real target_shield, struct player_action *action)
 {
 	/* (how much of a good player's trigger finger: the levels over 3) */
-	real pace = BOT_ON(BOT_F_HEAD) && bot_refined_is(65536) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+	real pace = BOT_ON(BOT_F_HEAD) && bot_refined_is(65536) ? bot_tier_tricks() : 0.f;
 	real tolerance = (real)atan2(0.45f, MAX(target_distance, 0.5f)) + 0.01f;
 	int on_target;
 	int pull = FALSE;
@@ -13551,7 +13625,7 @@ static int bot_start_grenade(struct bot_state *bot, struct unit_datum *unit, rea
 					   bots. HALO_BOT_OFF=nadebank) */
 					real yaw;
 					real_point3d ends;
-					if (bot_skill_now < 3.f || bot_env_off("nadebank") || !bot_grenade_bank(unit, i, eye, point, ignore, &yaw, &pitch, &ends))
+					if ((bot_tiers_off() ? bot_skill_now < 3.f : bot_level() < 4.f) || bot_env_off("nadebank") || !bot_grenade_bank(unit, i, eye, point, ignore, &yaw, &pitch, &ends))
 						continue;
 					bot->grenade_lobbed = TRUE;
 					bot->grenade_bank = TRUE;
@@ -13903,14 +13977,14 @@ static int bots_spawn_spot_at(real_point3d const *point)
 static void bot_consider_spawns(struct bot_state *bot, long me, struct player_datum *player, struct unit_datum *unit, real_point3d const *position,
 	int teams, real held, struct bot_candidate *best)
 {
-	real pro = BOT_ON(BOT_F_TIMING) && bot_refined_is(8192) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+	real pro = BOT_ON(BOT_F_TIMING) && bot_refined_is(8192) ? bot_tier_tricks() : 0.f;
 	long now = game_time_get();
 	long i, k;
 	/* (a ramp you can feel: from level 4 up a little of it, knowing the
 	   times roughly and getting there late, the more the higher, all of it
 	   at 8 as before. HALO_BOT_OFF=senseramp: from 5.5 only) */
 	if (!bot_env_off("senseramp") && BOT_ON(BOT_F_TIMING) && bot_refined_is(8192))
-		pro = MAX(pro, 0.6f * PIN((bot_skill_now - 2.3f) / 1.5f, 0.f, 1.f));
+		pro = MAX(pro, 0.6f * (bot_tiers_off() ? PIN((bot_skill_now - 2.3f) / 1.5f, 0.f, 1.f) : bot_level_ramp(3.5f, 6.5f)));
 	/* (and as it keeps the times: the timers to the second, the others a
 	   good deal less, the level's on the whole. HALO_BOT_OFF=timer) */
 	if (!bot_env_off("timer"))
@@ -16441,7 +16515,7 @@ static int bot_stealth_creep(struct bot_think *t)
 	{
 		return FALSE;
 	}
-	level = PIN((bot_skill_now - 2.5f) / 2.f, 0.f, 1.f);
+	level = bot_tiers_off() ? PIN((bot_skill_now - 2.5f) / 2.f, 0.f, 1.f) : bot_level_ramp(4.f, 7.f);
 	if (level <= 0.f)
 		return FALSE;
 	distance = distance3d(&bot->tracked_at, &t->position);
@@ -16640,7 +16714,7 @@ kill that cost it its shields, a few seconds out of sight before the next. */
 static real bot_team_reset_level(void)
 {
 	return !bot_env_off("teamreset") && game_engine && game_engine_has_teams() && game_engine != &race_engine ?
-		PIN((bot_skill_now - 2.f) / 2.f, 0.f, 1.f) : 0.f;
+		(bot_tiers_off() ? PIN((bot_skill_now - 2.f) / 2.f, 0.f, 1.f) : bot_level_ramp(3.f, 7.f)) : 0.f;
 }
 
 /* someone of its side by it who is in a fight (has fired in the last second and a half) */
@@ -17072,7 +17146,7 @@ static void bot_fight_note_foe(struct bot_think *t, struct bot_fight *f)
 	   close in, or none at all) */
 	/* (... and what gun it is, by every bot at all but the lowest levels:
 	   bot_fight_foe_gun) */
-	if ((f->pro > 0.f || (!bot_env_off("foegun") && bot_skill_now > 1.6f)) && game_time_get() - bot->foe_tick >= 15)
+	if ((f->pro > 0.f || (!bot_env_off("foegun") && (bot_tiers_off() ? bot_skill_now > 1.6f : bot_level() > 2.5f))) && game_time_get() - bot->foe_tick >= 15)
 	{
 		struct unit_datum *foe = (struct unit_datum *)object_try_and_get_and_verify_type(target, _object_mask_biped);
 		bot->foe_tick = game_time_get();
@@ -17194,7 +17268,7 @@ static void bot_fight_cover_check(struct bot_think *t, struct bot_fight *f)
 		   hardly ever thinks of a wall. HALO_BOT_OFF=senseramp) */
 		if (!bot_env_off("senseramp"))
 		{
-			real sense = PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f);
+			real sense = bot_tiers_off() ? PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f) : bot_level_ramp(2.f, 7.f);
 			if (!broken && sense > 0.6f && mine < 0.15f && unit->object.body_vitality < 0.85f && !finishing && target != NONE &&
 				object_try_and_get(target) && object_get(target)->object.shield_vitality > mine + 0.5f)
 			{
@@ -17362,7 +17436,7 @@ static void bot_fight_foe_gun(struct bot_think *t, struct bot_fight *f)
 	struct bot_state *bot = t->bot;
 	struct bot_weapon const *weapon = &t->weapon;
 	real target_distance = t->target_distance;
-	real aware = MAX(f->pro, 0.6f * PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f));
+	real aware = MAX(f->pro, 0.6f * (bot_tiers_off() ? PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f) : bot_level_ramp(2.f, 7.f)));
 	int set = bot_rules_weapons();
 	int mine_reaches = weapon->precision || weapon->kind == _bot_gun_sniper || weapon->kind == _bot_gun_pistol;
 	if (bot_env_off("foegun") || t->target == NONE || aware <= 0.f || bot->in_cover || t->zombie)
@@ -17653,7 +17727,7 @@ static real bot_rocket_agility(struct bot_think const *t)
 {
 	if (bot_env_off("rocketmove") || (t->weapon.kind != _bot_gun_rocket && t->bot->foe_kind != _bot_gun_rocket))
 		return 0.f;
-	return PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f);
+	return bot_tiers_off() ? PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f) : bot_level_ramp(5.f, 8.f);
 }
 
 static void bot_fight_strafe_move(struct bot_think *t, struct bot_fight *f)
@@ -19652,7 +19726,7 @@ static void bot_juggle_start(struct player_action *action, struct bot_state *bot
 	/* (at the higher levels, the higher the oftener: level 7 now and then,
 	   the top every second or so) */
 	bot->juggle_cooldown = (long)((0.4f + 0.6f * bot_random(bot)) * BOT_TICKS_PER_SECOND);
-	if (bot_random(bot) < (BOT_FLAG_JUGGLING ? 0.15f + 0.85f * bot_skill_fraction() : 0.2f + 0.8f * PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f)) *
+	if (bot_random(bot) < (BOT_FLAG_JUGGLING ? 0.15f + 0.85f * bot_skill_fraction() : 0.2f + 0.8f * (bot_tiers_off() ? PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f) : bot_level_ramp(6.f, 9.f))) *
 		(0.4f + 0.6f * MAX(bot->personality.jumpiness, bot->personality.daring)))
 	{
 		/* (a few tried; then only while they have gone quicker than running
@@ -19668,7 +19742,7 @@ static void bot_juggle_start(struct player_action *action, struct bot_state *bot
 		}
 		/* (a jump first, at the top of the levels: the flag let go in the air
 		   flies on with its speed and more. HALO_BOT_OFF=jugglejump: none) */
-		if (!bot_env_off("jugglejump") && bot_random(bot) < PIN((bot_skill_now - 4.f), 0.f, 1.f))
+		if (!bot_env_off("jugglejump") && bot_random(bot) < (bot_tiers_off() ? PIN((bot_skill_now - 4.f), 0.f, 1.f) : bot_level_ramp(7.f, 9.f)))
 		{
 			bot->juggle_jump = 8;
 			action->control_flags |= FLAG(_unit_control_jump_bit);
@@ -19865,7 +19939,7 @@ static void bot_dodge_rocket(struct bot_think *t)
 					/* (the better the bot, the more of them jumped as they come
 					   in: from further, and the ones that would only graze it.
 					   HALO_BOT_OFF=rocketdodge) */
-					real keen = bot_env_off("rocketdodge") ? 0.f : PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f);
+					real keen = bot_env_off("rocketdodge") ? 0.f : bot_tiers_off() ? PIN((bot_skill_now - 3.5f) / 1.5f, 0.f, 1.f) : bot_level_ramp(5.f, 8.f);
 					if (ticks > 4.f - 2.f * keen && ticks < 15.f + 8.f * keen && body->can_jump && wide < hurts * (0.8f + 0.3f * keen) &&
 						bot_move_direction_safe(body, way, 2.5f))
 					{
@@ -21453,7 +21527,7 @@ static void bot_grenade_item(struct bot_think *t)
 	if (bot_env_set("HALO_BOT_NADETRACE") && bot_logging() && game_time_get() % 15 == 0 && (bot_goal_is_power_weapon(bot) || bot_goal_is_powerup(bot)))
 		bot_log("nadetrace bot%ld: skill %.2f vehicle %d cool %ld pending %ld forced %d grenades %d", t->player_absolute_index, bot_skill_now,
 			t->vehicle_index != NONE, bot->grenade_cooldown, bot->grenade_pending_ticks, t->look_forced, unit->unit.grenade_counts[0] + unit->unit.grenade_counts[1]);
-	if (bot_env_off("nadeitem") || bot_skill_now < 3.5f || t->vehicle_index != NONE || bot->grenade_cooldown > 0 || bot->grenade_pending_ticks > 0 ||
+	if (bot_env_off("nadeitem") || (bot_tiers_off() ? bot_skill_now < 3.5f : bot_level() < 5.f) || t->vehicle_index != NONE || bot->grenade_cooldown > 0 || bot->grenade_pending_ticks > 0 ||
 		t->look_forced || game_time_get() % 15 != (t->player_absolute_index % 15) || bot->goal_kind != _bot_goal_item || bot->goal_object == NONE ||
 		!(bot_goal_is_power_weapon(bot) || bot_goal_is_powerup(bot)) || unit->unit.grenade_counts[0] + unit->unit.grenade_counts[1] <= 0 || !aas_ready())
 	{
@@ -22102,7 +22176,7 @@ static void bot_aim_overshoot(struct bot_think *t, real *desired_yaw, real *desi
 		if ((fresh && need > 0.3f) || (need > 0.7f && now - bot->overshoot_tick > BOT_SECONDS(0.8f)))
 		{
 			real frac = bot_skill_fraction();
-			real k = (0.14f - 0.13f * frac) * bot->personality.accuracy * (0.6f + 0.8f * bot_random(bot));
+			real k = (0.14f - 0.13f * frac) * bot->personality.accuracy * (0.6f + 0.8f * bot_random(bot)) * (1.f - bot_tier_perfect());
 			real past = MIN(MIN(need, 1.6f) * k, 0.25f);
 			bot->overshoot_target = target;
 			bot->overshoot_tick = now;
@@ -22157,7 +22231,7 @@ static void bot_aim_strafe_loss(struct bot_think *t, struct bot_skill_parameters
 		   with the settling the bottom levels fell more than half a radian
 		   behind a close strafe) */
 		real frac = bot_skill_fraction();
-		real seconds = (0.25f * (1.f - frac) * (real)sqrt(1.f - frac) + 0.01f) * bot->personality.accuracy;
+		real seconds = (0.25f * (1.f - frac) * (real)sqrt(1.f - frac) + 0.01f * (1.f - bot_tier_perfect())) * bot->personality.accuracy;
 		real lag = MIN(excess * BOT_TICKS_PER_SECOND * seconds, 0.2f) * (1.f - skill->aim_settle);
 		bot->aim_error_yaw += rate > 0.f ? -lag : lag;
 		if (bot_logging() && game_time_get() - bot->strafeloss_logged > BOT_SECONDS(2.f))
@@ -22369,7 +22443,7 @@ static void bot_aim_at_target(struct bot_think *t)
 		   was from level 5 up) */
 		real low = 1.f - bot_skill_fraction();
 		real spread = (0.06f - 0.056f * bot_skill_fraction() + (bot_env_off("lowwander") ? 0.f : 0.05f * low * low * low * low)) *
-			bot->personality.accuracy;
+			bot->personality.accuracy * (1.f - bot_tier_perfect());
 		real pull = 1.f / (0.5f * BOT_TICKS_PER_SECOND);
 		real kick = spread * (real)sqrt(2.f * pull);
 		real n1 = (bot_random(bot) + bot_random(bot) + bot_random(bot) - 1.5f) * 2.f;
@@ -22694,7 +22768,7 @@ static void bot_noob_combo(struct bot_think *t)
 	   tick of the release, and only then) */
 	if (t->weapon.kind == _bot_gun_plasma_pistol && bot->charge_ticks == -20 && bot->charge_time == now)
 	{
-		real know = PIN((bot_skill_now - 2.f) / 2.f, 0.f, 1.f); /* (none at level 3 and under, all from level 8) */
+		real know = bot_tiers_off() ? PIN((bot_skill_now - 2.f) / 2.f, 0.f, 1.f) : bot_level_ramp(3.f, 7.f); /* (none at level 3 and under, all from level 7) */
 		bot->noob_unit = t->target;
 		bot->noob_tick = now;
 		bot->noob_stripped = 0;
@@ -23825,7 +23899,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	bot_make_body(me, t->teams, t->vehicle_index, t->driving, &t->position, &t->body);
 	bot->mover.unit_index = me->unit_index;
 	bot->mover.teamwork = bot->personality.teamwork;
-	bot->mover.fluency = bot_refined_is(512) ? PIN((bot_skill_now - 3.f) / 2.f, 0.f, 1.f) : 0.f;
+	bot->mover.fluency = bot_refined_is(512) ? bot_tier_tricks() : 0.f;
 	/* (hit in the last second, and a person close by: a fall or a hold-up
 	   then is not the way's to learn from, bot_move_blameless) */
 	bot->mover.hurt = bot->hit_ticks > 15;
@@ -24201,7 +24275,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	}
 	else if (bot->juggle_ticks > 0)
 		bot_juggle_chase(t);
-	else if ((BOT_FLAG_JUGGLING || (bot_skill_now >= 3.5f && !bot_env_off("juggle") && !bot_juggle_crowded(t))) && t->vehicle_index == NONE && game_engine == &ctf_engine && t->weapon.none && t->moving && t->moved && !t->committed &&
+	else if ((BOT_FLAG_JUGGLING || ((bot_tiers_off() ? bot_skill_now >= 3.5f : bot_level() >= 6.f) && !bot_env_off("juggle") && !bot_juggle_crowded(t))) && t->vehicle_index == NONE && game_engine == &ctf_engine && t->weapon.none && t->moving && t->moved && !t->committed &&
 		t->result.travel == _aas_travel_walk && !t->result.look && t->target == NONE && bot->hit_ticks <= 0 &&
 		bot->juggle_cooldown <= 0 && bot->weapon_switch_ticks <= 0 &&
 		unit->unit.current_weapon_index >= 0 && unit->unit.current_weapon_index < MAXIMUM_WEAPONS_PER_UNIT &&

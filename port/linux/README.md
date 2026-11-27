@@ -839,8 +839,6 @@ the setting for one start of the game. It has priority over the file.
 | `bots.skill` | `5` | `HALO_BOT_SKILL` | How good the bots are, from `1` to `10`: `1` easy, `5` normal, `7` hard, `9` legendary, `10` near perfect. The levels went from `1` to `5` before: the old `5` is `10`, and the old `3` is between `5` and `6`. |
 | `bots.balance` | `false` | `HALO_BOTS_BALANCE` | `true`: the score moves the skill of each bot in the range of `bots.skill_spread`, down for a team that is ahead and up for a team that is behind. Refer to "Bots". |
 | `bots.skill_spread` | `0` | `HALO_BOT_SKILL_SPREAD` | How many levels below `bots.skill` a bot can be, from `0` to `9`. Each bot gets its skill for the game from that range: `bots.skill = 10` with a spread of `4` gives bots from `6` to `10`. `0`: all the bots have `bots.skill`. Refer to "Bots". |
-| `infection.rounds`, `infection.round_minutes`, `infection.countdown` | `3`, `4`, `10` | `HALO_INFECTION_ROUNDS`, `HALO_INFECTION_ROUND_MINUTES`, `HALO_INFECTION_COUNTDOWN` | The rounds of a game of infection, the minutes of a round (`0`: no limit) and the seconds before the first zombie. Refer to "Infection". |
-| `infection.zombie_speed`, `infection.zombie_damage`, `infection.zombie_health` | `1.3`, `8.0`, `1.5` | `HALO_INFECTION_ZOMBIE_SPEED`, `HALO_INFECTION_ZOMBIE_DAMAGE`, `HALO_INFECTION_ZOMBIE_HEALTH` | How fast a zombie moves (a player is `1`), how hard it hits and how much damage it can take (the Flood of the campaign is `1`). |
 | `network.public_address` | (empty) | `HALO_NET_PUBLIC_ADDRESS` | A host setting: the address players reach this machine's games at (`host` or `host:port`; the port defaults to `network.tunnel_port`), for a host behind a relay or tunnel. While hosting, it is advertised to the game list, invites and Online Games pings in place of the STUN address, UPnP is not asked, and the host sends nothing to joining players' addresses first: it answers them where they are heard from. Joining someone else's game is unchanged (STUN, UPnP and hole punching as usual). |
 | `network.announce` | `"latest"` | `HALO_NET_ANNOUNCE` | The OpenCE network version that the games you host announce. `"latest"` follows the newest one the signed legacy table proves for hosting, between games and with no restart. A number pins it, such as `32`. Refer to `docs/delta/versioning.md`, "Auto-announce". |
 | `network.legacy_table` | `""` | `HALO_LEGACY_TABLE` | For testing, and for admins: a legacy table file, not signed, next to `config.toml` unless a full path. Its row for the wire of the build sets the OpenCE network versions that the game announces and joins, in place of the signed tables. The log shows a warning at start. Refer to `docs/delta-implementation.md` (Local override). Empty: none. |
@@ -3654,7 +3652,7 @@ and two kinds of walker); the wrecks of the others stayed.
   doing: 54 made, none failed, and those trips went from 12.6 s and
   11.8 s to 3.0 s and 2.7 s.
 - **Checked across every game type:** slayer, team slayer, CTF, king,
-  team king, oddball, team oddball, race, team race and infection, against
+  team king, oddball, team oddball, race and team race, against
   the build from two days before. Kills, scores and stuck counts per 1000
   ticks came out the same or better, except oddball's total time held,
   about a tenth less. That is expected: a bot carrying the ball must now
@@ -5209,74 +5207,6 @@ Sidewinder). The maps are built with the Halo CE Editing Kit and Invader,
 and `tools/bot_levels/test.py` runs the bots on them and sums up the
 results. See `tools/bot_levels/README.md`.
 
-## Infection
-
-Infection is a game type of the port for the multiplayer maps. The name of
-the game type is `infection`:
-
-- A dedicated server plays it from its playlist (`bloodgulch infection`).
-  Refer to [docs/dedicated-server.md](../../docs/dedicated-server.md).
-- A host that plays types `gametype infection` in the console while the
-  lobby shows. The menus do not show the game type. `gametype <name>` sets
-  each game type that a playlist can name.
-
-The rules:
-
-- All the players start a round alive. After `infection.countdown` seconds,
-  the game infects one player. This player is the first zombie. A game
-  needs two players.
-- A zombie has no weapon, no grenades and no shield, and cannot get them. It
-  moves faster than a player, and it kills with a blow of its hands (the
-  melee button).
-- A player who dies while there is a zombie comes back as a zombie. Zombies
-  come back as zombies.
-- The players of a side cannot hurt each other.
-- The round stops when no player is alive. The last player who was alive
-  wins the round. If `infection.round_minutes` minutes go by first, the
-  players who are still alive win the round.
-- A game has `infection.rounds` rounds. A player gets 1 point for each
-  zombie that they kill, 1 point for each player that they infect, and 3
-  points for a round that they win. The team scores show how many players
-  are alive (blue) and how many are zombies (red).
-- A zombie that is alone takes two times as much damage to kill, so that
-  the first zombie of a round can get to the other players.
-
-The zombies are the Flood of the campaign (the combat form). The
-multiplayer maps do not have the Flood. When a game of infection loads its
-map, the game takes the Flood from a campaign map in the `maps` folder
-(`c20`, `d20`, `c40`, `c10` or `d40`, the first that it finds) and adds it
-to the multiplayer map in memory: the model, the animations, the textures
-and the sounds. The first game of infection after the game starts takes
-approximately one second longer to load, because the game decompresses the
-campaign map. The map files do not change.
-
-The host makes its zombies of the Flood only while all the machines of the
-game have it. Each machine with a build that has infection tells the host,
-when it has loaded the map, whether its map has the Flood. If one machine
-has no campaign map with the Flood, or has a build without infection
-(OpenCE, a ChupathingyCE without infection), the zombies are players as
-they are, with no shield and no weapon: they hit with their hands, as a
-player with no weapon does in each build of this network version. The
-zombies that are the Flood at that time come back so.
-
-On the network, a game of infection is a game of team slayer, and a machine
-with a build without infection can be in it. That machine does not know the
-sides: it shows the teams of the lobby, and its player, as a zombie, has
-no weapon and sees no other change. The host applies the rules for all the
-players. Refer to [NETCODE.md](NETCODE.md#infection).
-
-The game adds the Flood only to the Xbox's multiplayer maps. On a Custom
-Edition map (`<name>@ce`), the zombies are players with no weapon.
-
-A game of infection sends no carnage report to the game list, from the
-host or from a player who joined it.
-
-The bots play infection. A bot that is a zombie runs to the nearest player
-who is alive and hits them. The other bots fight the zombies as they fight
-the players of the other team.
-
-The code is in `game/infection.c` (the rules) and `game/tag_import.c` (the
-Flood in a multiplayer map).
 ### Map sharing
 
 A host with `network.map_share` on (off by default) hands the Custom

@@ -704,12 +704,6 @@ void scenario_tags_unload(
 		hud_hires_tags_unloaded();
 	}
 #endif
-	/* port: and what was brought into it is gone (port/linux/game/tag_import.c) */
-	{
-		extern void tag_import_tags_unloaded(void);
-
-		tag_import_tags_unloaded();
-	}
 #ifdef HALO_DEVELOPER_FLAMES
 	/* port: and the developer flames this map's flame sprite (developer_flames.c) */
 	{
@@ -804,15 +798,6 @@ void *cache_files_tag_room(
 	byte *base = physical_memory_get_tag_cache_base_address();
 	unsigned long start = ((unsigned long)cache_file_globals.header.tag_data_size + 15) & ~15UL;
 	unsigned long end = 0x01600000;
-	/* (past the tags brought in from another map, the Flood for infection,
-	port/linux/game/tag_import.c, which come before these: over them, the
-	Flood's tags were Forge's characters) */
-	{
-		extern void *tag_import_end(void);
-
-		if (tag_import_end())
-			start = ((unsigned long)((byte *)tag_import_end() - base) + 15) & ~15UL;
-	}
 	long index;
 
 	*size = 0;
@@ -2453,13 +2438,6 @@ long scenario_tags_load(
 
 				menu_tags_loaded(cache_file_globals.header.name);
 			}
-			/* port: the Flood, brought into a map that is to be played as
-			infection (port/linux/game/tag_import.c) */
-			{
-				extern void tag_import_tags_loaded(void);
-
-				tag_import_tags_loaded();
-			}
 			/* port: the renderer's, to make this map's shaders during its
 			 * loading screen (port/linux/src/d3d8_gl.c sets it) */
 			if (cache_file_map_loaded_hook)
@@ -2576,22 +2554,10 @@ boolean scenario_structure_bsp_load(
 	own, and may be more than the Xbox's holds) */
 	if (!cache_file_is_ce)
 #endif
-	/* port: tags brought in from another map come after the map's own
-	(port/linux/game/tag_import.c), and Forge's AI characters' after those
-	(cache_files_tag_room): they stay */
-	{
-		extern void *tag_import_end(void);
-		byte *clear_address = tag_import_end() ? (byte *)tag_import_end() :
-			tag_cache_base_address + cache_file_globals.header.tag_data_size;
-
-		if (CACHE_FILES_RESERVED_AFTER_TAGS)
-			clear_address = tag_cache_base_address + (((unsigned long)(clear_address - tag_cache_base_address) + 15) & ~15UL) +
-				CACHE_FILES_RESERVED_AFTER_TAGS;
-		csmemset(
-			clear_address,
-			0xCD,
-			0x01600000 - (clear_address - tag_cache_base_address));
-	}
+	csmemset(
+		tag_cache_base_address + cache_file_globals.header.tag_data_size + CACHE_FILES_RESERVED_AFTER_TAGS,
+		0xCD,
+		0x01600000 - cache_file_globals.header.tag_data_size - CACHE_FILES_RESERVED_AFTER_TAGS);
 	{
 		boolean read_complete;
 
@@ -2779,45 +2745,6 @@ void scenario_structure_bsp_unload(
 	cache_file_globals.structure_bsp_header = NULL;
 
 	return;
-}
-
-/* port: what port/linux/game/tag_import.c needs of the loaded map's tags:
-where they end, where the first of the map's level geometry is loaded (the
-memory between is unused), and a new index of them (the map's tags and more) */
-void *cache_files_tag_data_end(
-	void)
-{
-	return (byte *)physical_memory_get_tag_cache_base_address() + cache_file_globals.header.tag_data_size;
-}
-
-/* (whether the map is one of the multiplayer maps: its header's type) */
-boolean cache_files_map_is_multiplayer(
-	void)
-{
-	return *(short *)cache_file_globals.header.reserved60 == 1;
-}
-
-void *cache_files_tag_data_limit(
-	void)
-{
-	byte *limit = (byte *)physical_memory_get_tag_cache_base_address() + 0x01600000;
-	struct cache_file_tag_instance *instance =
-		&global_tag_instances[(short)cache_file_globals.tag_header->scenario_tag_index];
-	struct scenario *scenario = xbox_pointer(instance->base_address);
-	long index;
-
-	for (index = 0; index < scenario->structure_bsp_references.count; index++)
-	{
-		struct scenario_structure_bsp_reference *reference = TAG_BLOCK_GET_ELEMENT(
-			&scenario->structure_bsp_references,
-			index,
-			struct scenario_structure_bsp_reference);
-
-		if (reference->base_address && (byte *)xbox_pointer(reference->base_address) < limit)
-			limit = xbox_pointer(reference->base_address);
-	}
-
-	return limit;
 }
 
 /* (the name in parentheses: on the consoles it is also the inline form's

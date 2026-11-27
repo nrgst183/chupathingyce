@@ -137,9 +137,8 @@ Friends can't get into your game? See [docs/online.md](docs/online.md#if-friends
 - Stubbs the Zombie, an early work in progress, from your own Xbox maps (off by default)
 - SPV3, an early first look, from your own copy ([try it](docs/spv3.md))
 
-**Bots and infection**
+**Bots**
 - Bots: a host can fill its games with players it drives itself, on every map and game type ([how](port/linux/README.md#bots))
-- Infection, a new game type: one player starts as a zombie (the campaign's Flood), and everyone they kill joins them ([how](port/linux/README.md#infection))
 
 **Your stats**
 - A carnage report with medals for every finished game

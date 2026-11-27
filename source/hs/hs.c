@@ -16870,14 +16870,6 @@ static boolean hs_compile_and_evaluate_command(
 		if (bots_console_command(expression))
 			return TRUE;
 	}
-	/* port: and "gametype <name>" for a host's lobby, infection's way in
-	(port/linux/game/infection.c) */
-	{
-		boolean infection_console_command(char const *text);
-
-		if (infection_console_command(expression))
-			return TRUE;
-	}
 	csstrncpy(buffer, expression, sizeof(buffer));
 	buffer[sizeof(buffer)-1] = 0;
 	if (strchr(buffer, ';'))

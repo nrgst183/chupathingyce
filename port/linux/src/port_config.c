@@ -1837,24 +1837,6 @@ static const struct config_setting config_settings[] =
 		"top, the further ahead or behind the more (the console's\n"
 		"\"bots_balance <0|1>\"). Nothing to move with a spread of 0." },
 
-	{ "infection.rounds", _config_integer, "3", "HALO_INFECTION_ROUNDS", _environment_value, _platform_all,
-		"Infection (the game type \"infection\": a dedicated server's playlist,\n"
-		"or the console's \"gametype infection\" in a host's lobby): the rounds\n"
-		"of a game." },
-	{ "infection.round_minutes", _config_integer, "4", "HALO_INFECTION_ROUND_MINUTES", _environment_value, _platform_all,
-		"The minutes the living have to hold out for: a round still going then\n"
-		"is theirs. 0 for a round that lasts until everyone is infected." },
-	{ "infection.countdown", _config_integer, "10", "HALO_INFECTION_COUNTDOWN", _environment_value, _platform_all,
-		"The seconds of a round before one of its players is infected." },
-	{ "infection.zombie_speed", _config_real, "1.3", "HALO_INFECTION_ZOMBIE_SPEED", _environment_value, _platform_all,
-		"How fast a zombie runs, a player's own speed being 1." },
-	{ "infection.zombie_damage", _config_real, "8.0", "HALO_INFECTION_ZOMBIE_DAMAGE", _environment_value, _platform_all,
-		"How hard a zombie hits: a multiple of the Flood's own blow (at 8, one\n"
-		"blow kills; at 4, two)." },
-	{ "infection.zombie_health", _config_real, "1.5", "HALO_INFECTION_ZOMBIE_HEALTH", _environment_value, _platform_all,
-		"How much a zombie takes to kill: a multiple of the Flood's own health\n"
-		"(a round's first zombie, while it is the only one, has twice this)." },
-
 	/* ---- crash_reports */
 	{ "crash_reports.upload", _config_string, "\"ask\"", "HALO_CRASH_REPORTS", _environment_value, _platform_desktop,
 		"Send crash reports to the developers: \"ask\", \"yes\" or \"no\"." },

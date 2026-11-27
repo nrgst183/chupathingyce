@@ -1518,12 +1518,6 @@ static void player_spawn(
 						0,
 						struct game_globals_multiplayer_information);
 					unit_definition_index = multiplayer_information->unit.index;
-					/* port: infection's zombies are the Flood (port/linux/game/infection.c) */
-					{
-						extern long infection_player_unit_definition(long player_index, long definition_index);
-
-						unit_definition_index = infection_player_unit_definition(player_index, unit_definition_index);
-					}
 				}
 				else
 				{
@@ -4139,14 +4133,6 @@ static void player_examine_nearby_item(
 		item->item.ignore_object_index == player->unit_index)
 	{
 		return;
-	}
-	/* port: infection's zombies take nothing up: no grenades, no powerups
-	(port/linux/game/infection.c) */
-	{
-		extern boolean infection_player_is_zombie(long player_index);
-
-		if (infection_player_is_zombie(player_index))
-			return;
 	}
 
 	{

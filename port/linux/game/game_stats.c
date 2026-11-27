@@ -686,18 +686,12 @@ static void stats_client_report(
 	count = game_engine_report_lines(players, MAXIMUM_STATS_PLAYERS);
 	if (count <= 0)
 		return;
-	/* port: nor of a game the bots played in, or of infection, as the
-	host's own report (game_engine_report_game): the game list keeps the
-	scores of people, at the game types it knows */
+	/* port: nor of a game the bots played in, as the host's own report
+	(game_engine_report_game): the game list keeps the scores of people */
+	if (game_stats.bots_seen)
 	{
-		extern boolean infection_active(void);
-
-		if (game_stats.bots_seen || infection_active())
-		{
-			platform_log("Game list: no report of the joined game (%s)",
-				game_stats.bots_seen ? "bots played in it" : "infection");
-			return;
-		}
+		platform_log("Game list: no report of the joined game (bots played in it)");
+		return;
 	}
 	game_report_json_name(name, sizeof(name), (unsigned short const *)reporter->name, BROWSER_PLAYER_NAME_LENGTH);
 	game_report_json_name(host, sizeof(host), (unsigned short const *)game->name, 16);

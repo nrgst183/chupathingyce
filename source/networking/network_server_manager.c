@@ -4588,13 +4588,10 @@ boolean server_needs_more_teams(
 			return FALSE;
 	}
 #endif
-	/* port: infection's sides are the game's to give, whatever the lobby's
-	(port/linux/game/infection.c); and a player alone may start a team game,
-	with nobody on the other team yet (but on a dedicated server, whose
-	playlist goes on to a game for one: server/src/dedicated.c) */
+	/* port: a player alone may start a team game, with nobody on the other
+	team yet (but on a dedicated server, whose playlist goes on to a game for
+	one: server/src/dedicated.c) */
 	if (server->game.variant.universal_variant.teams &&
-		!(server->game.variant.game_engine_index == game_engine_slayer &&
-			server->game.variant.game_engine_variant.slayer.infection) &&
 		!(server->game.player_count <= 1 && !server_is_dedicated()) &&
 		!network_game_solo_game())
 	{

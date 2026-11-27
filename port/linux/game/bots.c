@@ -1345,6 +1345,7 @@ enum
 	BOT_G_POWERTIME = 16384, /* "powertime": the timing of power weapons and powerups, sooner and keener */
 	/* (and one for every game, sides or none, the same way: HALO_BOT_OFF2_T1=smarts
 	   pits the bots without these against those with them) */
+	BOT_G_NUMBERS = 65536,  /* "numbers": a side up two pushes, a side down two holds together (bot_numbers_lead) */
 	BOT_G_SMARTS = 32768    /* "smarts": reloading when it can, no grenade or rocket by one of ours, the overcharge
 	                           timed by the gun, no chase on no shields, no glance or hunt at whoever it can't know of */
 };
@@ -1357,7 +1358,7 @@ static unsigned bot_off2_parse(char const *text)
 		{ "third", BOT_G_THIRD }, { "focus", BOT_G_FOCUS }, { "leader", BOT_G_LEADER }, { "reset", BOT_G_RESET },
 		{ "spots", BOT_G_SPOTS }, { "spawnwise", BOT_G_SPAWNWISE }, { "crowd", BOT_G_CROWD }, { "range", BOT_G_RANGE },
 		{ "disengage", BOT_G_DISENGAGE }, { "combo", BOT_G_COMBO }, { "sounds", BOT_G_SOUNDS }, { "behind", BOT_G_BEHIND },
-		{ "routes", BOT_G_ROUTES }, { "style", BOT_G_STYLE }, { "powertime", BOT_G_POWERTIME }, { "smarts", BOT_G_SMARTS },
+		{ "routes", BOT_G_ROUTES }, { "style", BOT_G_STYLE }, { "powertime", BOT_G_POWERTIME }, { "smarts", BOT_G_SMARTS }, { "numbers", BOT_G_NUMBERS },
 		{ "all", 0xFFFFFFFFu },
 	};
 	unsigned mask = 0;
@@ -8153,6 +8154,54 @@ static int bot_hunt_sense(struct bot_state const *bot, struct player_datum const
 	return TRUE;
 }
 
+/* How many more of us are up than of them (a game with sides: those alive
+   now; the kills say so to everyone, as they do to people), worked out once
+   a tick. */
+static long bot_numbers_lead(long team)
+{
+	static long worked_tick = NONE;
+	static long alive[2];
+	long now = game_time_get();
+	if (team != 0 && team != 1)
+		return 0;
+	if (worked_tick != now)
+	{
+		struct data_iterator iterator;
+		struct player_datum *player;
+		worked_tick = now;
+		alive[0] = alive[1] = 0;
+		data_iterator_new(&iterator, player_data);
+		while ((player = (struct player_datum *)data_iterator_next(&iterator)) != NULL)
+			if ((player->team_index == 0 || player->team_index == 1) && player->unit_index != NONE && bot_unit_alive(player->unit_index))
+				alive[player->team_index]++;
+	}
+	return alive[team] - alive[1 - team];
+}
+
+/* Playing the numbers, as a good player does: two or more of us up, after
+   them and at the objective now, while they are down (the hunt and the
+   objective worth more); two or more down, not off on its own after them:
+   with the others, and helping them (the hunt worth less, the others' help
+   more). The poor ones don't count heads (none at 3 and under, all of it by
+   6.5: bot_tier_tricks). Before, a side three up went on as if it were
+   even, one at a time into them. 1 when it makes nothing of it.
+   HALO_BOT_OFF2=numbers */
+enum { _bot_numbers_hunt, _bot_numbers_objective, _bot_numbers_together };
+static real bot_numbers_scale(struct player_datum const *player, long what)
+{
+	long lead;
+	real keen;
+	if (!BOT_ON2(BOT_G_NUMBERS) || !game_engine_has_teams())
+		return 1.f;
+	keen = bot_tier_tricks();
+	lead = bot_numbers_lead(player->team_index);
+	if (keen <= 0.f || (lead < 2 && lead > -2))
+		return 1.f;
+	if (lead >= 2)
+		return what == _bot_numbers_hunt ? 1.f + 0.6f * keen : what == _bot_numbers_objective ? 1.f + 0.4f * keen : 1.f;
+	return what == _bot_numbers_hunt ? 1.f - 0.5f * keen : what == _bot_numbers_together ? 1.f + 0.6f * keen : 1.f;
+}
+
 static void bot_goal_hunt(struct bot_goal_pass *g)
 {
 	struct bot_state *bot = g->bot;
@@ -9859,7 +9908,7 @@ static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum 
 
 	bot_goal_vehicles(&g);
 	bot_goal_trip(&g);
-	bot_consider_scale = bot_ffa_goal_scale(bot, me, unit, _bot_ffa_goal_hunt);
+	bot_consider_scale = bot_ffa_goal_scale(bot, me, unit, _bot_ffa_goal_hunt) * bot_numbers_scale(player, _bot_numbers_hunt);
 	if (!peace)
 		bot_goal_hunt(&g);
 	bot_consider_scale = 1.f;
@@ -9878,17 +9927,21 @@ static void bot_choose_goal(struct bot_state *bot, long me, struct player_datum 
 	bot_goal_reset(&g);
 	bot_goal_spawnwatch(&g);
 	bot_goal_outgunned(&g);
+	bot_consider_scale = bot_numbers_scale(player, _bot_numbers_together);
 	bot_goal_help_mate(&g);
 	bot_goal_meet(&g);
 
 	/* team slayer: with the team */
 	if (bot_is_team_slayer() && unit->object.parent_object_index == NONE)
 		bot_squad_candidates(bot, me, player, position, &g.best);
+	bot_consider_scale = 1.f;
 
 	/* the game's objective: flags, the hill, the ball */
+	bot_consider_scale = bot_numbers_scale(player, _bot_numbers_objective);
 	if (teams)
 		bot_ctf_candidates(bot, player, unit, position, held, &g.best);
 	bot_game_candidates(bot, player, unit, position, held, &g.best);
+	bot_consider_scale = 1.f;
 
 	bot_goal_ride(&g);
 	/* (in slayer, now and then up high instead of the hunt, when nothing
@@ -14069,8 +14122,6 @@ static void bot_consider_spawns(struct bot_state *bot, long me, struct player_da
 
 static void bot_think_inner(long player_absolute_index, struct player_action *action);
 boolean move_log_replay(long player_absolute_index, struct player_action *action);
-/* infection.c's */
-boolean infection_player_is_zombie(long player_index);
 
 /* (testing, HALO_BOT_HOLDFIRE_T1: the second side's bots fight, move and
    aim as ever and never shoot, throw or strike: how hard they are to hit,
@@ -14270,7 +14321,6 @@ struct bot_think
 	int drive_held, drive_round;
 	char const *drive_note;
 	real_point3d drive_to;
-	int zombie; /* infection: one of the infected (infection.c) */
 };
 
 static void bot_passenger_act(struct bot_think *t)
@@ -16618,7 +16668,7 @@ static void bot_stealth_crouch(struct bot_think *t)
 	long now = game_time_get();
 	long why = 0;
 	char const *urgent = NULL;
-	if (t->vehicle_index != NONE || t->zombie || t->unit->object.parent_object_index != NONE)
+	if (t->vehicle_index != NONE || t->unit->object.parent_object_index != NONE)
 	{
 		bot->stealth_down = FALSE;
 		return;
@@ -16846,24 +16896,6 @@ static void bot_team_break_move(struct bot_think *t)
 	}
 }
 
-static void bot_zombie_charge(struct bot_think *t)
-{
-	real_point3d const *position = &t->position;
-	struct bot_body const *body = &t->body;
-	/* infection: one of the living in sight and a clear run to them:
-	   straight at them, with no thought for cover or for keeping a
-	   distance (the route takes it the rest of the way) */
-	real_point3d at = object_get(object_get_ultimate_parent(t->target))->object.position;
-	real_vector3d const *velocity = &object_get(object_get_ultimate_parent(t->target))->object.translational_velocity;
-	/* (where they will be when we get there, not where they are) */
-	real lead = MIN(t->target_distance / (AAS_FOOT_SPEED_BOT * body->speed_scale), 0.6f) * BOT_TICKS_PER_SECOND;
-	at.x += velocity->i * lead;
-	at.y += velocity->j * lead;
-	t->move_yaw = bot_yaw_to(position, &at);
-	t->moving = TRUE;
-	t->move_speed = 1.f;
-}
-
 /* What the parts of the fight on foot (bot_fight_move) share: where the target is,
    how far off it would like to be, and which way (in, back, neither) it is going. */
 struct bot_fight
@@ -16896,7 +16928,7 @@ static void bot_fight_prefer_distance(struct bot_think *t, struct bot_fight *f)
 	/* in for a blow: their shields are down and it is its habit, or it
 	   likes a blow; or their back is to us and it likes one enough to
 	   go for it (the further, the more it likes them) */
-	if (target != NONE && !f->hurt && !t->zombie && object_try_and_get(target) && TEST_FLAG(_object_mask_biped, object_get(target)->object.type) &&
+	if (target != NONE && !f->hurt && object_try_and_get(target) && TEST_FLAG(_object_mask_biped, object_get(target)->object.type) &&
 		object_get(target)->object.parent_object_index == NONE && fabs(object_get(target)->object.position.z - position->z) < 1.f &&
 		target_distance < 2.5f + bot_shown(4.f, 5.5f) * bot->personality.melee &&
 		((object_get(target)->object.shield_vitality < 0.15f &&
@@ -16913,7 +16945,7 @@ static void bot_fight_prefer_distance(struct bot_think *t, struct bot_fight *f)
 	   blast ready: in for it; and nothing to shoot with, in from anywhere
 	   near. Not when it is the one nearly dead and they aren't, nor at a
 	   rocket's or a sniper's range. HALO_BOT_OFF=meleeplus: as before) */
-	if (!f->closing && target != NONE && !t->zombie && !bot_env_off("meleeplus") && object_try_and_get(target) &&
+	if (!f->closing && target != NONE && !bot_env_off("meleeplus") && object_try_and_get(target) &&
 		TEST_FLAG(_object_mask_biped, object_get(target)->object.type) && object_get(target)->object.parent_object_index == NONE &&
 		fabs(object_get(target)->object.position.z - position->z) < 1.f)
 	{
@@ -16942,7 +16974,7 @@ static void bot_fight_prefer_distance(struct bot_think *t, struct bot_fight *f)
 	{
 		real ffa = bot_ffa_pro(BOT_G_RANGE);
 		struct object_datum *them = target != NONE ? object_try_and_get(target) : NULL;
-		if (ffa > 0.f && them && !f->closing && !t->zombie)
+		if (ffa > 0.f && them && !f->closing)
 		{
 			/* the shotgun and the flamethrower: in, all the way */
 			if (weapon->kind == _bot_gun_shotgun || weapon->kind == _bot_gun_flamethrower)
@@ -17439,7 +17471,7 @@ static void bot_fight_foe_gun(struct bot_think *t, struct bot_fight *f)
 	real aware = MAX(f->pro, 0.6f * (bot_tiers_off() ? PIN((bot_skill_now - 1.5f) / 3.f, 0.f, 1.f) : bot_level_ramp(2.f, 7.f)));
 	int set = bot_rules_weapons();
 	int mine_reaches = weapon->precision || weapon->kind == _bot_gun_sniper || weapon->kind == _bot_gun_pistol;
-	if (bot_env_off("foegun") || t->target == NONE || aware <= 0.f || bot->in_cover || t->zombie)
+	if (bot_env_off("foegun") || t->target == NONE || aware <= 0.f || bot->in_cover)
 		return;
 	/* (a hunch, not a rule: as much as it minds, the same way each second) */
 	if (((game_time_get() / BOT_TICKS_PER_SECOND + t->player_absolute_index) % 10) >= (long)(10.f * aware + 0.5f))
@@ -18785,47 +18817,6 @@ static void bot_goals_on_foot(struct bot_think *t)
 		bot->goal_ticks = 0;
 		bot->goal_score = 0.f;
 	}
-	if (t->zombie)
-	{
-		/* infection: a zombie wants nothing but the living, and knows
-		   where they are: after the nearest (the one it is after
-		   already counts as a little nearer: no turning back and forth
-		   between two), with the rest of its kind */
-		struct data_iterator others;
-		struct player_datum *other;
-		real best = 1.0e9f;
-		real_point3d best_at = *position;
-		data_iterator_new(&others, player_data);
-		while ((other = (struct player_datum *)data_iterator_next(&others)) != NULL)
-		{
-			real_point3d where;
-			real distance;
-			if (other == me || other->unit_index == NONE || !bot_unit_alive(other->unit_index) ||
-				!bot_is_enemy((short)me->team_index, other))
-			{
-				continue;
-			}
-			where = object_get(object_get_ultimate_parent(other->unit_index))->object.position;
-			distance = distance3d(&where, position) + 3.f * (real)fabs(where.z - position->z);
-			if (bot->goal_kind == _bot_goal_enemy && distance3d(&where, &bot->goal) < 2.5f)
-				distance *= 0.7f;
-			if (distance < best)
-			{
-				best = distance;
-				best_at = where;
-			}
-		}
-		if (best < 1.0e8f)
-		{
-			if (bot->goal_kind != _bot_goal_enemy || distance3d(&bot->goal, &best_at) > 1.f || bot->goal_ticks < BOT_TICKS_PER_SECOND)
-				bot_set_goal(bot, _bot_goal_enemy, &best_at, NONE, 4 * BOT_TICKS_PER_SECOND);
-			bot->goal_objective = FALSE;
-			bot->goal_score = 1000.f;
-		}
-		else if (bot->goal_kind == _bot_goal_none || bot->goal_ticks <= 0 || arrived)
-			bot_choose_goal(bot, player_absolute_index, me, unit, position, t->teams); /* (nobody alive just now: about the place) */
-	}
-	else
 	if (bot->goal_kind == _bot_goal_none || bot->goal_ticks <= 0 ||
 		(arrived && bot->goal_kind != _bot_goal_item && bot->goal_kind != _bot_goal_vehicle && bot->goal_kind != _bot_goal_hold) ||
 		/* and a look round every second: something better may have come up */
@@ -20917,7 +20908,7 @@ static void bot_foot_trace(struct bot_think *t)
 	long i = t->player_absolute_index;
 	real speed = (real)sqrt(t->body.velocity.i * t->body.velocity.i + t->body.velocity.j * t->body.velocity.j) * BOT_TICKS_PER_SECOND;
 	real going = (real)atan2(t->body.velocity.j, t->body.velocity.i);
-	if (t->vehicle_index == NONE && t->target != NONE && !t->zombie && bot_logging())
+	if (t->vehicle_index == NONE && t->target != NONE && bot_logging())
 	{
 		/* (in a fight: standing, how long, and what it was doing) */
 		if (speed < 0.5f)
@@ -20934,7 +20925,7 @@ static void bot_foot_trace(struct bot_think *t)
 		off[i] = 0;
 		return;
 	}
-	if (t->vehicle_index != NONE || t->target != NONE || t->zombie || !bot_logging())
+	if (t->vehicle_index != NONE || t->target != NONE || !bot_logging())
 	{
 		still[i] = off[i] = 0;
 		return;
@@ -22906,7 +22897,7 @@ static int bot_peek_wanted(struct bot_think *t)
 {
 	struct bot_state *bot = t->bot;
 	long now = game_time_get();
-	if (bot_env_off("peek") || t->vehicle_index != NONE || t->zombie || bot->carrying_objective)
+	if (bot_env_off("peek") || t->vehicle_index != NONE || bot->carrying_objective)
 	{
 		bot_peek_end(t, "not now");
 		return FALSE;
@@ -23709,7 +23700,7 @@ static void bot_distract(struct bot_think *t)
 		return;
 	bot->distract_next = now + BOT_SECONDS(1.f + bot_random(bot));
 	if (t->target != NONE || bot->target_unit != NONE || bot->hit_ticks > 0 || t->look_forced || t->committed || t->vehicle_index != NONE ||
-		bot->carrying_objective || t->zombie || (bot->tracked_unit != NONE && bot->tracked_age < BOT_SECONDS(3.f)) || bot->teabag_ticks > 0 ||
+		bot->carrying_objective || (bot->tracked_unit != NONE && bot->tracked_age < BOT_SECONDS(3.f)) || bot->teabag_ticks > 0 ||
 		bot->spin_ticks > 0 || bot->grenade_pending_ticks > 0 || bot->grenade_hold_ticks > 0 || bot_random(bot) >= level * (0.03f + 0.05f * bot->personality.whim))
 	{
 		return;
@@ -23874,7 +23865,6 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	unit = unit_get(me->unit_index);
 	t->me = me;
 	t->unit = unit;
-	t->zombie = infection_player_is_zombie(DATUM_INDEX_NEW(player_absolute_index, (unsigned short)((struct datum_header *)me)->identifier));
 	if (bot_logging())
 		bot_log_biped_once(me, unit);
 	if (bot->unit_index != me->unit_index)
@@ -24056,7 +24046,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	BOT_PROFILE_MARK("a powerup right he");
 	/* ---- a powerup right here (an overshield, camouflage), or health when
 	   hurt: take it now, fight or no fight (it wins the fight) */
-	if (t->vehicle_index == NONE && !t->zombie && (game_time_get() + player_absolute_index) % 6 == 0 && !bot_goal_is_powerup(bot) &&
+	if (t->vehicle_index == NONE && (game_time_get() + player_absolute_index) % 6 == 0 && !bot_goal_is_powerup(bot) &&
 		!bot_env_set("HALO_BOT_GOTO") &&
 		!(bot->goal_kind == _bot_goal_item && bot_goal_is_game_object(bot->goal_object)) && !bot_holds_named(unit, "flag") &&
 		!bot_holds_named(unit, "ball"))
@@ -24067,7 +24057,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	   yet on top of us; not with the flag or the ball, nor on the way to
 	   one: that does not wait). From further off when a poor gun is all we
 	   have; with a good one beside it, only when there is nobody to fight. */
-	if (t->vehicle_index == NONE && !t->zombie && (game_time_get() + player_absolute_index * 3) % 15 == 0 && !bot_goal_is_powerup(bot) &&
+	if (t->vehicle_index == NONE && (game_time_get() + player_absolute_index * 3) % 15 == 0 && !bot_goal_is_powerup(bot) &&
 		!bot_env_set("HALO_BOT_GOTO") &&
 		!(bot->goal_kind == _bot_goal_item && bot->goal_ticks > 0 && (bot_goal_is_game_object(bot->goal_object) || bot->goal_score >= 50.f)) &&
 		!bot->carrying_objective && !t->committed)
@@ -24081,8 +24071,6 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	   never with the flag or the ball, never under fire). It was up to
 	   three seconds of walking and three of standing over the body with a
 	   bob too quick to see: a bot that stopped and looked at the floor. */
-	if (t->zombie)
-		bot->teabag_pending = FALSE;
 	if (bot->teabag_pending)
 		bot_teabag_start(player_absolute_index, bot, t->vehicle_index, t->target, &t->position);
 	if (bot->teabag_ticks > 0 && (t->target != NONE || bot->hit_ticks > 0 || bot->carrying_objective || t->vehicle_index != NONE ||
@@ -24108,7 +24096,7 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	   corner, or have seen it, it comes out and is on them. It gives it up
 	   if they go off, if someone else turns up, or when it has waited as
 	   long as it has patience for. */
-	if (BOT_ON(BOT_F_CAMP) && bot_refined_is(2048) && t->vehicle_index == NONE && !t->zombie &&
+	if (BOT_ON(BOT_F_CAMP) && bot_refined_is(2048) && t->vehicle_index == NONE &&
 		!(game_engine == &race_engine && bot_refined_is(16384))) /* (nobody lies in wait in a race) */
 		bot_ambush_decide(t);
 	else
@@ -24155,9 +24143,6 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 	/* (broken off a lost fight in a team game, out of their sight: kept out of it till its shields are back) */
 	else if (bot_team_break_holds(t))
 		bot_team_break_move(t);
-	else if (t->zombie && t->target != NONE && t->target_distance < 5.f && !t->committed &&
-		(!aas_ready() || aas_line_in_areas(AAS_FOOT, &t->position, &object_get(object_get_ultimate_parent(t->target))->object.position)))
-		bot_zombie_charge(t);
 	else if (bot_peek_wanted(t))
 		bot_peek_move(t); /* (in cover, stepping out and back: bot_peek_move) */
 	else if (bot_stands_to_fight(t))
@@ -24477,8 +24462,6 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		bot->last_fired_time = game_time_get();
 		/* a beatdown: at arm's length, facing them, unless a shotgun blast
 		   is ready (it does more) */
-		/* (a zombie's blow takes a moment to land, and they back away: from
-		   closer in) */
 		/* (When it lands, not when it's swung: the blow is struck five ticks
 		   after the button (four now and then), and reaches a little over a
 		   unit, centre to centre, at about the same height. Logged against
@@ -24488,9 +24471,9 @@ static void bot_think_inner(long player_absolute_index, struct player_action *ac
 		   them missed. So: swung when where they will be is within 1.15, and
 		   not half a unit above or below. HALO_BOT_OFF=meleelead: at 1.6 as
 		   they are) */
-		real reach = t->zombie ? 1.25f : 1.6f;
+		real reach = 1.6f;
 		real strike_at = t->target_distance;
-		if (!t->zombie && t->vehicle_index == NONE && !bot_env_off("meleelead") && object_try_and_get(t->target))
+		if (t->vehicle_index == NONE && !bot_env_off("meleelead") && object_try_and_get(t->target))
 		{
 			struct object_datum const *them = object_get(object_get_ultimate_parent(t->target));
 			real dx = them->object.position.x - t->position.x, dy = them->object.position.y - t->position.y;
@@ -24899,7 +24882,7 @@ struct bot_debug_snapshot
 	char drive_note[64];
 	long target;
 	real target_distance;
-	int moving, committed, driving, gunner, threatened, look_forced, zombie;
+	int moving, committed, driving, gunner, threatened, look_forced;
 	real move_yaw, move_speed, desired_yaw, desired_pitch, path_yaw;
 	long vehicle;
 	real_point3d position, eye, drive_to, far_place;
@@ -24954,7 +24937,6 @@ static void bot_debug_snapshot_take(struct bot_think *t)
 	s->gunner = t->gunner;
 	s->threatened = t->threatened;
 	s->look_forced = t->look_forced;
-	s->zombie = t->zombie;
 	s->move_yaw = t->move_yaw;
 	s->move_speed = t->move_speed;
 	s->desired_yaw = t->desired_yaw;

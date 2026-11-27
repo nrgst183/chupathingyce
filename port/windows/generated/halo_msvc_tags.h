@@ -790,6 +790,7 @@ struct network_join_parameters;
 struct network_machine;
 struct network_message;
 struct network_player;
+struct network_rules_search_budget;
 struct network_server_connection;
 struct new_particle_data;
 struct number_hud_element_definition;

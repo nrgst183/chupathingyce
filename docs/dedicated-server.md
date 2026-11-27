@@ -41,26 +41,3 @@ for every map, run `bake-navigation.cmd` (Windows), or start the game once
 with `HALO_BAKE_NAVIGATION=all` (Linux and Mac): it writes a `navcache`
 folder next to `maps` and quits. More in the
 [port's README](../port/linux/README.md#baked-navigation).
-
-## Infection
-
-`infection` is a game type of its own: everyone starts alive, one player
-turns into a zombie, and whoever a zombie kills comes back as one. It needs
-two players (bots count).
-
-The zombies are the Flood from the campaign. For that, the server and the
-players need one of the campaign maps `c20`, `d20`, `c40`, `c10` or `d40`
-in their `maps` folder, next to the multiplayer maps. If anyone in the game
-doesn't have one, or plays a build without infection (OpenCE, or
-ChupathingyCE's own releases), the zombies are ordinary players with no
-weapon instead, so that everyone sees the same thing. Players on a build without
-infection can still play, but their game doesn't know who is on which side:
-it shows them a team game with the teams they picked in the lobby.
-
-On a Halo PC map (`<name>@ce`) the zombies are always ordinary players with
-no weapon: the Flood is only added to the Xbox's maps.
-
-Infection games get no carnage report on the site.
-
-`HALO_INFECTION_ROUNDS` (3), `HALO_INFECTION_ROUND_MINUTES` (4) and
-`HALO_INFECTION_COUNTDOWN` (10 seconds) set the length of a game.

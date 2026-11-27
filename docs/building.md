@@ -44,10 +44,10 @@ nightlies or releases yet.
 The version being made is in `VERSION`. Releases are built and published by
 the project's release workflow; the builds on this repository's Actions page
 are for checking changes. A pull request gets a quick check (the Linux
-build, the tests, and the platforms whose own files it changes); every
-platform builds on pushes to `main`, on batches and on pull requests labeled
-`ci: full`. One that changes only documentation doesn't build. Debug builds
-are made only for releases, nightlies and test builds. See [ci.md](ci.md).
+build, the tests, the 64-bit Linux server, and the platforms whose own files
+it changes); the merge queue adds the desktop platforms and Android; every
+platform builds on pushes to `main` and on batches. Debug builds are made
+only for releases, nightlies and test builds. See [ci.md](ci.md).
 
 ## Console ports
 
@@ -158,6 +158,7 @@ and what each hook asks of the port, or on its compile lines:
 | `HALO_CONSOLE_BRINGUP_LOG` | with the developer tools, a console's bring-up logs (frame stages, the main loop's pulse, init.txt's `later` commands) |
 | `HALO_BIG_ENDIAN` | a big-endian console: the maps' headers and tags byte-swapped as they load (`port/console/game`, `tools/tag_swap_generate.py`) |
 | `HALO_WINDOW_TRANSLATED` | with `HALO_64BIT`, a 32-bit console's Xbox addresses in a window placed wherever it has room (`source/cseries/xbox_address.h`) |
+| `HALO_CONSOLE_WINDOW_LOW` | with `HALO_WINDOW_TRANSLATED`, where a console with less memory starts that window (set in the port's own build; 0x7D000000 gives a 48 MB game heap), its heap's room logged at start and a full heap stopping the game with a message |
 
 ### Link Profile on a console
 
@@ -187,4 +188,4 @@ console repository then moves its submodule to it.
 | Option | What it does |
 | --- | --- |
 | `--console-limits` | a desktop build with the original Xbox's network and object limits, to test the console's side of cross-play on one computer; never a build to ship |
-| `--window-rebase` | the 32-bit Linux build with its Xbox memory window wherever `HALO_WINDOW_BASE` puts it, as the Switch's guest has it; never a build to ship |
+| `--window-rebase` | the 32-bit Linux build with its Xbox memory window wherever `HALO_WINDOW_BASE` puts it, as the Switch's guest has it, never a build to ship; the 32-bit Windows build with its window wherever it fits, as Chupathingy32 ships it (32-bit Windows keeps `0x80000000` for itself) |

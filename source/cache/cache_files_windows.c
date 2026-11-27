@@ -629,6 +629,8 @@ static boolean ce_map_open(
 		strncpy(ce_map_name, map_name, sizeof(ce_map_name) - 1);
 		error(_error_silent, "%s map %s: %s, build %.32s", map_family_kind(family), map_name, path,
 			ce_map_file.header.build);
+		/* (SPV3's ui: whether it is its own file, spv3_mode.c) */
+		spv3_mode_note_map_opened(map_name, path);
 		return TRUE;
 	}
 	/* (the map open before stays open, and its version the one loaded) */
@@ -1333,6 +1335,21 @@ short cache_file_read(
 			(boolean)_cache_file_read_failed;
 		return 0;
 	}
+#ifndef HALO_CONSOLE_NO_FORGE
+	/* port: Forge's AI characters' pixels and samples, kept from the
+	campaign map they came from (port/linux/game/forge_ai_tags.c), served at
+	once as an MCC map's are */
+	{
+		extern boolean forge_ai_tags_read(long tag_index, long offset, long size, void *buffer, boolean *read);
+		boolean read;
+
+		if (forge_ai_tags_read(tag_index, offset, size, buffer, &read))
+		{
+			*completion_flag_reference = read ? TRUE : (boolean)_cache_file_read_failed;
+			return 0;
+		}
+	}
+#endif
 	request_index = cache_request_next_free_index();
 	request = cache_request_get(request_index);
 	match_assert(

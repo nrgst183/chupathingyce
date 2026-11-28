@@ -90,6 +90,14 @@ parser.add_argument(
     "up for itself",
 )
 parser.add_argument(
+    "--ark",
+    action=argparse.BooleanOptionalAction,
+    default=False,
+    help="the 32-bit Linux desktop build (ninja linux): Project Ark, an early mode (HALO_ARK; "
+    "port/linux/game/ark_mode.c and port/linux/game/ark), built in only with --ark; without it every unit "
+    "is as it is without the mode",
+)
+parser.add_argument(
     "--packaged",
     action="store_true",
     help="desktop builds: a package manager's build (HALO_PACKAGED; port/linux/src/packaged_install.h): "
@@ -183,6 +191,7 @@ sln = SimpleNamespace(
     game_browser=args.game_browser,
     console_limits=args.console_limits,
     window_rebase=args.window_rebase,
+    ark=args.ark,
     packaged=args.packaged,
     port_lto=args.lto,
     with_bgfx=args.with_bgfx,
